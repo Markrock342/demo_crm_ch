@@ -52,14 +52,17 @@
 }
 
 .btn-danger {
-  background: transparent;
-  border-color: var(--seal);
-  color: var(--seal-deep);
+  background: var(--paper);
+  border: 1px solid oklch(0.58 0.15 35 / 0.45);
+  color: var(--rust);
+  border-radius: var(--radius);
+  font-weight: 600;
 }
 
 .btn-danger:hover,
 .btn-danger:focus {
-  background: var(--seal-soft);
+  background: oklch(0.97 0.02 35);
+  border-color: var(--rust);
 }
 
 .btn-spin {
@@ -135,7 +138,7 @@
   height: 20px;
   background: var(--paper-raised);
   border-radius: 50%;
-  box-shadow: 0 1px 3px oklch(0.23 0.03 38 / 0.2);
+  box-shadow: 0 1px 3px oklch(0.26 0.045 255 / 0.15);
   transition: transform var(--dur) var(--ease);
 }
 
@@ -279,13 +282,13 @@
 .draft-edit:focus,
 .note-form textarea:focus {
   border-color: var(--seal);
-  box-shadow: 0 0 0 3px oklch(0.46 0.15 28 / 0.12);
+  box-shadow: 0 0 0 3px oklch(0.53 0.14 210 / 0.15);
   outline: none;
 }
 
 .bar-search:focus-within {
   border-color: var(--seal);
-  box-shadow: 0 0 0 3px oklch(0.46 0.15 28 / 0.12);
+  box-shadow: 0 0 0 3px oklch(0.53 0.14 210 / 0.15);
 }
 
 .nav a[aria-current="page"] {
@@ -421,6 +424,32 @@
   position: relative;
 }
 
+.lang-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: oklch(0.26 0.045 255 / 0.35);
+  z-index: 120;
+  cursor: pointer;
+}
+
+.lang-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: drop var(--dur) var(--ease);
+  z-index: 130;
+}
+
 .lang-trigger {
   display: inline-flex;
   align-items: center;
@@ -448,20 +477,26 @@
   transform: rotate(180deg);
 }
 
-.lang-menu {
-  position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + 8px);
-  min-width: 220px;
-  margin: 0;
-  padding: 8px;
-  list-style: none;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  animation: drop var(--dur) var(--ease);
-  z-index: 50;
+@media (max-width: 1024px) {
+  .lang-pick.is-open .lang-backdrop {
+    display: block;
+  }
+
+  .lang-menu {
+    position: fixed;
+    inset-inline: var(--space-md);
+    inset-block-end: calc(72px + var(--space-md) + env(safe-area-inset-bottom, 0px));
+    inset-block-start: auto;
+    top: auto;
+    min-width: 0;
+    padding: var(--space-sm);
+    border-radius: 16px;
+    z-index: 130;
+  }
+
+  .lang-menu button {
+    min-height: 48px;
+  }
 }
 
 .lang-menu button {
