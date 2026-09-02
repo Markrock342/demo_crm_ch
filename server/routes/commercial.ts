@@ -4,6 +4,8 @@ import { getDb, hasDatabase } from "../db/index.js";
 import { authMiddleware, requireAuth, requirePermission, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
 import { createInvoiceFromJob, createBillingNote, getArSummary, getInvoice, issueInvoice, listBillingNotes, listInvoices, listPayments, recordPayment } from "../services/finance.service.js";
+import { createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
+import { ensureJobMilestones, listMilestonesForJobs, setMilestoneComplete, summarizeMilestones } from "../services/milestone.service.js";
 import { getJob, listBookingsByQuotation, listJobCharges, listJobs, updateChargeActual } from "../services/operations.service.js";
 import { generateBillingNotePdf, generateQuotationPdf } from "../services/pdf.service.js";
 import {
@@ -141,7 +143,37 @@ export function commercialRoutes() {
   r.get("/jobs", requireAuth(), requirePermission("shipment.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    return c.json({ items: await listJobs(db, c.req.query("customerId")) });
+    const customerId = c.req.query("customerId");
+    const milestoneFilter = c.req.query("milestoneFilter") as "all" | "at_risk" | "pending" | undefined;
+    const filter = milestoneFilter === "at_risk" || milestoneFilter === "pending" ? milestoneFilter : "all";
+    const rows = await listJobs(db, customerId, filter);
+    const milestoneMap = await listMilestonesForJobs(
+      db,
+      rows.map((j) => j.id),
+    );
+    const items = rows.map((j) => {
+      const ms = milestoneMap.get(j.id) ?? [];
+      const summary = summarizeMilestones(ms);
+      return {
+        id: j.id,
+        jobNumber: j.jobNumber,
+        customerId: j.customerId,
+        origin: j.origin,
+        destination: j.destination,
+        pol: j.pol,
+        pod: j.pod,
+        mode: j.mode,
+        status: j.status,
+        teu: j.teu,
+        currency: j.currency,
+        nextMilestoneCode: summary.nextCode,
+        nextMilestoneLabel: summary.nextLabel,
+        nextMilestonePlannedAt: summary.nextPlannedAt,
+        milestoneAtRisk: summary.atRisk,
+        milestonePendingCount: summary.pendingCount,
+      };
+    });
+    return c.json({ items });
   });
 
   r.get("/jobs/:id", requireAuth(), requirePermission("shipment.view"), async (c) => {
@@ -314,6 +346,101 @@ export function commercialRoutes() {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     return c.json(await getJobFinancials(db, c.req.param("id"), roles(c)));
+  });
+
+  r.get("/jobs/:id/milestones", requireAuth(), requirePermission("shipment.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const jobId = c.req.param("id");
+    const job = await getJob(db, jobId);
+    if (!job) return c.json({ error: "not_found" }, 404);
+    const items = await ensureJobMilestones(db, jobId);
+    return c.json({ items });
+  });
+
+  r.patch("/jobs/:id/milestones/:code", requireAuth(), requirePermission("shipment.edit"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const { complete } = z.object({ complete: z.boolean() }).parse(await c.req.json());
+    const row = await setMilestoneComplete(db, c.req.param("id"), c.req.param("code"), complete);
+    if (!row) return c.json({ error: "not_found" }, 404);
+    await writeAudit(db, {
+      userId: user.id,
+      action: complete ? "MILESTONE_COMPLETED" : "MILESTONE_REOPENED",
+      entityType: "job_milestone",
+      entityId: row.id,
+      newValue: row,
+    });
+    return c.json(row);
+  });
+
+  r.get("/containers", requireAuth(), requirePermission("shipment.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const status = c.req.query("status");
+    const customerId = c.req.query("customerId");
+    const yard = c.req.query("yard");
+    const statuses = yard === "1" ? ["yard", "empty", "hold"] : undefined;
+    return c.json({
+      items: await listContainers(db, {
+        status: statuses ? undefined : status,
+        customerId,
+        statuses,
+      }),
+    });
+  });
+
+  r.post("/containers", requireAuth(), requirePermission("container.edit"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const body = z
+      .object({
+        customerId: z.string(),
+        containerNo: z.string(),
+        type: z.string(),
+        direction: z.enum(["in", "out"]),
+        status: z.enum(["yard", "sail", "clear", "hold", "empty"]).optional(),
+        bl: z.string().optional(),
+        yardCode: z.string().optional(),
+        teu: z.number().int().optional(),
+        eta: z.string().optional(),
+        jobId: z.string().optional(),
+        pol: z.string().optional(),
+        pod: z.string().optional(),
+        vessel: z.string().optional(),
+        seal: z.string().optional(),
+        commodity: z.string().optional(),
+      })
+      .parse(await c.req.json());
+    try {
+      const result = await createContainer(db, body);
+      await writeAudit(db, { userId: user.id, action: "CONTAINER_CREATED", entityType: "container", entityId: result.id, newValue: result });
+      return c.json(result, 201);
+    } catch {
+      return c.json({ error: "duplicate_container" }, 409);
+    }
+  });
+
+  r.patch("/containers/:id", requireAuth(), requirePermission("container.edit"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const body = z
+      .object({
+        status: z.enum(["yard", "sail", "clear", "hold", "empty"]).optional(),
+        yardCode: z.string().optional(),
+        bl: z.string().optional(),
+        eta: z.string().nullable().optional(),
+        vessel: z.string().nullable().optional(),
+      })
+      .parse(await c.req.json());
+    const existing = await getContainer(db, c.req.param("id"));
+    if (!existing) return c.json({ error: "not_found" }, 404);
+    const result = await updateContainer(db, c.req.param("id"), body);
+    await writeAudit(db, { userId: user.id, action: "CONTAINER_UPDATED", entityType: "container", entityId: existing.id, newValue: result });
+    return c.json(result);
   });
 
   r.get("/invoices", requireAuth(), requirePermission("invoice.view"), async (c) => {

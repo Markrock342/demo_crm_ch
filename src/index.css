@@ -3535,7 +3535,8 @@ td .pill {
 .page--workspace.page--settings .settings-grid,
 .page--workspace.page--account .timeline,
 .page--workspace.page--account .plain,
-.page--workspace.page--account .task-list {
+.page--workspace.page--account .task-list,
+.page--workspace.page--jobs .split-panels {
   margin-inline: var(--space-md);
 }
 
@@ -3888,4 +3889,72 @@ td .pill {
 
 .block {
   display: block;
+}
+
+.filter-strip-label {
+  margin: 2px 0 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.page--account .commercial-summary {
+  margin: var(--space-sm) 0;
+}
+
+.page--account .account-tabs--commercial {
+  margin-block-end: 2px;
+}
+
+.page--workspace.page--jobs .milestones-block {
+  margin-block-start: var(--space-sm);
+}
+
+.milestone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.milestone-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.milestone-row.is-overdue {
+  background: oklch(0.98 0.02 35);
+  border-color: oklch(0.78 0.08 35);
+}
+
+.milestone-row.is-done {
+  opacity: 0.72;
+}
+
+.milestone-row.is-done time {
+  color: var(--olive);
+}
+
+.milestone-badge {
+  display: block;
+  font-size: var(--caption);
+  color: var(--ink-soft);
+}
+
+.milestone-badge.is-risk {
+  color: var(--rust);
+  font-weight: 600;
+}
+
+.list-btn .milestone-badge {
+  margin-top: 2px;
 }

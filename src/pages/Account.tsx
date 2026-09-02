@@ -1,30 +1,65 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { activityI18n, dealStageI18n, money, priI18n } from "../crm";
-import { cityName, customerName, laneName, yardName } from "../data";
+import { fetchInvoices, fetchJobs, fetchQuotations, type InvoiceRow, type JobRow, type QuotationRow } from "../api/commercial.ts";
+import { dealStageI18n, money, priI18n } from "../crm";
+import { demoInvoices, demoJobs, demoQuotations } from "../demo/commercial-demo.ts";
+import { cityName, customerName, laneName } from "../data";
+import { useAuth } from "../auth/AuthProvider";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
-const tabs = ["overview", "people", "boxes", "mail", "tasks", "docs", "timeline"] as const;
-type Tab = (typeof tabs)[number];
+const crmTabs = ["overview", "people", "mail", "tasks"] as const;
+const commercialTabs = ["quotes", "jobs", "invoices", "docs"] as const;
+type CrmTab = (typeof crmTabs)[number];
+type CommercialTab = (typeof commercialTabs)[number];
+type AccountTab = CrmTab | CommercialTab;
 
-const tabKey: Record<Tab, string> = {
+const crmTabKey: Record<CrmTab, string> = {
   overview: "tabOverview",
   people: "tabPeople",
-  boxes: "tabBoxes",
   mail: "tabMail",
   tasks: "tabTasks",
+};
+
+const commercialTabKey: Record<CommercialTab, string> = {
+  quotes: "tabQuotes",
+  jobs: "tabJobsCommercial",
+  invoices: "tabInvoicesCommercial",
   docs: "tabDocs",
-  timeline: "tabTimeline",
 };
 
 export function AccountPage() {
   const { id } = useParams();
   const s = useStore();
   const { tx, locale, addNote, toggleTask } = s;
+  const { mode, user } = useAuth();
+  const isDemo = mode === "demo";
   const customer = s.customers.find((c) => c.id === id);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<AccountTab>("overview");
   const [note, setNote] = useState("");
+  const [quotes, setQuotes] = useState<QuotationRow[]>([]);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+
+  useEffect(() => {
+    if (!id) return;
+    if (isDemo) {
+      setQuotes(demoQuotations.filter((q) => q.customerId === id));
+      setJobs(demoJobs.filter((j) => j.customerId === id));
+      setInvoices(demoInvoices.filter((i) => i.customerId === id));
+      return;
+    }
+    if (!user) return;
+    void Promise.all([fetchQuotations(id), fetchJobs(id), fetchInvoices(id)])
+      .then(([q, j, inv]) => {
+        setQuotes(q);
+        setJobs(j);
+        setInvoices(inv);
+      })
+      .catch(() => {
+        /* keep empty — CRM tabs still work */
+      });
+  }, [id, isDemo, user]);
 
   if (!customer) return <Navigate to="/customers" replace />;
 
@@ -34,7 +69,6 @@ export function AccountPage() {
   const deals = s.deals.filter((d) => d.customerId === customer.id);
   const tasks = s.tasks.filter((t) => t.customerId === customer.id);
   const docs = s.docs.filter((d) => d.customerId === customer.id);
-  const acts = s.activities.filter((a) => a.customerId === customer.id);
   const primary = people.find((p) => p.primary) ?? people[0];
 
   function onNote(e: FormEvent) {
@@ -44,13 +78,17 @@ export function AccountPage() {
     setNote("");
   }
 
-  const tabCounts: Partial<Record<Tab, number>> = {
+  const crmCounts: Partial<Record<CrmTab, number>> = {
     people: people.length,
-    boxes: boxes.length,
     mail: mails.length,
     tasks: tasks.length,
+  };
+
+  const commercialCounts: Record<CommercialTab, number> = {
+    quotes: quotes.length,
+    jobs: jobs.length,
+    invoices: invoices.length,
     docs: docs.length,
-    timeline: acts.length,
   };
 
   return (
@@ -68,8 +106,8 @@ export function AccountPage() {
             <Link className="crumb crumb-inline" to="/customers">
               ← {tx("backBook")}
             </Link>
-            <div className="filter-row account-tabs" role="tablist">
-              {tabs.map((t) => (
+            <div className="filter-row account-tabs" role="tablist" aria-label="CRM">
+              {crmTabs.map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -78,8 +116,24 @@ export function AccountPage() {
                   className={`filter-chip${tab === t ? " is-on" : ""}`}
                   onClick={() => setTab(t)}
                 >
-                  <span>{tx(tabKey[t])}</span>
-                  {tabCounts[t] != null && tabCounts[t]! > 0 ? <em>{tabCounts[t]}</em> : null}
+                  <span>{tx(crmTabKey[t])}</span>
+                  {crmCounts[t] != null && crmCounts[t]! > 0 ? <em>{crmCounts[t]}</em> : null}
+                </button>
+              ))}
+            </div>
+            <p className="filter-strip-label">{tx("commercialStrip")}</p>
+            <div className="filter-row account-tabs account-tabs--commercial" role="tablist" aria-label={tx("commercialStrip")}>
+              {commercialTabs.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  className={`filter-chip${tab === t ? " is-on" : ""}`}
+                  onClick={() => setTab(t)}
+                >
+                  <span>{tx(commercialTabKey[t])}</span>
+                  {commercialCounts[t] > 0 ? <em>{commercialCounts[t]}</em> : null}
                 </button>
               ))}
             </div>
@@ -92,6 +146,7 @@ export function AccountPage() {
           <section className="block">
             <div className="block-head">
               <h2>{tx("tabOverview")}</h2>
+              <Link to="/boxes">{tx("viewAllBoxes")}</Link>
             </div>
             <dl className="fact">
               <dt>{tx("primaryContact")}</dt>
@@ -101,6 +156,20 @@ export function AccountPage() {
               <dt>{tx("dashOpenDeals")}</dt>
               <dd className="num">{money(deals.filter((d) => d.stage !== "billed").reduce((n, d) => n + d.value, 0))}</dd>
             </dl>
+            <div className="stat-strip commercial-summary">
+              <span className="stat-chip stat-chip--metric">
+                <strong className="num">{quotes.length}</strong>
+                <span>{tx("tabQuotes")}</span>
+              </span>
+              <span className="stat-chip stat-chip--metric">
+                <strong className="num">{jobs.length}</strong>
+                <span>{tx("tabJobsCommercial")}</span>
+              </span>
+              <span className="stat-chip stat-chip--metric">
+                <strong className="num">{invoices.length}</strong>
+                <span>{tx("tabInvoicesCommercial")}</span>
+              </span>
+            </div>
             <form className="note-form" onSubmit={onNote}>
               <label>
                 {tx("addNote")}
@@ -164,39 +233,6 @@ export function AccountPage() {
         )
       ) : null}
 
-      {tab === "boxes" ? (
-        boxes.length === 0 ? (
-          <p className="empty">{tx("noMatch")}</p>
-        ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{tx("colBox")}</th>
-                  <th>{tx("colType")}</th>
-                  <th>{tx("colStatus")}</th>
-                  <th>{tx("colYard")}</th>
-                  <th className="num">{tx("colEta")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {boxes.map((b) => (
-                  <tr key={b.id}>
-                    <td className="mono cell-strong">{b.id}</td>
-                    <td>{b.type}</td>
-                    <td>
-                      <span className={`pill pill-${b.status}`}>{tx(`st${b.status.charAt(0).toUpperCase()}${b.status.slice(1)}`)}</span>
-                    </td>
-                    <td>{yardName(b, locale)}</td>
-                    <td className="num">{b.eta}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      ) : null}
-
       {tab === "mail" ? (
         mails.length === 0 ? (
           <p className="empty">{tx("emptyInbox")}</p>
@@ -237,6 +273,113 @@ export function AccountPage() {
         )
       ) : null}
 
+      {tab === "quotes" ? (
+        quotes.length === 0 ? (
+          <p className="empty">{tx("emptyCommercial")}</p>
+        ) : (
+          <div className="table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{tx("navQuotations")}</th>
+                  <th>{tx("colLane")}</th>
+                  <th>{tx("colStatus")}</th>
+                  <th className="num">{tx("colTeu")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map((q) => (
+                  <tr key={q.id}>
+                    <td className="cell-strong">
+                      <Link to={`/quotations`}>{q.quotationNumber}</Link>
+                    </td>
+                    <td>
+                      {q.pol} → {q.pod}
+                    </td>
+                    <td>
+                      <span className="pill pill-yard">{q.status}</span>
+                    </td>
+                    <td className="num">{q.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
+
+      {tab === "jobs" ? (
+        jobs.length === 0 ? (
+          <p className="empty">{tx("emptyCommercial")}</p>
+        ) : (
+          <div className="table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{tx("navJobs")}</th>
+                  <th>{tx("colLane")}</th>
+                  <th>{tx("colStatus")}</th>
+                  <th className="num">TEU</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((j) => (
+                  <tr key={j.id}>
+                    <td className="cell-strong">
+                      <Link to={`/jobs?selected=${j.id}`}>{j.jobNumber}</Link>
+                    </td>
+                    <td>
+                      {j.pol} → {j.pod}
+                    </td>
+                    <td>
+                      <span className="pill pill-yard">{j.status}</span>
+                    </td>
+                    <td className="num">{j.teu}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
+
+      {tab === "invoices" ? (
+        invoices.length === 0 ? (
+          <p className="empty">{tx("emptyCommercial")}</p>
+        ) : (
+          <div className="table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{tx("colInvoice")}</th>
+                  <th className="num">{tx("colTotal")}</th>
+                  <th className="num">{tx("colBalance")}</th>
+                  <th>{tx("colStatus")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="cell-strong">
+                      <Link to="/invoices">{inv.invoiceNumber}</Link>
+                    </td>
+                    <td className="num">
+                      {inv.total} {inv.currency}
+                    </td>
+                    <td className="num">
+                      {inv.balanceDue} {inv.currency}
+                    </td>
+                    <td>
+                      <span className="pill pill-clear">{inv.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
+
       {tab === "docs" ? (
         docs.length === 0 ? (
           <p className="empty">{tx("emptyDocs")}</p>
@@ -267,23 +410,6 @@ export function AccountPage() {
               </tbody>
             </table>
           </div>
-        )
-      ) : null}
-
-      {tab === "timeline" ? (
-        acts.length === 0 ? (
-          <p className="empty">{tx("noMatch")}</p>
-        ) : (
-          <ol className="timeline">
-            {acts.map((a) => (
-              <li key={a.id}>
-                <time>{a.at}</time>
-                <span className="pill">{tx(activityI18n[a.type])}</span>
-                <p>{a.body}</p>
-                <span className="meta">{a.user}</span>
-              </li>
-            ))}
-          </ol>
         )
       ) : null}
     </div>

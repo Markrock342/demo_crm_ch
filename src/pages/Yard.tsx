@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { customerName } from "../data";
+import { useContainers } from "../hooks/useContainers";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
@@ -11,14 +12,14 @@ function slotFromYard(yard: string) {
 }
 
 export function YardPage() {
-  const { tx, locale, boxes, customers, moveBox } = useStore();
-  const onYard = boxes.filter((b) => b.status === "yard" || b.status === "empty" || b.status === "hold");
+  const { tx, locale, customers } = useStore();
+  const { boxes, moveBox, err } = useContainers({ yardOnly: true });
   const [picked, setPicked] = useState<string | null>(null);
 
   const map = useMemo(() => {
-    const placed = new Map<string, (typeof onYard)[number]>();
-    const leftovers: typeof onYard = [];
-    for (const b of onYard) {
+    const placed = new Map<string, (typeof boxes)[number]>();
+    const leftovers: typeof boxes = [];
+    for (const b of boxes) {
       const slot = slotFromYard(b.yardZh) ?? slotFromYard(b.yardEn);
       if (slot && SLOTS.includes(slot as (typeof SLOTS)[number]) && !placed.has(slot)) placed.set(slot, b);
       else leftovers.push(b);
@@ -29,26 +30,26 @@ export function YardPage() {
       if (next) placed.set(slot, next);
     }
     return placed;
-  }, [onYard]);
+  }, [boxes]);
 
   function onSlot(slot: string) {
     const box = map.get(slot);
     if (picked && !box) {
-      moveBox(picked, `林查班 ${slot}`);
+      void moveBox(picked, `林查班 ${slot}`);
       setPicked(null);
       return;
     }
     if (box) setPicked(picked === box.id ? null : box.id);
   }
 
-  const teu = onYard.reduce((n, b) => n + b.teu, 0);
+  const teu = boxes.reduce((n, b) => n + b.teu, 0);
   const filled = map.size;
 
   return (
     <div className="page page--workspace page--yard">
       <PageToolbar
         title={tx("yardTitle")}
-        count={onYard.length}
+        count={boxes.length}
         hint={picked ? tx("move") : tx("yardHint")}
         actions={
           picked ? (
@@ -58,6 +59,8 @@ export function YardPage() {
           ) : null
         }
       />
+
+      {err ? <p className="meta form-err">{err}</p> : null}
 
       <div className="stat-strip">
         <span className="stat-chip stat-chip--metric">

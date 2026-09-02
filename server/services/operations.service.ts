@@ -2,12 +2,19 @@ import { desc, eq } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { bookings, jobs, shipmentCharges } from "../db/schema/operations.js";
 
-export async function listJobs(db: Db, customerId?: string) {
-  return db
+export async function listJobs(db: Db, customerId?: string, milestoneFilter?: "all" | "at_risk" | "pending") {
+  let rows = await db
     .select()
     .from(jobs)
     .where(customerId ? eq(jobs.customerId, customerId) : undefined)
     .orderBy(desc(jobs.updatedAt));
+
+  if (milestoneFilter && milestoneFilter !== "all") {
+    const { filterJobsByMilestone } = await import("./milestone.service.js");
+    const allowed = new Set(await filterJobsByMilestone(db, rows.map((r) => r.id), milestoneFilter));
+    rows = rows.filter((r) => allowed.has(r.id));
+  }
+  return rows;
 }
 
 export async function getJob(db: Db, id: string) {

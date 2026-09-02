@@ -117,11 +117,19 @@ export type JobRow = {
   status: string;
   teu: number;
   currency: string;
+  nextMilestoneCode?: string | null;
+  nextMilestoneLabel?: string | null;
+  nextMilestonePlannedAt?: string | null;
+  milestoneAtRisk?: boolean;
+  milestonePendingCount?: number;
 };
 
-export async function fetchJobs(customerId?: string) {
-  const q = customerId ? `?customerId=${customerId}` : "";
-  const data = await apiFetch(`/api/jobs${q}`);
+export async function fetchJobs(customerId?: string, milestoneFilter?: "all" | "at_risk" | "pending") {
+  const q = new URLSearchParams();
+  if (customerId) q.set("customerId", customerId);
+  if (milestoneFilter && milestoneFilter !== "all") q.set("milestoneFilter", milestoneFilter);
+  const qs = q.toString();
+  const data = await apiFetch(`/api/jobs${qs ? `?${qs}` : ""}`);
   return (data.items as JobRow[]) ?? [];
 }
 

@@ -546,6 +546,9 @@ export async function createJobFromBooking(db: Db, bookingId: string) {
     }
   }
 
+  const { ensureJobMilestones } = await import("./milestone.service.js");
+  await ensureJobMilestones(db, id);
+
   return { id, jobNumber };
 }
 

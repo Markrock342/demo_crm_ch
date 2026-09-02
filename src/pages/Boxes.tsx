@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { customerName, type Box, type BoxStatus, type Direction } from "../data";
+import { useContainers } from "../hooks/useContainers";
 import { useStore } from "../store";
 import { BoxLedgerCards } from "../ui/BoxLedgerCards";
 import { PageToolbar } from "../ui/PageToolbar";
@@ -10,7 +11,8 @@ import { useMedia } from "../ui/useMedia";
 const statuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
 
 export function BoxesPage() {
-  const { tx, locale, boxes, customers, docs, shipments, query, addBox, setBoxStatus } = useStore();
+  const { tx, locale, customers, docs, shipments, query } = useStore();
+  const { boxes, addBox, setBoxStatus, err: containerErr } = useContainers();
   const mobile = useMedia("(max-width: 1024px)");
   const [params] = useSearchParams();
   const q = (params.get("q") ?? query).trim().toLowerCase();
@@ -51,14 +53,16 @@ export function BoxesPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    const fail = addBox(form);
-    if (fail) {
-      setErr(tx(fail));
-      return;
-    }
-    setErr(null);
-    setForm({ ...form, id: "", bl: "" });
-    setOpen(false);
+    void (async () => {
+      const fail = await addBox(form);
+      if (fail) {
+        setErr(tx(fail));
+        return;
+      }
+      setErr(null);
+      setForm({ ...form, id: "", bl: "" });
+      setOpen(false);
+    })();
   }
 
   const statusCounts = useMemo(() => {
@@ -106,6 +110,8 @@ export function BoxesPage() {
           </>
         }
       />
+
+      {containerErr ? <p className="meta form-err">{containerErr}</p> : null}
 
       {open ? (
         <form className="form" onSubmit={submit} noValidate>
@@ -220,7 +226,7 @@ export function BoxesPage() {
                           id={`st-${b.id}`}
                           className={`status-select pill-${b.status}`}
                           value={b.status}
-                          onChange={(e) => setBoxStatus(b.id, e.target.value as BoxStatus)}
+                          onChange={(e) => void setBoxStatus(b.id, e.target.value as BoxStatus)}
                         >
                           {statuses.map((s) => (
                             <option key={s} value={s}>

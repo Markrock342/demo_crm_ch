@@ -3,6 +3,7 @@ import { getDb, closeDb } from "./index.js";
 import { seedAuth } from "../services/auth.service.js";
 import { seedCrmFromDemo } from "../services/crm.service.js";
 import { seedCommercial } from "./seed-commercial.js";
+import { seedOperations } from "./seed-operations.js";
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
@@ -28,6 +29,7 @@ async function main() {
   await seedAuth(db);
   const crm = await seedCrmFromDemo(db);
   const commercial = await seedCommercial(db);
+  const operations = await seedOperations(db);
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
   if (!crm.skipped) {
@@ -35,6 +37,9 @@ async function main() {
   }
   if (!commercial.skipped) {
     console.log(`Commercial seed: ${commercial.vendors} vendors, ${commercial.lanes} rate lanes`);
+  }
+  if (!operations.skipped) {
+    console.log(`Operations seed: ${operations.jobs} jobs, ${operations.containers} containers`);
   }
 }
 
