@@ -3252,3 +3252,57 @@ td .pill {
     display: block;
   }
 }
+
+.login-page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-md);
+  background: var(--canvas);
+}
+
+.login-card {
+  width: min(420px, 100%);
+  padding: var(--space-xl);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.login-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.login-head h1 {
+  font-size: var(--h2);
+  margin: 0;
+}
+
+.login-head p {
+  margin: var(--space-2xs) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--body-sm);
+}
+
+.login-form {
+  grid-template-columns: 1fr;
+  padding: 0;
+}
+
+.login-demo {
+  margin: var(--space-md) 0 0;
+  font-size: var(--caption);
+  line-height: 1.5;
+}
+
+.bar-user {
+  gap: 10px;
+}
+
+.bar-user .btn-slim {
+  margin-inline-start: var(--space-xs);
+}

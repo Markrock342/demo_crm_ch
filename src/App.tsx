@@ -21,6 +21,7 @@ import {
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "./auth/AuthProvider";
 import { aiHealth } from "./ai/client";
 import { CommandPalette } from "./CommandPalette";
 import { LangPicker } from "./ui/LangPicker";
@@ -41,6 +42,7 @@ import { SettingsPage } from "./pages/Settings";
 import { ShipmentsPage } from "./pages/Shipments";
 import { TasksPage } from "./pages/Tasks";
 import { YardPage } from "./pages/Yard";
+import { LoginPage } from "./pages/Login";
 import { useStore } from "./store";
 
 const groups = [
@@ -76,8 +78,33 @@ const groups = [
 ] as const;
 
 export default function App() {
+  const { mode, user, loading } = useAuth();
+  const { tx } = useStore();
+  const loc = useLocation();
+
+  if (loading) {
+    return (
+      <div className="login-page">
+        <p className="meta">{tx("loading")}</p>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/*"
+        element={mode === "production" && !user && loc.pathname !== "/login" ? <Navigate to="/login" replace /> : <AppShell />}
+      />
+    </Routes>
+  );
+}
+
+function AppShell() {
   const s = useStore();
   const { tx, locale, setLocale, query, setQuery, mails, tasks, docs, toast, compact, motion } = s;
+  const { user, mode, logout } = useAuth();
   const navigate = useNavigate();
   const loc = useLocation();
   const unread = mails.filter((m) => m.unread && m.state === "open").length;
@@ -187,12 +214,17 @@ export default function App() {
           </Link>
           <div className="bar-user">
             <span className="bar-avatar" aria-hidden>
-              林
+              {(user?.nameZh ?? user?.name ?? tx("userName")).slice(0, 1)}
             </span>
             <span>
-              <strong>{tx("userName")}</strong>
-              <em>{tx("userRole")}</em>
+              <strong>{user?.nameZh ?? user?.name ?? tx("userName")}</strong>
+              <em>{user?.roles[0] ?? (mode === "demo" ? tx("demoMode") : tx("userRole"))}</em>
             </span>
+            {user ? (
+              <button type="button" className="btn btn-ghost btn-slim" onClick={() => void logout()}>
+                {tx("logout")}
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
@@ -250,6 +282,7 @@ export default function App() {
           <div className="side-foot">
             <p className="tenant">{tx("tenant")}</p>
             <p className={`gemini-dot ${gemini ? "on" : "off"}`}>{gemini ? tx("geminiOn") : tx("geminiOff")}</p>
+            {mode === "demo" ? <p className="meta">{tx("demoMode")}</p> : null}
           </div>
         </aside>
 

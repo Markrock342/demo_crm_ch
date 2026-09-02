@@ -51,7 +51,7 @@ export function SettingsPage() {
             </li>
             <li>
               <span className="settings-status-label">{tx("sealNote")}</span>
-              <span className="settings-value mono">cangzhan-demo-v3</span>
+              <span className="settings-value mono">{tx("demoMode")}</span>
             </li>
           </ul>
         </section>

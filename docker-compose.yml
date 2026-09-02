@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cangzhan
+      POSTGRES_PASSWORD: cangzhan
+      POSTGRES_DB: cangzhan
+    volumes:
+      - cangzhan_pg:/var/lib/postgresql/data
+
+volumes:
+  cangzhan_pg:

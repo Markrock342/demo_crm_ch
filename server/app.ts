@@ -1,9 +1,19 @@
 import { Hono } from "hono";
 import { hasGeminiKey } from "./gemini.js";
+import { authMiddleware } from "./middleware/auth.js";
+import { authRoutes } from "./routes/auth.js";
+import { crmRoutes } from "./routes/crm.js";
+import { systemRoutes } from "./routes/system.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
   const app = new Hono().basePath("/api");
+
+  app.use("*", authMiddleware);
+
+  app.route("/", systemRoutes());
+  app.route("/auth", authRoutes());
+  app.route("/", crmRoutes());
 
   app.get("/ai/health", (c) => {
     return c.json({ ok: hasGeminiKey(), model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash" });

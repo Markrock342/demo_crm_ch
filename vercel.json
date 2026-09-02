@@ -6,6 +6,17 @@
     "api/ai/*.ts": {
       "includeFiles": "server/**",
       "maxDuration": 60
+    },
+    "api/auth/*.ts": {
+      "includeFiles": "server/**",
+      "maxDuration": 30
+    },
+    "api/[...path].ts": {
+      "includeFiles": "server/**",
+      "maxDuration": 30
+    },
+    "api/health.ts": {
+      "includeFiles": "server/**"
     }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]

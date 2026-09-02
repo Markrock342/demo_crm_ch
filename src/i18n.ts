@@ -143,6 +143,7 @@ const zh: Dict = {
   bl: "提单",
   required: "这一栏要填。",
   savedCustomer: "客户已入册。",
+  errorSave: "保存失败，请重试。",
   savedBox: "货柜已入账。",
   sentMail: "回信已发出。",
   rejectedMail: "拟回已弃。",
@@ -222,6 +223,16 @@ const zh: Dict = {
   exceptionsHint: "待补件柜与缺单证 — 操作台优先处理。",
   calEtd: "预离",
   calEta: "预抵",
+  loginHint: "登录后继续操作台账。",
+  loginEmail: "邮箱",
+  loginPassword: "密码",
+  loginSubmit: "登录",
+  loginBusy: "登录中…",
+  loginBadCreds: "邮箱或密码不对。",
+  loginFailed: "登录失败，请稍后再试。",
+  loginDemoAccounts: "演示账号：admin@cangzhan.com · sales · ops · finance — 密码 demo123",
+  logout: "退出",
+  demoMode: "演示模式",
 };
 
 const th: Dict = {
@@ -356,6 +367,7 @@ const th: Dict = {
   bl: "ใบตราส่ง",
   required: "ช่องนี้ต้องกรอก",
   savedCustomer: "ลงลูกค้าแล้ว",
+  errorSave: "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง",
   savedBox: "ลงตู้แล้ว",
   sentMail: "ส่งจดหมายแล้ว",
   rejectedMail: "ทิ้งร่างแล้ว",
@@ -436,6 +448,16 @@ const th: Dict = {
   exceptionsHint: "ตู้รอเอกสารและเอกสารขาด — จัดการก่อน",
   calEtd: "ออกเรือ",
   calEta: "ถึงท่า",
+  loginHint: "เข้าสู่ระบบเพื่อใช้สมุดบัญชี",
+  loginEmail: "อีเมล",
+  loginPassword: "รหัสผ่าน",
+  loginSubmit: "เข้าสู่ระบบ",
+  loginBusy: "กำลังเข้าสู่ระบบ…",
+  loginBadCreds: "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+  loginFailed: "เข้าสู่ระบบไม่สำเร็จ",
+  loginDemoAccounts: "บัญชีสาธิต: admin@cangzhan.com · sales · ops · finance — รหัส demo123",
+  logout: "ออกจากระบบ",
+  demoMode: "โหมดสาธิต",
 };
 
 const en: Dict = {
@@ -570,6 +592,7 @@ const en: Dict = {
   bl: "B/L",
   required: "This field is required.",
   savedCustomer: "Account entered.",
+  errorSave: "Save failed — please retry.",
   savedBox: "Box entered.",
   sentMail: "Reply sent.",
   rejectedMail: "Draft discarded.",
@@ -650,6 +673,16 @@ const en: Dict = {
   exceptionsHint: "Hold containers and missing docs — ops priority.",
   calEtd: "ETD",
   calEta: "ETA",
+  loginHint: "Sign in to access the ledger.",
+  loginEmail: "Email",
+  loginPassword: "Password",
+  loginSubmit: "Sign in",
+  loginBusy: "Signing in…",
+  loginBadCreds: "Invalid email or password.",
+  loginFailed: "Sign-in failed. Try again.",
+  loginDemoAccounts: "Demo: admin@cangzhan.com · sales · ops · finance — password demo123",
+  logout: "Sign out",
+  demoMode: "Demo mode",
 };
 
 const books: Record<Locale, Dict> = {

@@ -37,8 +37,40 @@ import { invoices as seedInvoices, shipments as seedShipments, type Invoice, typ
 import { applyMailOps, syncCustomerBoxCounts } from "./ops";
 import { t, type Locale } from "./i18n";
 import type { DocStatus } from "./crm";
+import {
+  apiCreateContact,
+  apiCreateCustomer,
+  apiCreateLead,
+  apiCreateOpportunity,
+  apiUpdateLeadStage,
+  apiUpdateOpportunityStage,
+  type CrmBundle,
+} from "./api/crm";
 
-const KEY = "cangzhan-demo-v4";
+const UI_KEY = "cangzhan-ui-v1";
+
+type UiPrefs = {
+  locale: Locale;
+  compact: boolean;
+  motion: boolean;
+};
+
+function loadUi(): UiPrefs {
+  try {
+    const raw = localStorage.getItem(UI_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<UiPrefs>;
+      return {
+        locale: p.locale ?? "zh",
+        compact: p.compact ?? false,
+        motion: p.motion ?? true,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { locale: "zh", compact: false, motion: true };
+}
 
 type Persist = {
   locale: Locale;
@@ -77,35 +109,6 @@ function emptyPersist(): Persist {
   };
 }
 
-function load(): Persist {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Partial<Persist>;
-      const base = emptyPersist();
-      return {
-        locale: p.locale ?? base.locale,
-        customers: syncCustomerBoxCounts(p.customers ?? base.customers, p.boxes ?? base.boxes),
-        boxes: p.boxes ?? base.boxes,
-        mails: p.mails ?? base.mails,
-        contacts: p.contacts ?? base.contacts,
-        leads: p.leads ?? base.leads,
-        deals: p.deals ?? base.deals,
-        tasks: p.tasks ?? base.tasks,
-        activities: p.activities ?? base.activities,
-        docs: p.docs ?? base.docs,
-        shipments: p.shipments ?? base.shipments,
-        invoices: p.invoices ?? base.invoices,
-        compact: p.compact ?? base.compact,
-        motion: p.motion ?? base.motion,
-      };
-    }
-  } catch {
-    /* ponytail: demo persist, ignore bad JSON */
-  }
-  return emptyPersist();
-}
-
 type Store = Persist & {
   toast: string | null;
   query: string;
@@ -137,12 +140,17 @@ type Store = Persist & {
   setMotion: (v: boolean) => void;
   reset: () => void;
   flash: (key: string) => void;
+  hydrateCrm: (bundle: CrmBundle) => void;
+  apiEnabled: boolean;
 };
 
 const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const init = useMemo(load, []);
+  const init = useMemo(() => {
+    const ui = loadUi();
+    return { ...emptyPersist(), ...ui };
+  }, []);
   const [locale, setLocaleState] = useState<Locale>(init.locale);
   const [customers, setCustomers] = useState(init.customers);
   const [boxes, setBoxes] = useState(init.boxes);
@@ -159,28 +167,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [motion, setMotionState] = useState(init.motion);
   const [toast, setToast] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [apiEnabled, setApiEnabled] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(
-      KEY,
+      UI_KEY,
       JSON.stringify({
         locale,
-        customers,
-        boxes,
-        mails,
-        contacts,
-        leads,
-        deals,
-        tasks,
-        activities,
-        docs,
-        shipments,
-        invoices,
         compact,
         motion,
       }),
     );
-  }, [locale, customers, boxes, mails, contacts, leads, deals, tasks, activities, docs, shipments, invoices, compact, motion]);
+  }, [locale, compact, motion]);
 
   const tx = useCallback((key: string, vars?: Record<string, string | number>) => t(locale, key, vars), [locale]);
 
@@ -195,9 +193,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setLocale = useCallback((l: Locale) => setLocaleState(l), []);
   const setMotion = useCallback((v: boolean) => setMotionState(v), []);
 
+  const hydrateCrm = useCallback((bundle: CrmBundle) => {
+    setCustomers(bundle.customers);
+    setContacts(bundle.contacts);
+    setLeads(bundle.leads);
+    setDeals(bundle.deals);
+    setApiEnabled(true);
+  }, []);
+
   const addCustomer = useCallback(
     (c: Pick<Customer, "nameZh" | "cityZh" | "laneZh" | "owner">) => {
       if (!c.nameZh.trim()) return "errorName";
+      if (apiEnabled) {
+        void apiCreateCustomer({
+          nameZh: c.nameZh.trim(),
+          cityZh: c.cityZh.trim() || "—",
+          laneZh: c.laneZh.trim() || "—",
+          owner: c.owner.trim() || "林晓衡",
+        })
+          .then((row) => setCustomers((list) => [row, ...list]))
+          .catch(() => flash("errorSave"));
+        flash("savedCustomer");
+        return null;
+      }
       const today = new Date();
       const stamp = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       setCustomers((list) => [
@@ -222,7 +240,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       flash("savedCustomer");
       return null;
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
   const addBox = useCallback(
@@ -442,15 +460,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const moveDeal = useCallback(
     (id: string, stage: DealStage) => {
-      setDeals((list) => list.map((d) => (d.id === id ? { ...d, stage } : d)));
+      if (apiEnabled) {
+        void apiUpdateOpportunityStage(id, stage)
+          .then((row) => setDeals((list) => list.map((d) => (d.id === id ? { ...d, stage: row.stage as DealStage } : d))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setDeals((list) => list.map((d) => (d.id === id ? { ...d, stage } : d)));
+      }
       flash("dealMoved");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
-  const setLeadStage = useCallback((id: string, stage: LeadStage) => {
-    setLeads((list) => list.map((l) => (l.id === id ? { ...l, stage } : l)));
-  }, []);
+  const setLeadStage = useCallback(
+    (id: string, stage: LeadStage) => {
+      if (apiEnabled) {
+        void apiUpdateLeadStage(id, stage)
+          .then((row) => setLeads((list) => list.map((l) => (l.id === id ? { ...l, stage: row.stage as LeadStage } : l))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setLeads((list) => list.map((l) => (l.id === id ? { ...l, stage } : l)));
+      }
+    },
+    [apiEnabled, flash],
+  );
 
   const convertLead = useCallback(
     (id: string) => {
@@ -494,6 +527,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const addLead = useCallback(
     (l: Pick<Lead, "company" | "city" | "lane" | "contact" | "source" | "teu" | "owner">) => {
       if (!l.company.trim()) return;
+      if (apiEnabled) {
+        void apiCreateLead({
+          company: l.company.trim(),
+          city: l.city.trim() || "—",
+          lane: l.lane.trim() || "—",
+          contact: l.contact.trim() || "—",
+          source: l.source.trim() || "—",
+          teu: l.teu || 0,
+          owner: l.owner.trim() || "林晓衡",
+        })
+          .then((row) => setLeads((list) => [row as Lead, ...list]))
+          .catch(() => flash("errorSave"));
+        flash("savedLead");
+        return;
+      }
       setLeads((list) => [
         {
           id: `l${Date.now()}`,
@@ -511,12 +559,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ]);
       flash("savedLead");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
   const addContact = useCallback(
     (c: Pick<Contact, "customerId" | "name" | "title" | "email" | "phone" | "wechat">) => {
       if (!c.name.trim()) return;
+      if (apiEnabled) {
+        void apiCreateContact({
+          customerId: c.customerId,
+          name: c.name.trim(),
+          title: c.title.trim(),
+          email: c.email.trim(),
+          phone: c.phone.trim(),
+          wechat: c.wechat.trim(),
+          primary: contacts.every((x) => x.customerId !== c.customerId),
+        })
+          .then((row) => setContacts((list) => [row as Contact, ...list]))
+          .catch(() => flash("errorSave"));
+        flash("savedPerson");
+        return;
+      }
       setContacts((list) => [
         {
           id: `p${Date.now()}`,
@@ -532,12 +595,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ]);
       flash("savedPerson");
     },
-    [flash],
+    [apiEnabled, contacts, flash],
   );
 
   const addDeal = useCallback(
     (d: Pick<Deal, "customerId" | "title" | "lane" | "value" | "teu" | "close" | "owner">) => {
       if (!d.title.trim()) return;
+      if (apiEnabled) {
+        void apiCreateOpportunity({
+          customerId: d.customerId,
+          title: d.title.trim(),
+          lane: d.lane.trim() || "—",
+          value: d.value || 0,
+          teu: d.teu || 0,
+          close: d.close.trim() || "09-30",
+          owner: d.owner.trim() || "林晓衡",
+        })
+          .then((row) => setDeals((list) => [row as Deal, ...list]))
+          .catch(() => flash("errorSave"));
+        flash("savedDeal");
+        return;
+      }
       setDeals((list) => [
         {
           id: `d${Date.now()}`,
@@ -554,10 +632,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ]);
       flash("savedDeal");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
   const reset = useCallback(() => {
+    if (apiEnabled) return;
     if (!window.confirm(t(locale, "confirmReset"))) return;
     const fresh = emptyPersist();
     setCustomers(fresh.customers);
@@ -572,7 +651,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setShipments(fresh.shipments);
     setInvoices(fresh.invoices);
     flash("resetDemo");
-  }, [flash, locale]);
+  }, [apiEnabled, flash, locale]);
 
   const value: Store = {
     locale,
@@ -619,6 +698,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMotion,
     reset,
     flash,
+    hydrateCrm,
+    apiEnabled,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
