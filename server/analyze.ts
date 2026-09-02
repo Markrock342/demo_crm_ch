@@ -1,5 +1,5 @@
-import { generateJson } from "./gemini.ts";
-import { formatPort, normalizeDoc, normalizePort } from "./ports.ts";
+import { generateJson } from "./gemini.js";
+import { formatPort, normalizeDoc, normalizePort } from "./ports.js";
 import {
   briefRequestSchema,
   briefResultSchema,
@@ -11,7 +11,7 @@ import {
   type BriefRequest,
   type MailRequest,
   type MailResult,
-} from "./schema.ts";
+} from "./schema.js";
 
 const BOX_RE = /\b([A-Z]{3}U\d{7})\b/g;
 

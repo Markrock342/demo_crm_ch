@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { analyzeLaneMail, summarizeFacts } from "./analyze.ts";
-import { hasGeminiKey } from "./gemini.ts";
-import { briefRequestSchema, mailRequestSchema } from "./schema.ts";
+import { analyzeLaneMail, summarizeFacts } from "./analyze.js";
+import { hasGeminiKey } from "./gemini.js";
+import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
   const app = new Hono();

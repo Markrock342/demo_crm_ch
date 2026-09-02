@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
-import { app } from "./app.ts";
+import { app } from "./app.js";
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
