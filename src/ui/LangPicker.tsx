@@ -6,9 +6,10 @@ import { useMedia } from "./useMedia";
 type Props = {
   value: Locale;
   onChange: (v: Locale) => void;
+  compact?: boolean;
 };
 
-export function LangPicker({ value, onChange }: Props) {
+export function LangPicker({ value, onChange, compact = false }: Props) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const mobile = useMedia("(max-width: 1024px)");
@@ -39,17 +40,18 @@ export function LangPicker({ value, onChange }: Props) {
   }, [open, mobile]);
 
   return (
-    <div className={`lang-pick${open ? " is-open" : ""}`} ref={root}>
+    <div className={`lang-pick${open ? " is-open" : ""}${compact ? " is-compact" : ""}`} ref={root}>
       <button
         type="button"
         className="lang-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={current.full}
         onClick={() => setOpen((v) => !v)}
       >
         <GlobeHemisphereWest size={18} weight="regular" aria-hidden />
-        <span>{current.code}</span>
-        <CaretUp size={14} weight="bold" aria-hidden className={open ? "" : "lang-chev-down"} />
+        {!compact ? <span>{current.code}</span> : null}
+        {!compact ? <CaretUp size={14} weight="bold" aria-hidden className={open ? "" : "lang-chev-down"} /> : null}
       </button>
       {open ? (
         <>

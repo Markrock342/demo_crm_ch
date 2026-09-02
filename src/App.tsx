@@ -172,12 +172,14 @@ export default function App() {
               <MagnifyingGlass size={20} weight="bold" aria-hidden />
             </button>
           ) : null}
-          <button type="button" className="bar-bell" onClick={() => setNoteOpen((v) => !v)} aria-expanded={noteOpen}>
-            <Bell size={18} weight="regular" aria-hidden className="bar-bell-icon" />
-            <span className="bar-bell-text">{tx("notifyTitle")}</span>
-            {hot > 0 ? <span className="badge badge-seal">{hot}</span> : null}
-          </button>
-          <LangPicker value={locale} onChange={setLocale} />
+          {!narrowHeader ? (
+            <button type="button" className="bar-bell" onClick={() => setNoteOpen((v) => !v)} aria-expanded={noteOpen}>
+              <Bell size={18} weight="regular" aria-hidden className="bar-bell-icon" />
+              <span className="bar-bell-text">{tx("notifyTitle")}</span>
+              {hot > 0 ? <span className="badge badge-seal">{hot}</span> : null}
+            </button>
+          ) : null}
+          <LangPicker value={locale} onChange={setLocale} compact={narrowHeader} />
           <Link className="bar-cta" to="/inbox" onClick={() => setMenuOpen(false)}>
             <EnvelopeSimple size={18} weight="fill" aria-hidden />
             <span className="bar-cta-text">{tx("headerCta")}</span>
@@ -275,7 +277,7 @@ export default function App() {
 
       <CommandPalette open={cmd} onClose={() => setCmd(false)} />
       {mobile ? (
-        <MobileDock unread={unread} openTasks={openTasks} onMenu={() => setMenuOpen(true)} />
+        <MobileDock unread={unread} openTasks={hot > 0 ? hot : openTasks} onMenu={() => setMenuOpen(true)} />
       ) : null}
       {toast ? (
         <div className="toast" role="status">
