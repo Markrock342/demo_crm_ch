@@ -5,7 +5,7 @@ import { customerName } from "../data";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Check } from "../ui/Check";
-import { Segment } from "../ui/Segment";
+import { PageToolbar } from "../ui/PageToolbar";
 
 export function TasksPage() {
   const { tx, locale, tasks, customers, query, toggleTask, addTask } = useStore();
@@ -25,6 +25,15 @@ export function TasksPage() {
     [filter, q, tasks],
   );
 
+  const counts = useMemo(
+    () => ({
+      open: tasks.filter((t) => !t.done).length,
+      done: tasks.filter((t) => t.done).length,
+      all: tasks.length,
+    }),
+    [tasks],
+  );
+
   function submit(e: FormEvent) {
     e.preventDefault();
     addTask(title);
@@ -33,30 +42,34 @@ export function TasksPage() {
   }
 
   return (
-    <div className="page page--tasks">
-      <div className="page-head">
-        <div>
-          <h1>{tx("tasksTitle")}</h1>
-          <p>{tx("tasksHint")}</p>
-        </div>
-        <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          {tx("addTask")}
-        </Button>
-      </div>
-
-      <div className="task-toolbar">
-        <Segment
-          label={tx("colStatus")}
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "open", label: tx("taskFilterOpen") },
-            { value: "done", label: tx("taskFilterDone") },
-            { value: "all", label: tx("filterAll") },
-          ]}
-        />
-        <span className="task-count">{tx("taskCount", { n: rows.length })}</span>
-      </div>
+    <div className="page page--workspace page--tasks">
+      <PageToolbar
+        title={tx("tasksTitle")}
+        count={rows.length}
+        hint={tx("tasksHint")}
+        actions={
+          <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {tx("addTask")}
+          </Button>
+        }
+        filters={
+          <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
+            {(["open", "done", "all"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={filter === f}
+                className={`filter-chip${filter === f ? " is-on" : ""}`}
+                onClick={() => setFilter(f)}
+              >
+                <span>{f === "open" ? tx("taskFilterOpen") : f === "done" ? tx("taskFilterDone") : tx("filterAll")}</span>
+                <em>{counts[f]}</em>
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">

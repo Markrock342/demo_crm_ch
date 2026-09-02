@@ -4,6 +4,7 @@ import { aiHealth } from "../ai/client";
 import { locales, type Locale } from "../i18n";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
+import { PageToolbar } from "../ui/PageToolbar";
 import { Segment } from "../ui/Segment";
 import { Switch } from "../ui/Switch";
 
@@ -24,13 +25,8 @@ export function SettingsPage() {
   const langOptions = locales.map((l) => ({ value: l.id as Locale, label: l.label }));
 
   return (
-    <div className="page page--settings">
-      <div className="page-head">
-        <div>
-          <h1>{tx("settingsTitle")}</h1>
-          <p>{tx("settingsHint")}</p>
-        </div>
-      </div>
+    <div className="page page--workspace page--settings">
+      <PageToolbar title={tx("settingsTitle")} hint={tx("settingsHint")} />
 
       <div className="settings-grid">
         <section className="settings-card">

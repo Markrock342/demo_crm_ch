@@ -3,6 +3,7 @@ import { AiError, aiBrief } from "../ai/client";
 import { money } from "../crm";
 import { openInvoiceTotal, overdueInvoices } from "../logistics";
 import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 const depts = ["sales", "ops", "finance", "yard"] as const;
 
@@ -93,72 +94,79 @@ export function ReportsPage() {
     }
   }
 
+  const deptLabel = (d: (typeof depts)[number]) =>
+    tx(d === "sales" ? "deptSales" : d === "ops" ? "deptOps" : d === "finance" ? "deptFinance" : "deptYard");
+
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("reportsTitle")}</h1>
-          <p>{tx("reportsHint")}</p>
-        </div>
-        <div className="toolbar">
-          <button type="button" className="btn btn-ghost" onClick={runBrief} disabled={briefing}>
-            {briefing ? tx("briefRunning") : tx("briefToday")}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={exportCsv}>
-            {tx("exportCsv")}
-          </button>
-        </div>
-      </div>
-
-      <div className="tabs" role="tablist" aria-label={tx("reportsTitle")}>
-        {depts.map((d) => (
-          <button
-            key={d}
-            type="button"
-            role="tab"
-            aria-selected={dept === d}
-            onClick={() => {
-              setDept(d);
-              setBrief(null);
-              setBriefErr(null);
-            }}
-          >
-            {tx(d === "sales" ? "deptSales" : d === "ops" ? "deptOps" : d === "finance" ? "deptFinance" : "deptYard")}
-          </button>
-        ))}
-      </div>
-
-      <section className="report-grid" aria-live="polite">
-        {cards[dept].map((c) => (
-          <div key={c.l}>
-            <div className="num">{c.n}</div>
-            <p className="lbl">{tx(c.l)}</p>
+    <div className="page page--workspace page--reports">
+      <PageToolbar
+        title={tx("reportsTitle")}
+        hint={tx("reportsHint")}
+        actions={
+          <>
+            <button type="button" className="btn btn-ghost" onClick={runBrief} disabled={briefing}>
+              {briefing ? tx("briefRunning") : tx("briefToday")}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={exportCsv}>
+              {tx("exportCsv")}
+            </button>
+          </>
+        }
+        filters={
+          <div className="filter-row" role="tablist" aria-label={tx("reportsTitle")}>
+            {depts.map((d) => (
+              <button
+                key={d}
+                type="button"
+                role="tab"
+                aria-selected={dept === d}
+                className={`filter-chip${dept === d ? " is-on" : ""}`}
+                onClick={() => {
+                  setDept(d);
+                  setBrief(null);
+                  setBriefErr(null);
+                }}
+              >
+                {deptLabel(d)}
+              </button>
+            ))}
           </div>
-        ))}
-      </section>
+        }
+      />
 
-      <p className="insight">
-        {brief ??
-          tx(
-            dept === "sales"
-              ? "insightSales"
-              : dept === "ops"
-                ? "insightOps"
-                : dept === "finance"
-                  ? "insightFin"
-                  : "insightYard",
-          )}
-      </p>
-      {briefErr ? (
-        <p className="field-err" role="alert">
-          {briefErr}
+      <div className="stat-strip report-metrics" aria-live="polite">
+        {cards[dept].map((c) => (
+          <span key={c.l} className="stat-chip stat-chip--metric">
+            <strong className="num">{c.n}</strong>
+            <span>{tx(c.l)}</span>
+          </span>
+        ))}
+      </div>
+
+      <section className="block report-insight">
+        <p className="insight">
+          {brief ??
+            tx(
+              dept === "sales"
+                ? "insightSales"
+                : dept === "ops"
+                  ? "insightOps"
+                  : dept === "finance"
+                    ? "insightFin"
+                    : "insightYard",
+            )}
         </p>
-      ) : null}
-      {dept === "yard" ? (
-        <p className="meta">
-          {tx("occupancy")} · {empty} {tx("stEmpty")}
-        </p>
-      ) : null}
+        {briefErr ? (
+          <p className="field-err" role="alert">
+            {briefErr}
+          </p>
+        ) : null}
+        {dept === "yard" ? (
+          <p className="meta">
+            {tx("occupancy")} · {empty} {tx("stEmpty")}
+          </p>
+        ) : null}
+      </section>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { customerName } from "../data";
 import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 const SLOTS = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4"] as const;
 
@@ -41,18 +42,36 @@ export function YardPage() {
   }
 
   const teu = onYard.reduce((n, b) => n + b.teu, 0);
+  const filled = map.size;
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("yardTitle")}</h1>
-          <p>{tx("yardHint")}</p>
-        </div>
-        <p className="kpi">
-          <span className="num">{teu}</span>
-          <span className="lbl">{tx("teuInYard")}</span>
-        </p>
+    <div className="page page--workspace page--yard">
+      <PageToolbar
+        title={tx("yardTitle")}
+        count={onYard.length}
+        hint={picked ? tx("move") : tx("yardHint")}
+        actions={
+          picked ? (
+            <button type="button" className="btn btn-ghost" onClick={() => setPicked(null)}>
+              {tx("cancel")}
+            </button>
+          ) : null
+        }
+      />
+
+      <div className="stat-strip">
+        <span className="stat-chip stat-chip--metric">
+          <strong className="num">{teu}</strong>
+          <span>{tx("teuInYard")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong>{filled}</strong> / {SLOTS.length} slots
+        </span>
+        {picked ? (
+          <span className="stat-chip stat-chip--active">
+            {tx("move")}: <strong className="mono">{picked}</strong>
+          </span>
+        ) : null}
       </div>
 
       <div className="yard-grid" role="list">
@@ -64,14 +83,14 @@ export function YardPage() {
               key={slot}
               type="button"
               role="listitem"
-              className={`slot ${box ? "slot-full" : "slot-empty"} ${picked === box?.id ? "slot-on" : ""}`}
+              className={`slot ${box ? "slot-full" : "slot-empty"} ${picked === box?.id ? "slot-on" : ""} ${picked && !box ? "slot-target" : ""}`}
               onClick={() => onSlot(slot)}
             >
               <span className="slot-id">{slot}</span>
               {box ? (
                 <>
                   <strong className="mono">{box.id}</strong>
-                  <span>{c ? customerName(c, locale) : ""}</span>
+                  <span className="cell-truncate">{c ? customerName(c, locale) : ""}</span>
                   <span className={`pill pill-${box.status}`}>{tx(`st${cap(box.status)}`)}</span>
                 </>
               ) : (

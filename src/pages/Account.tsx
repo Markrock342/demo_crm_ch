@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { activityI18n, dealStageI18n, money, priI18n } from "../crm";
 import { cityName, customerName, laneName, yardName } from "../data";
 import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 const tabs = ["overview", "people", "boxes", "mail", "tasks", "docs", "timeline"] as const;
 type Tab = (typeof tabs)[number];
@@ -43,42 +44,55 @@ export function AccountPage() {
     setNote("");
   }
 
-  return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <Link className="crumb" to="/customers">
-            {tx("backBook")}
-          </Link>
-          <h1>{customerName(customer, locale)}</h1>
-          <p className="record-meta">
-            <span>{cityName(customer, locale)}</span>
-            <span>{laneName(customer, locale)}</span>
-            <span>
-              {tx("colOwner")} · {customer.owner}
-            </span>
-            <span className="num">
-              {tx("colAr")} {customer.arDays}
-            </span>
-          </p>
-        </div>
-        <Link className="btn btn-primary" to="/inbox">
-          {tx("openMail")}
-        </Link>
-      </div>
+  const tabCounts: Partial<Record<Tab, number>> = {
+    people: people.length,
+    boxes: boxes.length,
+    mail: mails.length,
+    tasks: tasks.length,
+    docs: docs.length,
+    timeline: acts.length,
+  };
 
-      <div className="tabs tabs-line" role="tablist">
-        {tabs.map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-            {tx(tabKey[t])}
-          </button>
-        ))}
-      </div>
+  return (
+    <div className="page page--workspace page--account">
+      <PageToolbar
+        title={customerName(customer, locale)}
+        hint={`${cityName(customer, locale)} · ${laneName(customer, locale)} · ${tx("colOwner")} ${customer.owner} · ${tx("colAr")} ${customer.arDays}`}
+        actions={
+          <Link className="btn btn-primary" to="/inbox">
+            {tx("openMail")}
+          </Link>
+        }
+        filters={
+          <>
+            <Link className="crumb crumb-inline" to="/customers">
+              ← {tx("backBook")}
+            </Link>
+            <div className="filter-row account-tabs" role="tablist">
+              {tabs.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  className={`filter-chip${tab === t ? " is-on" : ""}`}
+                  onClick={() => setTab(t)}
+                >
+                  <span>{tx(tabKey[t])}</span>
+                  {tabCounts[t] != null && tabCounts[t]! > 0 ? <em>{tabCounts[t]}</em> : null}
+                </button>
+              ))}
+            </div>
+          </>
+        }
+      />
 
       {tab === "overview" ? (
         <div className="split">
           <section className="block">
-            <h2>{tx("tabOverview")}</h2>
+            <div className="block-head">
+              <h2>{tx("tabOverview")}</h2>
+            </div>
             <dl className="fact">
               <dt>{tx("primaryContact")}</dt>
               <dd>{primary ? `${primary.name} · ${primary.phone}` : "—"}</dd>
@@ -98,7 +112,9 @@ export function AccountPage() {
             </form>
           </section>
           <section className="block">
-            <h2>{tx("navPipeline")}</h2>
+            <div className="block-head">
+              <h2>{tx("navPipeline")}</h2>
+            </div>
             {deals.length === 0 ? <p className="empty">{tx("emptyPipe")}</p> : null}
             <ul className="plain">
               {deals.map((d) => (
@@ -118,8 +134,8 @@ export function AccountPage() {
         people.length === 0 ? (
           <p className="empty">{tx("emptyPeople")}</p>
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>{tx("name")}</th>
@@ -132,7 +148,7 @@ export function AccountPage() {
               <tbody>
                 {people.map((p) => (
                   <tr key={p.id}>
-                    <td>
+                    <td className="cell-strong">
                       {p.name}
                       {p.primary ? <span className="pill pill-hold">{tx("primaryContact")}</span> : null}
                     </td>
@@ -152,8 +168,8 @@ export function AccountPage() {
         boxes.length === 0 ? (
           <p className="empty">{tx("noMatch")}</p>
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>{tx("colBox")}</th>
@@ -166,7 +182,7 @@ export function AccountPage() {
               <tbody>
                 {boxes.map((b) => (
                   <tr key={b.id}>
-                    <td className="mono">{b.id}</td>
+                    <td className="mono cell-strong">{b.id}</td>
                     <td>{b.type}</td>
                     <td>
                       <span className={`pill pill-${b.status}`}>{tx(`st${b.status.charAt(0).toUpperCase()}${b.status.slice(1)}`)}</span>
@@ -185,12 +201,10 @@ export function AccountPage() {
         mails.length === 0 ? (
           <p className="empty">{tx("emptyInbox")}</p>
         ) : (
-          <ul className="plain">
+          <ul className="plain ledger-list">
             {mails.map((m) => (
               <li key={m.id}>
-                <Link to="/inbox">
-                  {locale === "th" ? m.subjectTh : locale === "en" ? m.subjectEn : m.subjectZh}
-                </Link>
+                <Link to="/inbox">{locale === "th" ? m.subjectTh : locale === "en" ? m.subjectEn : m.subjectZh}</Link>
                 <span>
                   {m.from} · {m.time}
                 </span>
@@ -206,13 +220,17 @@ export function AccountPage() {
         ) : (
           <ul className="task-list">
             {tasks.map((t) => (
-              <li key={t.id} className={`task-row ${t.done ? "done" : ""}`}>
-                <label>
-                  <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id)} />
-                  <span>{t.title}</span>
-                </label>
-                <span className="pill">{tx(priI18n[t.priority])}</span>
-                <time className="num">{t.due}</time>
+              <li key={t.id} className={`task-card pri-${t.priority} ${t.done ? "is-done" : ""}`}>
+                <div className="task-main">
+                  <label className="check">
+                    <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id)} />
+                    <span>{t.title}</span>
+                  </label>
+                  <div className="task-meta">
+                    <span className={`task-pri pri-${t.priority}`}>{tx(priI18n[t.priority])}</span>
+                    <time className="num">{t.due}</time>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
@@ -223,8 +241,8 @@ export function AccountPage() {
         docs.length === 0 ? (
           <p className="empty">{tx("emptyDocs")}</p>
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>{tx("colFile")}</th>
@@ -236,7 +254,7 @@ export function AccountPage() {
               <tbody>
                 {docs.map((d) => (
                   <tr key={d.id}>
-                    <td>{d.name}</td>
+                    <td className="cell-strong">{d.name}</td>
                     <td className="mono">{d.kind}</td>
                     <td className="mono">{d.boxId}</td>
                     <td>

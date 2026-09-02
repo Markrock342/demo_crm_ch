@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { customerName } from "../data";
 import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 function weekWindow(from = new Date()) {
   const start = new Date(from);
@@ -21,14 +22,20 @@ export function CalendarPage() {
   const navigate = useNavigate();
   const { days, today } = useMemo(() => weekWindow(), []);
 
+  const eventCount = useMemo(() => {
+    let n = 0;
+    for (const day of days) {
+      n += tasks.filter((t) => t.due.startsWith(day)).length;
+      n += activities.filter((a) => a.at.startsWith(day)).length;
+      n += shipments.filter((s) => s.etd === day || s.eta === day).length;
+    }
+    return n;
+  }, [activities, days, shipments, tasks]);
+
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("calendarTitle")}</h1>
-          <p>{tx("calendarHint")}</p>
-        </div>
-      </div>
+    <div className="page page--workspace page--cal">
+      <PageToolbar title={tx("calendarTitle")} count={eventCount} hint={tx("calendarHint")} />
+
       <div className="cal" role="list">
         {days.map((day) => {
           const sailToday = shipments.filter((s) => s.etd === day || s.eta === day);

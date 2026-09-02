@@ -32,43 +32,45 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card">
-        <header className="login-head">
-          <span className="bar-mark" aria-hidden>
-            栈
-          </span>
-          <div>
-            <h1>{tx("brand")}</h1>
-            <p>{tx("loginHint")}</p>
-          </div>
-        </header>
+      <div className="login-shell">
+        <div className="login-card">
+          <header className="login-head">
+            <span className="bar-mark login-mark" aria-hidden>
+              栈
+            </span>
+            <div>
+              <h1>{tx("brand")}</h1>
+              <p>{tx("loginHint")}</p>
+            </div>
+          </header>
 
-        <form className="form login-form" onSubmit={submit}>
-          <label>
-            {tx("loginEmail")}
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
-          </label>
-          <label>
-            {tx("loginPassword")}
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          {err ? (
-            <p className="field-err" role="alert">
-              {err}
-            </p>
-          ) : null}
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? tx("loginBusy") : tx("loginSubmit")}
-          </button>
-        </form>
+          <form className="form login-form" onSubmit={submit}>
+            <label>
+              {tx("loginEmail")}
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
+            </label>
+            <label>
+              {tx("loginPassword")}
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            {err ? (
+              <p className="field-err" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
+              {busy ? tx("loginBusy") : tx("loginSubmit")}
+            </button>
+          </form>
 
-        <p className="login-demo meta">{tx("loginDemoAccounts")}</p>
+          <p className="login-demo meta">{tx("loginDemoAccounts")}</p>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { customerName } from "../data";
 import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 export function ContactsPage() {
   const { tx, locale, contacts, customers, query, addContact } = useStore();
@@ -36,16 +37,17 @@ export function ContactsPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("contactsTitle")}</h1>
-          <p>{tx("contactsHint")}</p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          {tx("addContact")}
-        </button>
-      </div>
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("contactsTitle")}
+        count={rows.length}
+        hint={tx("contactsHint")}
+        actions={
+          <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {tx("addContact")}
+          </button>
+        }
+      />
 
       {open ? (
         <form className="form" onSubmit={submit}>
@@ -93,8 +95,8 @@ export function ContactsPage() {
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyPeople")}</p>
       ) : (
-        <div className="table-wrap">
-          <table>
+        <div className="table-shell">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>{tx("name")}</th>
@@ -110,7 +112,7 @@ export function ContactsPage() {
                 const c = customers.find((x) => x.id === p.customerId);
                 return (
                   <tr key={p.id} onClick={() => navigate(`/customers/${p.customerId}`)}>
-                    <td>
+                    <td className="cell-strong">
                       {p.name}
                       {p.primary ? <span className="pill pill-hold">{tx("primaryContact")}</span> : null}
                     </td>

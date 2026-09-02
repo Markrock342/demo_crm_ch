@@ -3522,21 +3522,191 @@ td .pill {
   }
 }
 
+.page--workspace.page--pipe .fold {
+  margin-inline: var(--space-md);
+}
+
+.page--workspace.page--tasks .fold,
+.page--workspace.page--tasks .task-list,
+.page--workspace.page--tasks .task-empty,
+.page--workspace.page--cal .cal,
+.page--workspace.page--yard .yard-grid,
+.page--workspace.page--reports .report-insight,
+.page--workspace.page--settings .settings-grid,
+.page--workspace.page--account .timeline,
+.page--workspace.page--account .plain,
+.page--workspace.page--account .task-list {
+  margin-inline: var(--space-md);
+}
+
+.page--workspace.page--tasks .task-list,
+.page--workspace.page--account .task-list {
+  margin-block: var(--space-sm);
+  padding-bottom: var(--space-sm);
+}
+
+.page--workspace.page--tasks .task-empty {
+  margin-block: var(--space-sm);
+}
+
+.page--workspace.page--tasks .fold {
+  margin-block-start: 0;
+}
+
+.page--workspace.page--cal .cal {
+  margin-block: var(--space-sm);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.page--workspace.page--yard .yard-grid {
+  margin-block: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  overflow: auto;
+}
+
+.page--workspace.page--reports .report-metrics {
+  margin-block-start: var(--space-sm);
+}
+
+.page--workspace.page--reports .report-insight {
+  margin-block: var(--space-sm);
+  padding-bottom: var(--space-sm);
+}
+
+.page--workspace.page--reports .report-insight .insight {
+  max-width: none;
+  margin: 0;
+  padding: var(--space-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-size: var(--body-sm);
+  line-height: 1.55;
+}
+
+.page--workspace.page--settings .settings-grid {
+  margin-block: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  overflow: auto;
+}
+
+.page--workspace.page--account .account-tabs {
+  margin-block-start: 2px;
+}
+
+.page--workspace.page--account .crumb-inline {
+  font-size: var(--caption);
+  color: var(--ink-soft);
+  text-decoration: none;
+  margin-bottom: 2px;
+}
+
+.page--workspace.page--account .crumb-inline:hover {
+  color: var(--seal);
+}
+
+.stat-chip--metric {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.stat-chip--metric strong.num {
+  font-family: var(--font-serif);
+  font-size: var(--h3);
+  line-height: 1.1;
+}
+
+.stat-chip--active {
+  background: var(--seal-soft);
+  color: var(--seal-deep);
+}
+
+.slot-target {
+  border-style: dashed;
+  border-color: var(--seal);
+  background: var(--seal-soft);
+}
+
 .login-page {
   min-height: 100svh;
   display: grid;
   place-items: center;
   padding: var(--space-md);
-  background: var(--canvas);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, oklch(0.94 0.04 235 / 0.55), transparent),
+    var(--canvas);
+}
+
+.login-shell {
+  width: min(440px, 100%);
 }
 
 .login-card {
-  width: min(420px, 100%);
+  width: 100%;
   padding: var(--space-xl);
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow-sm);
+}
+
+.login-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.125rem;
+}
+
+.login-submit {
+  width: 100%;
+  min-height: 42px;
+}
+
+.quote-public {
+  max-width: none;
+  text-align: start;
+}
+
+.quote-route {
+  display: grid;
+  gap: 4px;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-block-end: 1px solid var(--line);
+}
+
+.quote-charges {
+  margin-bottom: var(--space-md);
+  max-height: none;
+}
+
+.quote-charges tfoot td {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: var(--space-xs);
+}
+
+.quote-form {
+  padding: 0;
+  grid-template-columns: 1fr;
+}
+
+.quote-public--done {
+  text-align: center;
+}
+
+.quote-public--done .login-head {
+  justify-content: center;
+}
+
+.quote-public--done .login-head {
+  justify-content: center;
 }
 
 .login-head {
@@ -3714,11 +3884,6 @@ td .pill {
 .list-btn.is-active {
   border-color: var(--seal);
   background: var(--seal-soft);
-}
-
-.quote-public {
-  max-width: 520px;
-  text-align: start;
 }
 
 .block {

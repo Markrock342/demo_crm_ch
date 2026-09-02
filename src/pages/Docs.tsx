@@ -4,7 +4,7 @@ import type { DocStatus } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { DocLedgerCards } from "../ui/DocLedgerCards";
-import { Segment } from "../ui/Segment";
+import { PageToolbar } from "../ui/PageToolbar";
 import { Button } from "../ui/Button";
 import { useMedia } from "../ui/useMedia";
 
@@ -28,20 +28,37 @@ export function DocsPage() {
     [customers, docs, locale, q, status],
   );
 
+  const counts = useMemo(() => {
+    const map: Record<DocStatus | "all", number> = { all: docs.length, ok: 0, wait: 0, late: 0 };
+    for (const d of docs) map[d.status] += 1;
+    return map;
+  }, [docs]);
+
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("docsTitle")}</h1>
-          <p>{tx("docsHint")}</p>
-        </div>
-      </div>
-      <Segment
-        label={tx("colStatus")}
-        value={status}
-        onChange={setStatus}
-        options={statuses.map((s) => ({ value: s, label: s === "all" ? tx("filterAll") : tx(`doc${cap(s)}`) }))}
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("docsTitle")}
+        count={rows.length}
+        hint={tx("docsHint")}
+        filters={
+          <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
+            {statuses.map((s) => (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={status === s}
+                className={`filter-chip${status === s ? " is-on" : ""}`}
+                onClick={() => setStatus(s)}
+              >
+                <span>{s === "all" ? tx("filterAll") : tx(`doc${cap(s)}`)}</span>
+                <em>{counts[s]}</em>
+              </button>
+            ))}
+          </div>
+        }
       />
+
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyDocs")}</p>
       ) : mobile ? (
@@ -54,8 +71,8 @@ export function DocsPage() {
           onStatusChange={setDocStatus}
         />
       ) : (
-        <div className="table-wrap">
-          <table>
+        <div className="table-shell">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>{tx("colFile")}</th>
@@ -72,7 +89,9 @@ export function DocsPage() {
                 const c = customers.find((x) => x.id === d.customerId);
                 return (
                   <tr key={d.id}>
-                    <td onClick={() => navigate(`/customers/${d.customerId}`)}>{d.name}</td>
+                    <td className="cell-strong" onClick={() => navigate(`/customers/${d.customerId}`)}>
+                      {d.name}
+                    </td>
                     <td className="mono" onClick={() => navigate(`/boxes?q=${d.boxId}`)}>
                       {d.kind}
                     </td>

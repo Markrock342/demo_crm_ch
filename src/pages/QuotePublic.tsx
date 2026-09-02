@@ -54,7 +54,13 @@ export function QuotePublicPage() {
   if (err) {
     return (
       <div className="login-page">
-        <p>{err}</p>
+        <div className="login-shell">
+          <div className="login-card quote-public">
+            <p className="field-err" role="alert">
+              {err}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -62,7 +68,11 @@ export function QuotePublicPage() {
   if (!quote) {
     return (
       <div className="login-page">
-        <p>{tx("loading")}</p>
+        <div className="login-shell">
+          <div className="login-card quote-public">
+            <p className="meta">{tx("loading")}</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -70,9 +80,18 @@ export function QuotePublicPage() {
   if (done) {
     return (
       <div className="login-page">
-        <div className="login-card">
-          <h1>{done === "ACCEPTED" ? tx("quoteAccepted") : tx("quoteRejected")}</h1>
-          <p className="meta">{quote.quotationNumber}</p>
+        <div className="login-shell">
+          <div className="login-card quote-public quote-public--done">
+            <header className="login-head">
+              <span className="bar-mark login-mark" aria-hidden>
+                栈
+              </span>
+              <div>
+                <h1>{done === "ACCEPTED" ? tx("quoteAccepted") : tx("quoteRejected")}</h1>
+                <p className="meta">{quote.quotationNumber}</p>
+              </div>
+            </header>
+          </div>
         </div>
       </div>
     );
@@ -80,55 +99,87 @@ export function QuotePublicPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card quote-public">
-        <header>
-          <h1>{tx("quotationReview")}</h1>
-          <p className="meta">
-            {quote.quotationNumber} Rev.{quote.revisionNumber}
-          </p>
-        </header>
-        <p>
-          {quote.origin} → {quote.destination}
-        </p>
-        <p className="meta">
-          {quote.pol} → {quote.pod} · {quote.mode} · {quote.containerType} × {quote.quantity}
-        </p>
-        <ul className="list-plain">
-          {quote.charges.map((c, i) => (
-            <li key={i}>
-              {c.description}: {c.sellAmount} {c.currency}
-            </li>
-          ))}
-        </ul>
-        <p>
-          <strong>{tx("grandTotal")}:</strong> {quote.totalSell} {quote.currency}
-        </p>
-        <form className="form" onSubmit={(e) => void submit(e, "ACCEPTED")}>
-          <label>
-            {tx("signerName")}
-            <input required value={form.signerName} onChange={(e) => setForm({ ...form, signerName: e.target.value })} />
-          </label>
-          <label>
-            {tx("signerEmail")}
-            <input type="email" required value={form.signerEmail} onChange={(e) => setForm({ ...form, signerEmail: e.target.value })} />
-          </label>
-          <label>
-            {tx("signerCompany")}
-            <input value={form.signerCompany} onChange={(e) => setForm({ ...form, signerCompany: e.target.value })} />
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={form.acceptedTerms} onChange={(e) => setForm({ ...form, acceptedTerms: e.target.checked })} required />
-            {tx("acceptTerms")}
-          </label>
-          <div className="toolbar">
-            <button type="submit" className="btn btn-primary">
-              {tx("acceptSign")}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={(e) => void submit(e as unknown as FormEvent, "REJECTED")}>
-              {tx("reject")}
-            </button>
+      <div className="login-shell">
+        <div className="login-card quote-public">
+          <header className="login-head">
+            <span className="bar-mark login-mark" aria-hidden>
+              栈
+            </span>
+            <div>
+              <h1>{tx("quotationReview")}</h1>
+              <p className="meta">
+                {quote.quotationNumber} Rev.{quote.revisionNumber}
+              </p>
+            </div>
+          </header>
+
+          <section className="quote-route">
+            <strong>
+              {quote.origin} → {quote.destination}
+            </strong>
+            <p className="meta">
+              {quote.pol} → {quote.pod} · {quote.mode} · {quote.containerType} × {quote.quantity}
+            </p>
+          </section>
+
+          <div className="table-shell quote-charges">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{tx("colKind")}</th>
+                  <th className="num">{tx("grandTotal")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quote.charges.map((c, i) => (
+                  <tr key={i}>
+                    <td>{c.description}</td>
+                    <td className="num">
+                      {c.sellAmount} {c.currency}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>
+                    <strong>{tx("grandTotal")}</strong>
+                  </td>
+                  <td className="num cell-strong">
+                    {quote.totalSell} {quote.currency}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        </form>
+
+          <form className="form quote-form" onSubmit={(e) => void submit(e, "ACCEPTED")}>
+            <label>
+              {tx("signerName")}
+              <input required value={form.signerName} onChange={(e) => setForm({ ...form, signerName: e.target.value })} />
+            </label>
+            <label>
+              {tx("signerEmail")}
+              <input type="email" required value={form.signerEmail} onChange={(e) => setForm({ ...form, signerEmail: e.target.value })} />
+            </label>
+            <label>
+              {tx("signerCompany")}
+              <input value={form.signerCompany} onChange={(e) => setForm({ ...form, signerCompany: e.target.value })} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={form.acceptedTerms} onChange={(e) => setForm({ ...form, acceptedTerms: e.target.checked })} required />
+              {tx("acceptTerms")}
+            </label>
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary">
+                {tx("acceptSign")}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={(e) => void submit(e as unknown as FormEvent, "REJECTED")}>
+                {tx("reject")}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
