@@ -62,14 +62,14 @@ function loadUi(): UiPrefs {
       const p = JSON.parse(raw) as Partial<UiPrefs>;
       return {
         locale: p.locale ?? "zh",
-        compact: p.compact ?? false,
+        compact: p.compact ?? true,
         motion: p.motion ?? true,
       };
     }
   } catch {
     /* ignore */
   }
-  return { locale: "zh", compact: false, motion: true };
+  return { locale: "zh", compact: true, motion: true };
 }
 
 type Persist = {

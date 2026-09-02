@@ -1,71 +1,77 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { fetchJobFinancials, fetchJobs, type JobFinancials, type JobRow } from "../api/commercial.ts";
+import { demoJobPnl, demoJobs } from "../demo/commercial-demo.ts";
 import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
+import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
 
 export function JobsPage() {
   const { tx, locale, customers } = useStore();
   const { mode, user } = useAuth();
   const [params] = useSearchParams();
+  const isDemo = mode === "demo";
+
   const [rows, setRows] = useState<JobRow[]>([]);
-  const [selected, setSelected] = useState<string | null>(params.get("selected"));
+  const [selected, setSelected] = useState<string | null>(params.get("selected") ?? demoJobs[0]?.id ?? null);
   const [tab, setTab] = useState<"overview" | "financial">("overview");
   const [financials, setFinancials] = useState<JobFinancials | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const displayRows = isDemo ? demoJobs : rows;
   const customerMap = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c])), [customers]);
-  const job = rows.find((j) => j.id === selected) ?? null;
-
-  const load = useCallback(async () => {
-    if (mode !== "production" || !user) return;
-    setRows(await fetchJobs());
-  }, [mode, user]);
+  const job = displayRows.find((j) => j.id === selected) ?? null;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (isDemo || mode !== "production" || !user) return;
+    void fetchJobs().then(setRows);
+  }, [isDemo, mode, user]);
 
   useEffect(() => {
     if (!selected || tab !== "financial") {
       setFinancials(null);
       return;
     }
+    if (isDemo) {
+      const p = demoJobPnl(selected);
+      setFinancials({
+        revenue: p.revenue,
+        cost: p.cost,
+        totalRevenue: p.totalRevenue,
+        totalCost: p.totalCost,
+        grossProfit: p.grossProfit,
+        marginPct: p.marginPct,
+      });
+      return;
+    }
     void fetchJobFinancials(selected)
       .then(setFinancials)
       .catch(() => setMsg(tx("errorLoad")));
-  }, [selected, tab, tx]);
-
-  if (mode === "demo") {
-    return (
-      <div className="page">
-        <div className="page-head">
-          <h1>{tx("jobsTitle")}</h1>
-          <p>{tx("jobsDemoHint")}</p>
-          <Link to="/shipments" className="btn btn-ghost">
-            {tx("navShipments")}
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  }, [selected, tab, tx, isDemo]);
 
   return (
     <div className="page page--split">
       <div className="page-head">
         <div>
           <h1>{tx("jobsTitle")}</h1>
-          <p>{tx("jobsHint")}</p>
+          <p>{isDemo ? tx("jobsDemoPreviewHint") : tx("jobsHint")}</p>
         </div>
+        {isDemo ? (
+          <Link to="/shipments" className="btn btn-ghost">
+            {tx("navShipments")}
+          </Link>
+        ) : null}
       </div>
+
+      {isDemo ? <DemoModuleBanner /> : null}
       {msg ? <p className="meta">{msg}</p> : null}
 
       <div className="split-panels">
         <div className="panel">
           <h2>{tx("jobsList")}</h2>
           <ul className="list-plain">
-            {rows.map((j) => (
+            {displayRows.map((j) => (
               <li key={j.id}>
                 <button type="button" className={`list-btn${selected === j.id ? " is-active" : ""}`} onClick={() => setSelected(j.id)}>
                   <strong>{j.jobNumber}</strong>
@@ -87,9 +93,11 @@ export function JobsPage() {
                 <button type="button" className={`btn btn-ghost${tab === "financial" ? " is-active" : ""}`} onClick={() => setTab("financial")}>
                   {tx("tabFinancial")}
                 </button>
-                <Link to={`/invoices?jobId=${job.id}&customerId=${job.customerId}`} className="btn btn-primary">
-                  {tx("createInvoice")}
-                </Link>
+                {!isDemo ? (
+                  <Link to={`/invoices?jobId=${job.id}&customerId=${job.customerId}`} className="btn btn-primary">
+                    {tx("createInvoice")}
+                  </Link>
+                ) : null}
               </div>
 
               {tab === "overview" ? (
@@ -97,6 +105,7 @@ export function JobsPage() {
                   <h2>{job.jobNumber}</h2>
                   <p>{job.origin} → {job.destination}</p>
                   <p className="meta">{job.mode} · {job.status} · {job.teu} TEU</p>
+                  {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
                 </>
               ) : financials ? (
                 <>

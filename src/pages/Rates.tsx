@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { createQuotationFromRate, searchRates, type RateSearchRow } from "../api/commercial.ts";
+import { demoRates } from "../demo/commercial-demo.ts";
 import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
+import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
 
 const statusClass: Record<RateSearchRow["status"], string> = {
   ACTIVE: "pill-ok",
@@ -15,17 +17,29 @@ export function RatesPage() {
   const { tx, locale, customers } = useStore();
   const { mode, user } = useAuth();
   const navigate = useNavigate();
+  const isDemo = mode === "demo";
   const [form, setForm] = useState({ origin: "Shanghai", destination: "Laem Chabang", containerType: "40HC", mode: "SEA_FCL" });
-  const [rows, setRows] = useState<RateSearchRow[]>([]);
+  const [rows, setRows] = useState<RateSearchRow[]>(isDemo ? demoRates : []);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [quoteCustomer, setQuoteCustomer] = useState(customers[0]?.id ?? "c1");
   const [qty, setQty] = useState(2);
 
-  const canSeeBuy = user?.permissions.includes("rate.view_buy") || user?.permissions.includes("rate.buy.view");
-  const canSeeMargin = user?.permissions.includes("margin.view") || user?.permissions.includes("finance.margin.view");
+  const canSeeBuy = !isDemo && (user?.permissions.includes("rate.view_buy") || user?.permissions.includes("rate.buy.view"));
+  const canSeeMargin = !isDemo && (user?.permissions.includes("margin.view") || user?.permissions.includes("finance.margin.view"));
 
   const load = useCallback(async () => {
+    if (isDemo) {
+      setRows(
+        demoRates.filter(
+          (r) =>
+            r.origin.toLowerCase().includes(form.origin.toLowerCase()) &&
+            r.destination.toLowerCase().includes(form.destination.toLowerCase()) &&
+            r.containerType === form.containerType,
+        ),
+      );
+      return;
+    }
     if (mode !== "production" || !user) return;
     setLoading(true);
     setErr(null);
@@ -37,13 +51,14 @@ export function RatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [form, mode, user, tx]);
+  }, [form, isDemo, mode, user, tx]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   async function createQuote(laneId: string) {
+    if (isDemo) return;
     try {
       const result = (await createQuotationFromRate({ customerId: quoteCustomer, rateLaneId: laneId, quantity: qty })) as {
         id: string;
@@ -59,25 +74,16 @@ export function RatesPage() {
     void load();
   }
 
-  if (mode === "demo") {
-    return (
-      <div className="page">
-        <div className="page-head">
-          <h1>{tx("ratesTitle")}</h1>
-          <p>{tx("ratesDemoHint")}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1>{tx("ratesTitle")}</h1>
-          <p>{tx("ratesHint")}</p>
+          <p>{isDemo ? tx("ratesDemoPreviewHint") : tx("ratesHint")}</p>
         </div>
       </div>
+
+      {isDemo ? <DemoModuleBanner /> : null}
 
       <form className="form pipe-form" onSubmit={submit}>
         <label>
@@ -98,20 +104,24 @@ export function RatesPage() {
             ))}
           </select>
         </label>
-        <label>
-          {tx("colCustomer")}
-          <select value={quoteCustomer} onChange={(e) => setQuoteCustomer(e.target.value)}>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {customerName(c, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {tx("colQty")}
-          <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-        </label>
+        {!isDemo ? (
+          <>
+            <label>
+              {tx("colCustomer")}
+              <select value={quoteCustomer} onChange={(e) => setQuoteCustomer(e.target.value)}>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {customerName(c, locale)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {tx("colQty")}
+              <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+            </label>
+          </>
+        ) : null}
         <button type="submit" className="btn btn-primary">
           {tx("searchRates")}
         </button>
@@ -119,6 +129,7 @@ export function RatesPage() {
 
       {err ? <p className="form-err">{err}</p> : null}
       {loading ? <p className="meta">{tx("loading")}</p> : null}
+      {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
 
       <div className="table-wrap">
         <table className="ledger">
@@ -131,7 +142,7 @@ export function RatesPage() {
               <th>{tx("colSell")}</th>
               {canSeeMargin ? <th>{tx("colMargin")}</th> : null}
               <th>{tx("colStatus")}</th>
-              <th />
+              {!isDemo ? <th /> : null}
             </tr>
           </thead>
           <tbody>
@@ -151,11 +162,13 @@ export function RatesPage() {
                 <td>
                   <span className={`pill ${statusClass[r.status]}`}>{r.status}</span>
                 </td>
-                <td>
-                  <button type="button" className="btn btn-ghost" onClick={() => void createQuote(r.laneId)}>
-                    {tx("createQuote")}
-                  </button>
-                </td>
+                {!isDemo ? (
+                  <td>
+                    <button type="button" className="btn btn-ghost" onClick={() => void createQuote(r.laneId)}>
+                      {tx("createQuote")}
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

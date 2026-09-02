@@ -378,17 +378,30 @@
 }
 
 .app.is-dense {
-  --space-lg: 16px;
-  --space-xl: 20px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --body: 0.8125rem;
+  --body-sm: 0.75rem;
 }
 
 .app.is-dense th,
-.app.is-dense td {
-  padding: 6px 8px;
+.app.is-dense td,
+.app.is-dense .data-table th,
+.app.is-dense .data-table td {
+  padding: 4px 6px;
 }
 
 .app.is-dense .btn:not(.btn-slim) {
-  min-height: 36px;
+  min-height: 30px;
+}
+
+.app.is-dense .filter-chip {
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.app.is-dense .table-shell {
+  max-height: calc(100svh - 196px);
 }
 
 .app.is-still .toast,

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { shipmentStatusI18n, type ShipmentStatus } from "../logistics";
 import { customerName } from "../data";
 import { useStore } from "../store";
-import { Segment } from "../ui/Segment";
+import { PageToolbar } from "../ui/PageToolbar";
 import { ShipmentLedgerCards } from "../ui/ShipmentLedgerCards";
 import { useMedia } from "../ui/useMedia";
 
@@ -27,6 +27,19 @@ export function ShipmentsPage() {
     [customers, locale, q, shipments, status],
   );
 
+  const counts = useMemo(() => {
+    const map: Record<ShipmentStatus | "all", number> = {
+      all: shipments.length,
+      booking: 0,
+      gate_in: 0,
+      sail: 0,
+      arrived: 0,
+      delivered: 0,
+    };
+    for (const s of shipments) map[s.status] += 1;
+    return map;
+  }, [shipments]);
+
   const boxCounts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const s of rows) {
@@ -35,21 +48,47 @@ export function ShipmentsPage() {
     return map;
   }, [boxes, rows]);
 
+  const totalTeu = rows.reduce((n, s) => n + s.teu, 0);
+
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("shipmentsTitle")}</h1>
-          <p>{tx("shipmentsHint")}</p>
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("shipmentsTitle")}
+        count={rows.length}
+        hint={tx("shipmentsHintShort")}
+        filters={
+          <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
+            {statuses.map((s) => (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={status === s}
+                className={`filter-chip${status === s ? " is-on" : ""}`}
+                onClick={() => setStatus(s)}
+              >
+                <span>{s === "all" ? tx("filterAll") : tx(shipmentStatusI18n[s])}</span>
+                <em>{counts[s]}</em>
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      <div className="stat-strip">
+        <div className="stat-chip">
+          <span>{tx("colTeu")}</span>
+          <strong>{totalTeu}</strong>
+        </div>
+        <div className="stat-chip">
+          <span>{tx("colBoxes")}</span>
+          <strong>{Object.values(boxCounts).reduce((n, v) => n + v, 0)}</strong>
+        </div>
+        <div className="stat-chip">
+          <span>{tx("filterAll")}</span>
+          <strong>{rows.length}</strong>
         </div>
       </div>
-
-      <Segment
-        label={tx("colStatus")}
-        value={status}
-        onChange={setStatus}
-        options={statuses.map((s) => ({ value: s, label: s === "all" ? tx("filterAll") : tx(shipmentStatusI18n[s]) }))}
-      />
 
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyShipments")}</p>
@@ -62,8 +101,8 @@ export function ShipmentsPage() {
           onOpen={(s) => navigate(`/boxes?q=${s.bl}`)}
         />
       ) : (
-        <div className="table-wrap">
-          <table>
+        <div className="table-shell">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>{tx("colBooking")}</th>
@@ -90,13 +129,13 @@ export function ShipmentsPage() {
                       if (e.key === "Enter") navigate(`/boxes?q=${s.bl}`);
                     }}
                   >
-                    <td className="mono">{s.bookingNo}</td>
-                    <td>{c ? customerName(c, locale) : "—"}</td>
-                    <td>
+                    <td className="mono cell-strong">{s.bookingNo}</td>
+                    <td className="cell-truncate">{c ? customerName(c, locale) : "—"}</td>
+                    <td className="cell-truncate">
                       {s.vessel}
                       <span className="meta"> · {s.voyage}</span>
                     </td>
-                    <td className="mono">
+                    <td className="mono cell-lane">
                       {s.pol} → {s.pod}
                     </td>
                     <td className="num">{s.teu}</td>
@@ -114,7 +153,7 @@ export function ShipmentsPage() {
         </div>
       )}
 
-      <p className="hint">
+      <p className="page-foot">
         {tx("shipmentsFoot")}{" "}
         <Link to="/docs">{tx("navDocs")}</Link>
       </p>

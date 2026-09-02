@@ -12,23 +12,24 @@ import {
   submitQuotationApproval,
   type QuotationRow,
 } from "../api/commercial.ts";
+import { demoQuotationDetail, demoQuotations, type DemoQuoteDetail } from "../demo/commercial-demo.ts";
 import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
+import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
 
-type QuoteDetail = {
-  quotation: QuotationRow;
-  totals: { totalBuy: string | null; totalSell: string | null; grossProfit: string | null; marginPct: string | null } | null;
-  charges: Array<{ description: string; sellAmount: string; buyAmount?: string | null; currency: string }>;
-};
+type QuoteDetail = DemoQuoteDetail;
 
 export function QuotationsPage() {
   const { tx, locale, customers } = useStore();
   const { mode, user } = useAuth();
+  const isDemo = mode === "demo";
   const [params] = useSearchParams();
-  const [rows, setRows] = useState<QuotationRow[]>([]);
-  const [detail, setDetail] = useState<QuoteDetail | null>(null);
-  const [selected, setSelected] = useState<string | null>(params.get("id"));
+  const [rows, setRows] = useState<QuotationRow[]>(isDemo ? demoQuotations : []);
+  const [detail, setDetail] = useState<QuoteDetail | null>(
+    isDemo ? demoQuotationDetail(params.get("id") ?? demoQuotations[0]?.id ?? "") : null,
+  );
+  const [selected, setSelected] = useState<string | null>(params.get("id") ?? (isDemo ? demoQuotations[0]?.id ?? null : null));
   const [publicLink, setPublicLink] = useState<string | null>(null);
   const [bookings, setBookings] = useState<Array<{ id: string; bookingNumber: string }>>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -37,18 +38,30 @@ export function QuotationsPage() {
   const canSend = user?.permissions.includes("quotation.send");
 
   const loadList = useCallback(async () => {
+    if (isDemo) {
+      setRows(demoQuotations);
+      return;
+    }
     if (mode !== "production" || !user) return;
     const items = await fetchQuotations();
     setRows(items);
-  }, [mode, user]);
+  }, [isDemo, mode, user]);
 
-  const loadDetail = useCallback(async (id: string) => {
-    const d = (await fetchQuotation(id)) as QuoteDetail;
-    setDetail(d);
-    setSelected(id);
-    const bks = await fetchBookingsForQuote(id).catch(() => []);
-    setBookings(bks);
-  }, []);
+  const loadDetail = useCallback(
+    async (id: string) => {
+      if (isDemo) {
+        setDetail(demoQuotationDetail(id));
+        setSelected(id);
+        return;
+      }
+      const d = (await fetchQuotation(id)) as QuoteDetail;
+      setDetail(d);
+      setSelected(id);
+      const bks = await fetchBookingsForQuote(id).catch(() => []);
+      setBookings(bks);
+    },
+    [isDemo],
+  );
 
   useEffect(() => {
     void loadList();
@@ -56,8 +69,9 @@ export function QuotationsPage() {
 
   useEffect(() => {
     const id = params.get("id");
-    if (id && mode === "production") void loadDetail(id);
-  }, [params, mode, loadDetail]);
+    if (id) void loadDetail(id);
+    else if (isDemo && demoQuotations[0]) void loadDetail(demoQuotations[0].id);
+  }, [params, isDemo, loadDetail]);
 
   const customerMap = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c])), [customers]);
 
@@ -72,26 +86,16 @@ export function QuotationsPage() {
     }
   }
 
-  if (mode === "demo") {
-    return (
-      <div className="page">
-        <div className="page-head">
-          <h1>{tx("quotationsTitle")}</h1>
-          <p>{tx("quotationsDemoHint")}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="page page--split">
       <div className="page-head">
         <div>
           <h1>{tx("quotationsTitle")}</h1>
-          <p>{tx("quotationsHint")}</p>
+          <p>{isDemo ? tx("quotationsDemoPreviewHint") : tx("quotationsHint")}</p>
         </div>
       </div>
 
+      {isDemo ? <DemoModuleBanner /> : null}
       {msg ? <p className="meta">{msg}</p> : null}
 
       <div className="split-panels">
@@ -120,6 +124,7 @@ export function QuotationsPage() {
               <p className="meta">
                 {detail.quotation.mode} · {detail.quotation.containerType} × {detail.quotation.quantity} · {detail.quotation.status}
               </p>
+              {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
               {detail.totals ? (
                 <div className="kpi-row">
                   {detail.totals.totalBuy ? (
@@ -147,60 +152,62 @@ export function QuotationsPage() {
                   </li>
                 ))}
               </ul>
-              <div className="toolbar">
-                <a className="btn btn-ghost" href={quotationPdfUrl(detail.quotation.id)} target="_blank" rel="noreferrer">
-                  PDF
-                </a>
-                {detail.quotation.status === "DRAFT" ? (
-                  <button type="button" className="btn btn-ghost" onClick={() => void act(() => submitQuotationApproval(detail.quotation.id), "quoteSubmitted")}>
-                    {tx("submitApproval")}
-                  </button>
-                ) : null}
-                {canApprove && detail.quotation.status === "PENDING_APPROVAL" ? (
-                  <>
-                    <button type="button" className="btn btn-primary" onClick={() => void act(() => approveQuotation(detail.quotation.id, "APPROVED"), "quoteApproved")}>
-                      {tx("approve")}
+              {!isDemo ? (
+                <div className="toolbar">
+                  <a className="btn btn-ghost" href={quotationPdfUrl(detail.quotation.id)} target="_blank" rel="noreferrer">
+                    PDF
+                  </a>
+                  {detail.quotation.status === "DRAFT" ? (
+                    <button type="button" className="btn btn-ghost" onClick={() => void act(() => submitQuotationApproval(detail.quotation.id), "quoteSubmitted")}>
+                      {tx("submitApproval")}
                     </button>
-                    <button type="button" className="btn btn-ghost" onClick={() => void act(() => approveQuotation(detail.quotation.id, "REJECTED"), "quoteRejected")}>
-                      {tx("reject")}
+                  ) : null}
+                  {canApprove && detail.quotation.status === "PENDING_APPROVAL" ? (
+                    <>
+                      <button type="button" className="btn btn-primary" onClick={() => void act(() => approveQuotation(detail.quotation.id, "APPROVED"), "quoteApproved")}>
+                        {tx("approve")}
+                      </button>
+                      <button type="button" className="btn btn-ghost" onClick={() => void act(() => approveQuotation(detail.quotation.id, "REJECTED"), "quoteRejected")}>
+                        {tx("reject")}
+                      </button>
+                    </>
+                  ) : null}
+                  {canSend && ["APPROVED", "DRAFT"].includes(detail.quotation.status) ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() =>
+                        void act(async () => {
+                          const r = (await sendQuotation(detail.quotation.id)) as { publicUrl: string };
+                          setPublicLink(r.publicUrl);
+                        }, "quoteSent")
+                      }
+                    >
+                      {tx("sendQuote")}
                     </button>
-                  </>
-                ) : null}
-                {canSend && ["APPROVED", "DRAFT"].includes(detail.quotation.status) ? (
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() =>
-                      void act(async () => {
-                        const r = (await sendQuotation(detail.quotation.id)) as { publicUrl: string };
-                        setPublicLink(r.publicUrl);
-                      }, "quoteSent")
-                    }
-                  >
-                    {tx("sendQuote")}
-                  </button>
-                ) : null}
-                {detail.quotation.status === "ACCEPTED" ? (
-                  <button type="button" className="btn btn-primary" onClick={() => void act(() => createBookingFromQuote(detail.quotation.id), "bookingCreated")}>
-                    {tx("createBooking")}
-                  </button>
-                ) : null}
-                {bookings.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() =>
-                      void act(async () => {
-                        const r = (await createJobFromBooking(b.id)) as { id: string; jobNumber: string };
-                        window.location.href = `/jobs?selected=${r.id}`;
-                      }, "jobCreated")
-                    }
-                  >
-                    {tx("createJob")} ({b.bookingNumber})
-                  </button>
-                ))}
-              </div>
+                  ) : null}
+                  {detail.quotation.status === "ACCEPTED" ? (
+                    <button type="button" className="btn btn-primary" onClick={() => void act(() => createBookingFromQuote(detail.quotation.id), "bookingCreated")}>
+                      {tx("createBooking")}
+                    </button>
+                  ) : null}
+                  {bookings.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() =>
+                        void act(async () => {
+                          const r = (await createJobFromBooking(b.id)) as { id: string; jobNumber: string };
+                          window.location.href = `/jobs?selected=${r.id}`;
+                        }, "jobCreated")
+                      }
+                    >
+                      {tx("createJob")} ({b.bookingNumber})
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {publicLink ? (
                 <p className="meta">
                   {tx("publicLink")}: <a href={publicLink}>{publicLink}</a>
