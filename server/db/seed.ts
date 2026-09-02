@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { getDb, closeDb } from "./index.js";
 import { seedAuth } from "../services/auth.service.js";
 import { seedCrmFromDemo } from "../services/crm.service.js";
+import { seedCommercial } from "./seed-commercial.js";
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
@@ -26,10 +27,14 @@ async function main() {
   }
   await seedAuth(db);
   const crm = await seedCrmFromDemo(db);
+  const commercial = await seedCommercial(db);
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
   if (!crm.skipped) {
     console.log(`CRM seed: ${crm.customers} customers, ${crm.contacts} contacts, ${crm.leads} leads, ${crm.opportunities} opportunities`);
+  }
+  if (!commercial.skipped) {
+    console.log(`Commercial seed: ${commercial.vendors} vendors, ${commercial.lanes} rate lanes`);
   }
 }
 

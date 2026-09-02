@@ -70,20 +70,53 @@ Browser (existing React UI)
 - Write-through for CRM mutations when API enabled
 - Audit log on CRM creates/updates
 
-### Phase 3 — Commercial
+### Phase 3 — Commercial workflow ✅ (partial — core path)
 
-- Vendors, RateSheet/Lane/Charge, Quotations + versions
-- Margin calculations server-side
+**Schema** (`0002_commercial_workflow.sql`):
+- Vendors, RateSheet, RateLane, RateCharge
+- Quotations, QuotationRevisions, QuotationCharges (immutable after send)
+- ApprovalRequests, QuoteAcceptanceTokens, QuoteSignatures
+- Bookings, Jobs, ShipmentCharges
+- Invoices, InvoiceLines, BillingNotes, Payments, PaymentAllocations, VendorBills
+- Currencies, ExchangeRates, TaxCodes, DocSequences
 
-### Phase 4 — Operations
+**API** (RBAC enforced):
+- `GET /api/rates/search` — buy/sell/margin filtered by role
+- `POST /api/quotations/from-rate` — server-side margin calc
+- Approval: submit → approve/reject
+- Send → public token `/q/:token`
+- `POST /api/public/quotes/:token/sign` — e-sign evidence
+- Quote → Booking → Job with charge copy
+- `GET /api/jobs/:id/financials` — P&L
+- Invoice from job, issue, payment allocation, AR summary
 
-- Booking, Shipment/Job, ShipmentContainer, Milestones
-- Boxes UI → Container Operations (same routes)
+**UI** (existing design language):
+- `/rates` — Rate Search
+- `/quotations` — quote workflow
+- `/q/:token` — customer acceptance (no login)
 
-### Phase 5 — Finance
+**Still TODO in Phase 3:**
+- Customer master field expansion (Customer 360 tabs)
 
-- ShipmentRevenue, ShipmentCost, Invoice, VendorBill
-- Job costing on shipment detail
+**Added in latest iteration:**
+- Quotation PDF (`GET /api/quotations/:id/pdf`)
+- Billing Note PDF + create (`POST /api/billing-notes`, `GET .../pdf`)
+- `/jobs` page with Financial tab (P&L)
+- `/invoices` page — issue, billing note, partial payments, AR buckets
+- Quote → Booking → **Create Job** button in Quotations UI
+
+### Phase 4 — Operations (partial)
+
+- Jobs table + shipment charges from quotes ✅
+- Milestones, container DB persistence — **TODO**
+- Boxes UI → container ops API — **TODO**
+
+### Phase 5 — Finance (partial)
+
+- Invoice + payment APIs ✅
+- `/invoices` UI — issue, billing note, payment ✅
+- Vendor bills UI, credit notes, freight bill audit — **TODO**
+- Shipment financial tab wired via `/jobs` Financial tab ✅
 
 ### Phase 6 — Email persistence
 

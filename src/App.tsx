@@ -4,6 +4,7 @@ import {
   ChartBar,
   Cube,
   EnvelopeSimple,
+  CurrencyCircleDollar,
   FileText,
   Funnel,
   Gear,
@@ -13,6 +14,7 @@ import {
   ListChecks,
   MagnifyingGlass,
   Package,
+  Receipt,
   SquaresFour,
   Tray,
   Users,
@@ -34,9 +36,14 @@ import { ContactsPage } from "./pages/Contacts";
 import { CustomersPage } from "./pages/Customers";
 import { DocsPage } from "./pages/Docs";
 import { InboxPage } from "./pages/Inbox";
+import { InvoicesPage } from "./pages/Invoices";
+import { JobsPage } from "./pages/Jobs";
 import { LeadsPage } from "./pages/Leads";
 import { OverviewPage } from "./pages/Overview";
 import { PipelinePage } from "./pages/Pipeline";
+import { QuotePublicPage } from "./pages/QuotePublic";
+import { QuotationsPage } from "./pages/Quotations";
+import { RatesPage } from "./pages/Rates";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
 import { ShipmentsPage } from "./pages/Shipments";
@@ -54,6 +61,20 @@ const groups = [
       { to: "/leads", key: "navLeads", icon: Tray },
       { to: "/customers", key: "navCustomers", icon: Users },
       { to: "/contacts", key: "navContacts", icon: IdentificationCard },
+    ],
+  },
+  {
+    key: "navCommercial",
+    items: [
+      { to: "/rates", key: "navRates", icon: CurrencyCircleDollar },
+      { to: "/quotations", key: "navQuotations", icon: Receipt },
+    ],
+  },
+  {
+    key: "navFinance",
+    items: [
+      { to: "/jobs", key: "navJobs", icon: Package },
+      { to: "/invoices", key: "navInvoices", icon: Receipt },
     ],
   },
   {
@@ -92,6 +113,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/q/:token" element={<QuotePublicPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/*"
@@ -294,6 +316,10 @@ function AppShell() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<AccountPage />} />
             <Route path="/contacts" element={<ContactsPage />} />
+            <Route path="/rates" element={<RatesPage />} />
+            <Route path="/quotations" element={<QuotationsPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/boxes" element={<BoxesPage />} />
             <Route path="/shipments" element={<ShipmentsPage />} />
             <Route path="/yard" element={<YardPage />} />
