@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { analyzeLaneMail, summarizeFacts } from "./analyze.js";
 import { hasGeminiKey } from "./gemini.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
@@ -13,6 +12,7 @@ export function createApp() {
   app.post("/api/ai/mail", async (c) => {
     if (!hasGeminiKey()) return c.json({ error: "missing_key" }, 503);
     try {
+      const { analyzeLaneMail } = await import("./analyze.js");
       const body = mailRequestSchema.parse(await c.req.json());
       const result = await analyzeLaneMail(body);
       return c.json(result);
@@ -26,6 +26,7 @@ export function createApp() {
   app.post("/api/ai/brief", async (c) => {
     if (!hasGeminiKey()) return c.json({ error: "missing_key" }, 503);
     try {
+      const { summarizeFacts } = await import("./analyze.js");
       const body = briefRequestSchema.parse(await c.req.json());
       const result = await summarizeFacts(body);
       return c.json(result);

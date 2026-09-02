@@ -1,5 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
-
 export function hasGeminiKey() {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
@@ -11,6 +9,7 @@ export async function generateJson(prompt: string, jsonSchema: Record<string, un
     err.name = "ConfigError";
     throw err;
   }
+  const { GoogleGenAI } = await import("@google/genai");
   const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
   const ai = new GoogleGenAI({ apiKey: key });
   const response = await ai.models.generateContent({
