@@ -153,7 +153,7 @@ export function QuotationsPage() {
               </ul>
               {!isDemo ? (
                 <div className="toolbar">
-                  <a className="btn btn-ghost" href={quotationPdfUrl(detail.quotation.id)} target="_blank" rel="noreferrer">
+                  <a className="btn btn-ghost" href={quotationPdfUrl(detail.quotation.id)} target="_blank" rel="noopener noreferrer">
                     PDF
                   </a>
                   {detail.quotation.status === "DRAFT" ? (

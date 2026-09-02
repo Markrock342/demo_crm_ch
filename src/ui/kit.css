@@ -91,6 +91,11 @@
   gap: var(--space-lg);
   padding: var(--space-sm) 0;
   border-block-end: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.switch-copy {
+  display: block;
 }
 
 .switch-label {
@@ -105,32 +110,24 @@
   max-width: 42ch;
 }
 
-.switch {
+.switch-input {
+  appearance: none;
   position: relative;
   width: 44px;
   height: 26px;
   flex: 0 0 44px;
+  margin: 0;
   border: 1px solid var(--line);
   background: var(--canvas);
   border-radius: 13px;
   cursor: pointer;
-  padding: 0;
   transition:
     background var(--dur) var(--ease),
     border-color var(--dur) var(--ease);
 }
 
-.switch:hover,
-.switch:focus {
-  border-color: var(--ink-faint);
-}
-
-.switch[aria-checked="true"] {
-  background: var(--seal);
-  border-color: var(--seal-deep);
-}
-
-.switch-thumb {
+.switch-input::after {
+  content: "";
   position: absolute;
   top: 2px;
   left: 2px;
@@ -142,8 +139,24 @@
   transition: transform var(--dur) var(--ease);
 }
 
-.switch[aria-checked="true"] .switch-thumb {
+.switch-input:hover,
+.switch-input:focus-visible {
+  border-color: var(--ink-faint);
+}
+
+.switch-input:checked {
+  background: var(--seal);
+  border-color: var(--seal-deep);
+}
+
+.switch-input:checked::after {
   transform: translateX(18px);
+}
+
+.switch-input:disabled,
+.switch-input:disabled:hover {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .seg {
@@ -190,8 +203,12 @@
 }
 
 .seg button:hover,
-.seg button:focus {
+.seg button:focus-visible {
   color: var(--ink);
+}
+
+.seg button:active {
+  transform: translateY(1px);
 }
 
 .seg button[aria-checked="true"] {
@@ -338,8 +355,12 @@
   }
 }
 
-.cmd-back {
+.cmd-layer {
   animation: fade var(--dur) var(--ease);
+}
+
+.cmd-back {
+  animation: inherit;
 }
 
 .cmd {
@@ -406,6 +427,7 @@
 
 .app.is-still .toast,
 .app.is-still .notify-panel,
+.app.is-still .cmd-layer,
 .app.is-still .cmd,
 .app.is-still .cmd-back,
 .app.is-still .page,
@@ -481,7 +503,8 @@
     border-color var(--dur) var(--ease);
 }
 
-.lang-trigger:hover {
+.lang-trigger:hover,
+.lang-trigger:focus-visible {
   border-color: var(--line-strong);
   background: var(--canvas);
 }
@@ -527,7 +550,8 @@
   color: var(--ink);
 }
 
-.lang-menu button:hover {
+.lang-menu button:hover,
+.lang-menu button:focus-visible {
   background: var(--canvas);
 }
 

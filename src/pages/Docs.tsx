@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import type { DocStatus } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
@@ -89,16 +89,26 @@ export function DocsPage() {
                 const c = customers.find((x) => x.id === d.customerId);
                 return (
                   <tr key={d.id}>
-                    <td className="cell-strong" onClick={() => navigate(`/customers/${d.customerId}`)}>
-                      {d.name}
+                    <td className="cell-strong">
+                      <Link className="table-link" to={`/customers/${d.customerId}`}>
+                        {d.name}
+                      </Link>
                     </td>
-                    <td className="mono" onClick={() => navigate(`/boxes?q=${d.boxId}`)}>
-                      {d.kind}
+                    <td className="mono">
+                      <Link className="table-link" to={`/boxes?q=${d.boxId}`}>
+                        {d.kind}
+                      </Link>
                     </td>
-                    <td className="mono" onClick={() => navigate(`/boxes?q=${d.boxId}`)}>
-                      {d.boxId}
+                    <td className="mono">
+                      <Link className="table-link" to={`/boxes?q=${d.boxId}`}>
+                        {d.boxId}
+                      </Link>
                     </td>
-                    <td onClick={() => navigate(`/customers/${d.customerId}`)}>{c ? customerName(c, locale) : "—"}</td>
+                    <td>
+                      <Link className="table-link" to={`/customers/${d.customerId}`}>
+                        {c ? customerName(c, locale) : "—"}
+                      </Link>
+                    </td>
                     <td>
                       <span className={`pill pill-${d.status === "ok" ? "clear" : d.status === "late" ? "hold" : "yard"}`}>
                         {tx(`doc${cap(d.status)}`)}

@@ -3,24 +3,24 @@ type Props = {
   onChange: (next: boolean) => void;
   label: string;
   hint?: string;
+  disabled?: boolean;
 };
 
-export function Switch({ checked, onChange, label, hint }: Props) {
+export function Switch({ checked, onChange, label, hint, disabled }: Props) {
   return (
     <label className="switch-row">
-      <span>
+      <span className="switch-copy">
         <span className="switch-label">{label}</span>
         {hint ? <span className="switch-hint">{hint}</span> : null}
       </span>
-      <button
-        type="button"
+      <input
+        type="checkbox"
         role="switch"
-        aria-checked={checked}
-        className="switch"
-        onClick={() => onChange(!checked)}
-      >
-        <span className="switch-thumb" />
-      </button>
+        className="switch-input"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
     </label>
   );
 }

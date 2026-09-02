@@ -48,13 +48,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   if (!open) return null;
 
   return (
-    <div className="cmd-back" onClick={onClose} role="presentation">
-      <div
-        className="cmd"
-        role="dialog"
-        aria-label={tx("cmdHint")}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="cmd-layer">
+      <button type="button" className="cmd-back" aria-label={tx("cancel")} onClick={onClose} />
+      <div className="cmd" role="dialog" aria-modal="true" aria-label={tx("cmdHint")}>
         <input
           autoFocus
           className="cmd-input"

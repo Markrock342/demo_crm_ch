@@ -4,6 +4,7 @@ import { shipmentStatusI18n, type ShipmentStatus } from "../logistics";
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
+import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { ShipmentLedgerCards } from "../ui/ShipmentLedgerCards";
 import { useMedia } from "../ui/useMedia";
 
@@ -121,14 +122,7 @@ export function ShipmentsPage() {
                 const c = customers.find((x) => x.id === s.customerId);
                 const boxCount = boxCounts[s.id] ?? 0;
                 return (
-                  <tr
-                    key={s.id}
-                    tabIndex={0}
-                    onClick={() => navigate(`/boxes?q=${s.bl}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") navigate(`/boxes?q=${s.bl}`);
-                    }}
-                  >
+                  <ClickableTableRow key={s.id} onActivate={() => navigate(`/boxes?q=${s.bl}`)}>
                     <td className="mono cell-strong">{s.bookingNo}</td>
                     <td className="cell-truncate">{c ? customerName(c, locale) : "—"}</td>
                     <td className="cell-truncate">
@@ -145,7 +139,7 @@ export function ShipmentsPage() {
                       <span className={`pill pill-sh-${s.status}`}>{tx(shipmentStatusI18n[s.status])}</span>
                     </td>
                     <td className="num">{boxCount}</td>
-                  </tr>
+                  </ClickableTableRow>
                 );
               })}
             </tbody>

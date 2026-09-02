@@ -5,6 +5,7 @@ import { customerName, type Box, type BoxStatus, type Direction } from "../data"
 import { useContainers } from "../hooks/useContainers";
 import { useStore } from "../store";
 import { BoxLedgerCards } from "../ui/BoxLedgerCards";
+import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
@@ -205,14 +206,10 @@ export function BoxesPage() {
                 {rows.map((b) => {
                   const c = customers.find((x) => x.id === b.customerId);
                   return (
-                    <tr
+                    <ClickableTableRow
                       key={b.id}
                       className={active?.id === b.id ? "row-active" : undefined}
-                      tabIndex={0}
-                      onClick={() => setSelected(b)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") setSelected(b);
-                      }}
+                      onActivate={() => setSelected(b)}
                     >
                       <td className="mono">{b.id}</td>
                       <td>{c ? customerName(c, locale) : "—"}</td>
@@ -239,7 +236,7 @@ export function BoxesPage() {
                       <td className="num">{b.teu}</td>
                       <td className="num">{b.eta}</td>
                       <td className="mono">{b.bl}</td>
-                    </tr>
+                    </ClickableTableRow>
                   );
                 })}
               </tbody>

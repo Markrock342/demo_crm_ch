@@ -7,6 +7,7 @@ import { customerName } from "../data";
 import { useStore } from "../store";
 import { AiBriefChat } from "../ui/AiBriefChat";
 import { BoxLedgerCards } from "../ui/BoxLedgerCards";
+import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
@@ -217,14 +218,7 @@ export function OverviewPage() {
                 {boxes.slice(0, 6).map((b) => {
                   const c = customers.find((x) => x.id === b.customerId);
                   return (
-                    <tr
-                      key={b.id}
-                      tabIndex={0}
-                      onClick={() => navigate(`/boxes?q=${b.id}`)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") navigate(`/boxes?q=${b.id}`);
-                      }}
-                    >
+                    <ClickableTableRow key={b.id} onActivate={() => navigate(`/boxes?q=${b.id}`)}>
                       <td className="mono">{b.id}</td>
                       <td>{c ? customerName(c, locale) : "—"}</td>
                       <td>{b.type}</td>
@@ -233,7 +227,7 @@ export function OverviewPage() {
                         <span className={`pill pill-${b.status}`}>{tx(`st${cap(b.status)}`)}</span>
                       </td>
                       <td className="num">{b.eta}</td>
-                    </tr>
+                    </ClickableTableRow>
                   );
                 })}
               </tbody>

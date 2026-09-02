@@ -187,7 +187,7 @@ export function InvoicesPage() {
                 {billingNotes.map((bn) => (
                   <li key={bn.id}>
                     {bn.billingNumber} — {bn.grandTotal} {bn.currency}
-                    <a className="btn btn-ghost" href={billingNotePdfUrl(bn.id)} target="_blank" rel="noreferrer">
+                    <a className="btn btn-ghost" href={billingNotePdfUrl(bn.id)} target="_blank" rel="noopener noreferrer">
                       PDF
                     </a>
                   </li>

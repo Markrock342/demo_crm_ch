@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { customerName } from "../data";
 import { useStore } from "../store";
+import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
 
 export function ContactsPage() {
@@ -50,7 +51,22 @@ export function ContactsPage() {
       />
 
       {open ? (
-        <form className="form form-stack" onSubmit={submit}>
+        <form
+          className="form form-stack"
+          onSubmit={submit}
+          onReset={(e) => {
+            e.preventDefault();
+            setForm({
+              customerId: customers[0]?.id ?? "",
+              name: "",
+              title: "",
+              email: "",
+              phone: "",
+              wechat: "",
+            });
+            setOpen(false);
+          }}
+        >
           <label>
             {tx("colCustomer")}
             <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
@@ -71,18 +87,29 @@ export function ContactsPage() {
           </label>
           <label>
             {tx("colEmail")}
-            <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
           </label>
           <label>
             {tx("colPhone")}
-            <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <input
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
           </label>
           <label>
             {tx("colWechat")}
             <input value={form.wechat} onChange={(e) => setForm({ ...form, wechat: e.target.value })} />
           </label>
           <div className="form-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+            <button type="reset" className="btn btn-ghost">
               {tx("cancel")}
             </button>
             <button type="submit" className="btn btn-primary">
@@ -111,7 +138,7 @@ export function ContactsPage() {
               {rows.map((p) => {
                 const c = customers.find((x) => x.id === p.customerId);
                 return (
-                  <tr key={p.id} onClick={() => navigate(`/customers/${p.customerId}`)}>
+                  <ClickableTableRow key={p.id} onActivate={() => navigate(`/customers/${p.customerId}`)}>
                     <td className="cell-strong">
                       {p.name}
                       {p.primary ? <span className="pill pill-hold">{tx("primaryContact")}</span> : null}
@@ -121,7 +148,7 @@ export function ContactsPage() {
                     <td>{p.email}</td>
                     <td className="mono">{p.phone}</td>
                     <td className="mono">{p.wechat}</td>
-                  </tr>
+                  </ClickableTableRow>
                 );
               })}
             </tbody>

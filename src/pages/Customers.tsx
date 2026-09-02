@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { cityName, customerName, laneName } from "../data";
 import { useStore } from "../store";
+import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { CustomerLedgerCards } from "../ui/CustomerLedgerCards";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
@@ -129,14 +130,7 @@ export function CustomersPage() {
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr
-                  key={c.id}
-                  tabIndex={0}
-                  onClick={() => navigate(`/customers/${c.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") navigate(`/customers/${c.id}`);
-                  }}
-                >
+                <ClickableTableRow key={c.id} onActivate={() => navigate(`/customers/${c.id}`)}>
                   <td>{customerName(c, locale)}</td>
                   <td>{cityName(c, locale)}</td>
                   <td>{laneName(c, locale)}</td>
@@ -144,7 +138,7 @@ export function CustomersPage() {
                   <td>{c.owner}</td>
                   <td className="num">{c.arDays}</td>
                   <td className="num">{c.updated}</td>
-                </tr>
+                </ClickableTableRow>
               ))}
             </tbody>
           </table>
