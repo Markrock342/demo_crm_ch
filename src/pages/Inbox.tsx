@@ -136,9 +136,8 @@ export function InboxPage() {
             {tx("pasteMail")}
           </Button>
         }
+        filters={<AiSteps active={aiStep} />}
       />
-
-      <AiSteps active={aiStep} />
 
       {pasteOpen ? (
         <form
