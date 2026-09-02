@@ -861,7 +861,8 @@ tbody tr[aria-selected="true"] {
   overflow: hidden;
 }
 
-.ledger-row {
+.ledger-row,
+a.ledger-row {
   display: grid;
   gap: var(--space-xs);
   width: 100%;
@@ -873,14 +874,17 @@ tbody tr[aria-selected="true"] {
   color: inherit;
   cursor: pointer;
   min-width: 0;
+  text-decoration: none;
 }
 
-.ledger-list > li:last-child .ledger-row {
-  border-block-end: 0;
-}
-
-.ledger-row:active {
+.ledger-row:active,
+a.ledger-row:active {
   background: var(--seal-soft);
+}
+
+.ledger-list > li:last-child .ledger-row,
+.ledger-list > li:last-child a.ledger-row {
+  border-block-end: 0;
 }
 
 .ledger-row--static {
@@ -891,18 +895,21 @@ tbody tr[aria-selected="true"] {
   background: transparent;
 }
 
-.ledger-link {
-  border: 0;
-  background: transparent;
+.ledger-link,
+a.ledger-link {
   padding: 0;
   color: var(--seal-deep);
   font: inherit;
   font-size: inherit;
   cursor: pointer;
   text-align: start;
+  text-decoration: none;
 }
 
-.ledger-link:hover {
+.ledger-link:hover,
+.ledger-link:focus-visible,
+a.ledger-link:hover,
+a.ledger-link:focus-visible {
   text-decoration: underline;
 }
 
@@ -1165,6 +1172,7 @@ tr.row-active {
 }
 
 .mail-item:hover,
+.mail-item:focus-visible,
 .mail-item[aria-current="true"] {
   background: oklch(0.94 0.016 235);
 }
@@ -2016,6 +2024,11 @@ tr.row-active {
 
 .filter-chip:hover {
   border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.filter-chip:focus-visible {
+  border-color: var(--seal);
   color: var(--ink);
 }
 
@@ -3038,13 +3051,13 @@ tr.row-active {
   box-shadow: 0 1px 0 rgb(15 23 42 / 0.04);
 }
 
-.deal-open {
+.deal-open,
+a.deal-open {
   display: grid;
   gap: 2px;
   text-align: start;
-  border: 0;
-  background: transparent;
-  padding: 0;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -3058,7 +3071,10 @@ tr.row-active {
   color: var(--ink-soft);
 }
 
-.deal-open:hover strong {
+.deal-open:hover strong,
+.deal-open:focus-visible strong,
+a.deal-open:hover strong,
+a.deal-open:focus-visible strong {
   color: var(--seal-deep);
 }
 
@@ -3141,6 +3157,11 @@ tr.row-active {
   background: var(--seal-soft);
   border-color: var(--line-strong);
   color: var(--seal-deep);
+}
+
+.pipe-tabs button:focus-visible {
+  border-color: var(--seal);
+  color: var(--ink);
 }
 
 .pipe-tab-n {
@@ -3439,16 +3460,19 @@ tr.row-active {
   background: var(--seal-soft);
 }
 
-.linkish {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
+.linkish,
+a.linkish {
   color: var(--ink-soft);
   text-align: start;
+  text-decoration: none;
 }
 
-.linkish:hover {
+.linkish:hover,
+.linkish:focus-visible,
+a.linkish:hover,
+a.linkish:focus-visible {
   color: var(--seal);
+  text-decoration: underline;
 }
 
 .cal {
@@ -3477,18 +3501,32 @@ tr.row-active {
   font-family: var(--font-serif);
 }
 
-.cal-item {
+.cal-item,
+a.cal-item {
   display: grid;
   gap: 2px;
   text-align: start;
   border: 0;
   background: oklch(0.97 0.01 240);
   padding: 6px;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.cal-item:hover {
+.cal-item:hover,
+.cal-item:focus-visible,
+a.cal-item:hover,
+a.cal-item:focus-visible {
   background: var(--seal-soft);
+}
+
+.cal-item--static {
+  cursor: default;
+}
+
+.cal-item--static:hover {
+  background: oklch(0.97 0.01 240);
 }
 
 .cal-kind {

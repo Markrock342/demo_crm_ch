@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { dealStageI18n, dealStages, money, nextDealStage, type DealStage } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
@@ -7,22 +7,23 @@ import { Button } from "../ui/Button";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
+const dealFormInitial = (customerId: string) => ({
+  customerId,
+  title: "",
+  lane: "",
+  value: 40000,
+  teu: 4,
+  close: "09-28",
+  owner: "林晓衡",
+});
+
 export function PipelinePage() {
   const { tx, locale, deals, customers, moveDeal, addDeal } = useStore();
-  const navigate = useNavigate();
   const narrow = useMedia("(max-width: 640px)");
   const [open, setOpen] = useState(false);
   const [focus, setFocus] = useState<DealStage>(dealStages[0]);
   const boardRef = useRef<HTMLDivElement>(null);
-  const [form, setForm] = useState({
-    customerId: customers[0]?.id ?? "",
-    title: "",
-    lane: "",
-    value: 40000,
-    teu: 4,
-    close: "09-28",
-    owner: "林晓衡",
-  });
+  const [form, setForm] = useState(dealFormInitial(customers[0]?.id ?? ""));
 
   useEffect(() => {
     if (!narrow || !boardRef.current) return;
@@ -90,7 +91,16 @@ export function PipelinePage() {
 
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">
-          <form className="form form-stack pipe-form" onSubmit={submit} aria-hidden={!open}>
+          <form
+            className="form form-stack pipe-form"
+            onSubmit={submit}
+            onReset={(e) => {
+              e.preventDefault();
+              setForm(dealFormInitial(customers[0]?.id ?? ""));
+              setOpen(false);
+            }}
+            aria-hidden={!open}
+          >
             <label>
               {tx("colCustomer")}
               <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
@@ -126,7 +136,7 @@ export function PipelinePage() {
               <input value={form.close} onChange={(e) => setForm({ ...form, close: e.target.value })} />
             </label>
             <div className="form-actions">
-              <Button onClick={() => setOpen(false)}>{tx("cancel")}</Button>
+              <Button type="reset">{tx("cancel")}</Button>
               <Button type="submit" variant="primary">
                 {tx("save")}
               </Button>
@@ -153,10 +163,10 @@ export function PipelinePage() {
                     const next = nextDealStage(d.stage);
                     return (
                       <article key={d.id} className="deal" role="listitem">
-                        <button type="button" className="deal-open" onClick={() => navigate(`/customers/${d.customerId}`)}>
+                        <Link className="deal-open" to={`/customers/${d.customerId}`}>
                           <strong>{d.title}</strong>
                           <span>{c ? customerName(c, locale) : "—"}</span>
-                        </button>
+                        </Link>
                         <p className="deal-lane">{d.lane}</p>
                         <div className="deal-meta">
                           <span>

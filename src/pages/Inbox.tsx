@@ -141,11 +141,21 @@ export function InboxPage() {
       <AiSteps active={aiStep} />
 
       {pasteOpen ? (
-        <form className="ai-paste form" onSubmit={runPaste}>
+        <form
+          className="ai-paste form"
+          onSubmit={runPaste}
+          onReset={(e) => {
+            e.preventDefault();
+            setPasteFrom("");
+            setPasteSubject("");
+            setPasteBody("");
+            setPasteOpen(false);
+          }}
+        >
           <p className="ai-paste-lead">{tx("aiPasteLead")}</p>
           <label>
             {tx("from")}
-            <input value={pasteFrom} onChange={(e) => setPasteFrom(e.target.value)} />
+            <input type="email" autoComplete="email" value={pasteFrom} onChange={(e) => setPasteFrom(e.target.value)} />
           </label>
           <label>
             {tx("subject")}
@@ -161,7 +171,7 @@ export function InboxPage() {
                 {aiErr}
               </p>
             ) : null}
-            <Button onClick={() => setPasteOpen(false)}>{tx("cancel")}</Button>
+            <Button type="reset">{tx("cancel")}</Button>
             <Button type="submit" variant="draft" busy={running}>
               {running ? tx("runningGemini") : tx("runGemini")}
             </Button>

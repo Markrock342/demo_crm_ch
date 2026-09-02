@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { cityName, customerName, laneName, type Customer } from "../data";
 import type { Locale } from "../i18n";
 import { t } from "../i18n";
@@ -6,20 +7,21 @@ type Props = {
   customers: Customer[];
   boxCounts: Record<string, number>;
   locale: Locale;
-  onOpen: (customer: Customer) => void;
 };
 
-export function CustomerLedgerCards({ customers, boxCounts, locale, onOpen }: Props) {
+export function CustomerLedgerCards({ customers, boxCounts, locale }: Props) {
   const tx = (key: string) => t(locale, key);
 
   return (
     <ul className="ledger-list" aria-label={tx("customersTitle")}>
       {customers.map((c) => (
         <li key={c.id}>
-          <button type="button" className="ledger-row" onClick={() => onOpen(c)}>
+          <Link className="ledger-row" to={`/customers/${c.id}`}>
             <div className="ledger-row-head">
               <span className="ledger-row-id">{customerName(c, locale)}</span>
-              <span className="ledger-row-eta">{c.updated}</span>
+              <time className="ledger-row-eta" dateTime={c.updated}>
+                {c.updated}
+              </time>
             </div>
             <p className="ledger-row-meta">
               <span>{cityName(c, locale)}</span>
@@ -40,7 +42,7 @@ export function CustomerLedgerCards({ customers, boxCounts, locale, onOpen }: Pr
                 </span>
               )}
             </div>
-          </button>
+          </Link>
         </li>
       ))}
     </ul>

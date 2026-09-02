@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { priI18n } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
@@ -9,7 +9,6 @@ import { PageToolbar } from "../ui/PageToolbar";
 
 export function TasksPage() {
   const { tx, locale, tasks, customers, query, toggleTask, addTask } = useStore();
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [filter, setFilter] = useState<"open" | "done" | "all">("open");
@@ -73,13 +72,22 @@ export function TasksPage() {
 
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">
-          <form className="form form-stack task-form" onSubmit={submit} aria-hidden={!open}>
+          <form
+            className="form form-stack task-form"
+            onSubmit={submit}
+            onReset={(e) => {
+              e.preventDefault();
+              setTitle("");
+              setOpen(false);
+            }}
+            aria-hidden={!open}
+          >
             <label className="form-wide">
               {tx("addTask")}
               <input value={title} onChange={(e) => setTitle(e.target.value)} required={open} />
             </label>
             <div className="form-actions">
-              <Button onClick={() => setOpen(false)}>{tx("cancel")}</Button>
+              <Button type="reset">{tx("cancel")}</Button>
               <Button type="submit" variant="primary">
                 {tx("save")}
               </Button>
@@ -102,11 +110,13 @@ export function TasksPage() {
                   <Check checked={t.done} onChange={() => toggleTask(t.id)} label={t.title} />
                   <div className="task-meta">
                     {c ? (
-                      <button type="button" className="linkish" onClick={() => navigate(`/customers/${c.id}`)}>
+                      <Link className="linkish" to={`/customers/${c.id}`}>
                         {customerName(c, locale)}
-                      </button>
+                      </Link>
                     ) : null}
-                    <time className="num">{t.due}</time>
+                    <time className="num" dateTime={t.due}>
+                      {t.due}
+                    </time>
                     <span>{t.owner}</span>
                   </div>
                 </div>

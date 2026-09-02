@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
@@ -19,7 +19,6 @@ function weekWindow(from = new Date()) {
 
 export function CalendarPage() {
   const { tx, locale, tasks, activities, customers, shipments } = useStore();
-  const navigate = useNavigate();
   const { days, today } = useMemo(() => weekWindow(), []);
 
   const eventCount = useMemo(() => {
@@ -76,19 +75,23 @@ export function CalendarPage() {
               {items.length === 0 ? <p className="empty-col">{tx("emptyCal")}</p> : null}
               {items.map((it) => {
                 const c = it.customerId ? customers.find((x) => x.id === it.customerId) : undefined;
-                return (
-                  <button
-                    key={it.id}
-                    type="button"
-                    className="cal-item"
-                    onClick={() => it.link && navigate(it.link)}
-                  >
+                const content = (
+                  <>
                     <span className="cal-kind">{it.kind}</span>
                     <strong>{it.body}</strong>
                     <span>
                       {c ? customerName(c, locale) : "—"} · {it.extra}
                     </span>
-                  </button>
+                  </>
+                );
+                return it.link ? (
+                  <Link key={it.id} className="cal-item" to={it.link}>
+                    {content}
+                  </Link>
+                ) : (
+                  <article key={it.id} className="cal-item cal-item--static">
+                    {content}
+                  </article>
                 );
               })}
             </section>

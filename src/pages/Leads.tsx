@@ -5,20 +5,22 @@ import { LeadLedgerCards } from "../ui/LeadLedgerCards";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
+const leadFormInitial = {
+  company: "",
+  city: "",
+  lane: "",
+  contact: "",
+  source: "协会",
+  teu: 8,
+  owner: "林晓衡",
+};
+
 export function LeadsPage() {
   const { tx, locale, leads, query, setLeadStage, convertLead, addLead } = useStore();
   const mobile = useMedia("(max-width: 1024px)");
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<LeadStage | "all">("all");
-  const [form, setForm] = useState({
-    company: "",
-    city: "",
-    lane: "",
-    contact: "",
-    source: "协会",
-    teu: 8,
-    owner: "林晓衡",
-  });
+  const [form, setForm] = useState(leadFormInitial);
   const q = query.trim().toLowerCase();
   const rows = useMemo(
     () =>
@@ -84,7 +86,15 @@ export function LeadsPage() {
       />
 
       {open ? (
-        <form className="form form-stack" onSubmit={submit}>
+        <form
+          className="form form-stack"
+          onSubmit={submit}
+          onReset={(e) => {
+            e.preventDefault();
+            setForm(leadFormInitial);
+            setOpen(false);
+          }}
+        >
           <label>
             {tx("colCompany")}
             <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />
@@ -107,10 +117,10 @@ export function LeadsPage() {
           </label>
           <label>
             {tx("colTeu")}
-            <input type="number" value={form.teu} onChange={(e) => setForm({ ...form, teu: Number(e.target.value) })} />
+            <input type="number" min={1} inputMode="numeric" value={form.teu} onChange={(e) => setForm({ ...form, teu: Number(e.target.value) })} />
           </label>
           <div className="form-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+            <button type="reset" className="btn btn-ghost">
               {tx("cancel")}
             </button>
             <button type="submit" className="btn btn-primary">

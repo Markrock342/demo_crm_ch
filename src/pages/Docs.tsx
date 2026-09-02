@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { DocStatus } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
@@ -13,7 +13,6 @@ const docActions: DocStatus[] = ["ok", "wait", "late"];
 
 export function DocsPage() {
   const { tx, locale, docs, customers, query, setDocStatus } = useStore();
-  const navigate = useNavigate();
   const mobile = useMedia("(max-width: 1024px)");
   const [status, setStatus] = useState<DocStatus | "all">("all");
   const q = query.trim().toLowerCase();
@@ -62,14 +61,7 @@ export function DocsPage() {
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyDocs")}</p>
       ) : mobile ? (
-        <DocLedgerCards
-          docs={rows}
-          customers={customers}
-          locale={locale}
-          onOpenCustomer={(id) => navigate(`/customers/${id}`)}
-          onOpenBox={(id) => navigate(`/boxes?q=${id}`)}
-          onStatusChange={setDocStatus}
-        />
+        <DocLedgerCards docs={rows} customers={customers} locale={locale} onStatusChange={setDocStatus} />
       ) : (
         <div className="table-shell">
           <table className="data-table">

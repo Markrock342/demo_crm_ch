@@ -94,13 +94,7 @@ export function ShipmentsPage() {
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyShipments")}</p>
       ) : mobile ? (
-        <ShipmentLedgerCards
-          shipments={rows}
-          customers={customers}
-          locale={locale}
-          boxCounts={boxCounts}
-          onOpen={(s) => navigate(`/boxes?q=${s.bl}`)}
-        />
+        <ShipmentLedgerCards shipments={rows} customers={customers} locale={locale} boxCounts={boxCounts} />
       ) : (
         <div className="table-shell">
           <table className="data-table">

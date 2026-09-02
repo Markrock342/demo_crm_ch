@@ -65,7 +65,12 @@ export function CustomersPage() {
       />
 
       {open ? (
-        <form className="form form-stack" onSubmit={submit} noValidate>
+        <form className="form form-stack" onSubmit={submit} noValidate onReset={(e) => {
+          e.preventDefault();
+          setForm({ nameZh: "", cityZh: "", laneZh: "", owner: "" });
+          setErr(null);
+          setOpen(false);
+        }}>
           <label>
             {tx("name")}
             <input
@@ -94,7 +99,7 @@ export function CustomersPage() {
                 {err}
               </p>
             ) : null}
-            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+            <button type="reset" className="btn btn-ghost">
               {tx("cancel")}
             </button>
             <button type="submit" className="btn btn-primary">
@@ -107,12 +112,7 @@ export function CustomersPage() {
       {rows.length === 0 ? (
         <p className="empty">{tx("noMatch")}</p>
       ) : mobile ? (
-        <CustomerLedgerCards
-          customers={rows}
-          boxCounts={boxCounts}
-          locale={locale}
-          onOpen={(c) => navigate(`/customers/${c.id}`)}
-        />
+        <CustomerLedgerCards customers={rows} boxCounts={boxCounts} locale={locale} />
       ) : (
         <div className="table-shell">
           <table className="data-table">

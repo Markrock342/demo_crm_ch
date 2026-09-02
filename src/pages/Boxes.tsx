@@ -11,6 +11,18 @@ import { useMedia } from "../ui/useMedia";
 
 const statuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
 
+const boxFormInitial = (customerId: string) => ({
+  id: "",
+  customerId,
+  type: "40HC",
+  dir: "out" as Direction,
+  status: "yard" as BoxStatus,
+  yardZh: "林查班 B4",
+  eta: "09-10",
+  bl: "",
+  teu: 2,
+});
+
 export function BoxesPage() {
   const { tx, locale, customers, docs, shipments, query } = useStore();
   const { boxes, addBox, setBoxStatus, err: containerErr } = useContainers();
@@ -23,17 +35,7 @@ export function BoxesPage() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Box | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    id: "",
-    customerId: customers[0]?.id ?? "",
-    type: "40HC",
-    dir: "out" as Direction,
-    status: "yard" as BoxStatus,
-    yardZh: "林查班 B4",
-    eta: "09-10",
-    bl: "",
-    teu: 2,
-  });
+  const [form, setForm] = useState(boxFormInitial(customers[0]?.id ?? ""));
 
   const rows = useMemo(
     () =>
@@ -115,7 +117,17 @@ export function BoxesPage() {
       {containerErr ? <p className="meta form-err">{containerErr}</p> : null}
 
       {open ? (
-        <form className="form form-stack" onSubmit={submit} noValidate>
+        <form
+          className="form form-stack"
+          onSubmit={submit}
+          noValidate
+          onReset={(e) => {
+            e.preventDefault();
+            setForm(boxFormInitial(customers[0]?.id ?? ""));
+            setErr(null);
+            setOpen(false);
+          }}
+        >
           <label>
             {tx("boxNo")}
             <input
@@ -165,7 +177,7 @@ export function BoxesPage() {
                 {err}
               </p>
             ) : null}
-            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+            <button type="reset" className="btn btn-ghost">
               {tx("cancel")}
             </button>
             <button type="submit" className="btn btn-primary">

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { customerName } from "../data";
 import type { Locale } from "../i18n";
 import { t } from "../i18n";
@@ -9,10 +10,9 @@ type Props = {
   customers: Customer[];
   locale: Locale;
   boxCounts: Record<string, number>;
-  onOpen: (shipment: Shipment) => void;
 };
 
-export function ShipmentLedgerCards({ shipments, customers, locale, boxCounts, onOpen }: Props) {
+export function ShipmentLedgerCards({ shipments, customers, locale, boxCounts }: Props) {
   const tx = (key: string) => t(locale, key);
 
   return (
@@ -21,7 +21,7 @@ export function ShipmentLedgerCards({ shipments, customers, locale, boxCounts, o
         const c = customers.find((x) => x.id === s.customerId);
         return (
           <li key={s.id}>
-            <button type="button" className="ledger-row" onClick={() => onOpen(s)}>
+            <Link className="ledger-row" to={`/boxes?q=${s.bl}`}>
               <div className="ledger-row-head">
                 <span className="ledger-row-id mono">{s.bookingNo}</span>
                 <span className={`pill pill-sh-${s.status}`}>{tx(shipmentStatusI18n[s.status])}</span>
@@ -42,9 +42,9 @@ export function ShipmentLedgerCards({ shipments, customers, locale, boxCounts, o
                 </span>
               </div>
               <p className="ledger-row-dates">
-                ETD {s.etd} · ETA {s.eta}
+                ETD <time dateTime={s.etd}>{s.etd}</time> · ETA <time dateTime={s.eta}>{s.eta}</time>
               </p>
-            </button>
+            </Link>
           </li>
         );
       })}

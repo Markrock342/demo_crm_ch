@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { CrmDoc, DocStatus } from "../crm";
 import { customerName, type Customer } from "../data";
 import type { Locale } from "../i18n";
@@ -8,14 +9,12 @@ type Props = {
   docs: CrmDoc[];
   customers: Customer[];
   locale: Locale;
-  onOpenCustomer: (customerId: string) => void;
-  onOpenBox: (boxId: string) => void;
   onStatusChange: (id: string, status: DocStatus) => void;
 };
 
 const docActions: DocStatus[] = ["ok", "wait", "late"];
 
-export function DocLedgerCards({ docs, customers, locale, onOpenCustomer, onOpenBox, onStatusChange }: Props) {
+export function DocLedgerCards({ docs, customers, locale, onStatusChange }: Props) {
   const tx = (key: string) => t(locale, key);
 
   return (
@@ -31,16 +30,16 @@ export function DocLedgerCards({ docs, customers, locale, onOpenCustomer, onOpen
                 <span className={`pill pill-${pill}`}>{tx(`doc${cap(d.status)}`)}</span>
               </div>
               <p className="ledger-row-meta">
-                <button type="button" className="ledger-link mono" onClick={() => onOpenBox(d.boxId)}>
+                <Link className="ledger-link mono" to={`/boxes?q=${d.boxId}`}>
                   {d.kind} · {d.boxId}
-                </button>
+                </Link>
               </p>
               <p className="ledger-row-meta">
-                <button type="button" className="ledger-link" onClick={() => onOpenCustomer(d.customerId)}>
+                <Link className="ledger-link" to={`/customers/${d.customerId}`}>
                   {c ? customerName(c, locale) : "—"}
-                </button>
+                </Link>
                 <span aria-hidden>·</span>
-                <span>{d.updated}</span>
+                <time dateTime={d.updated}>{d.updated}</time>
               </p>
               <div className="ledger-row-foot">
                 <div className="doc-actions">
