@@ -4,6 +4,7 @@ import { dealStageI18n, dealStages, money, nextDealStage, type DealStage } from 
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
+import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
 export function PipelinePage() {
@@ -37,18 +38,55 @@ export function PipelinePage() {
   }
 
   const stages = narrow ? dealStages.filter((s) => s === focus) : dealStages;
+  const openValue = deals.filter((d) => d.stage !== "billed").reduce((n, d) => n + d.value, 0);
 
   return (
-    <div className="page page--pipe">
-      <div className="page-head">
-        <div>
-          <h1>{tx("pipelineTitle")}</h1>
-          <p>{tx("pipelineHint")}</p>
-        </div>
-        <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          {tx("addDeal")}
-        </Button>
-      </div>
+    <div className="page page--workspace page--pipe">
+      <PageToolbar
+        title={tx("pipelineTitle")}
+        count={deals.length}
+        hint={tx("pipelineHint")}
+        actions={
+          <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {tx("addDeal")}
+          </Button>
+        }
+        filters={
+          narrow ? (
+            <div className="pipe-tabs" role="tablist" aria-label={tx("pipelineTitle")}>
+              {dealStages.map((stage) => {
+                const n = deals.filter((d) => d.stage === stage).length;
+                return (
+                  <button
+                    key={stage}
+                    type="button"
+                    role="tab"
+                    aria-selected={focus === stage}
+                    className={focus === stage ? "is-on" : ""}
+                    onClick={() => setFocus(stage)}
+                  >
+                    {tx(dealStageI18n[stage])}
+                    <span className="pipe-tab-n">{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="stat-strip">
+              <div className="stat-chip">
+                <span>{tx("dashOpenDeals")}</span>
+                <strong>{money(openValue)}</strong>
+              </div>
+              {dealStages.map((stage) => (
+                <div key={stage} className="stat-chip">
+                  <span>{tx(dealStageI18n[stage])}</span>
+                  <strong>{deals.filter((d) => d.stage === stage).length}</strong>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      />
 
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">
@@ -96,27 +134,6 @@ export function PipelinePage() {
           </form>
         </div>
       </div>
-
-      {narrow ? (
-        <div className="pipe-tabs" role="tablist" aria-label={tx("pipelineTitle")}>
-          {dealStages.map((stage) => {
-            const n = deals.filter((d) => d.stage === stage).length;
-            return (
-              <button
-                key={stage}
-                type="button"
-                role="tab"
-                aria-selected={focus === stage}
-                className={focus === stage ? "is-on" : ""}
-                onClick={() => setFocus(stage)}
-              >
-                {tx(dealStageI18n[stage])}
-                <span className="pipe-tab-n">{n}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
 
       <div className="board-wrap">
         <div className="board" ref={boardRef} role="list">

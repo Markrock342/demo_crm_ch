@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import { AiSteps } from "../ui/AiSteps";
 import { ConfidenceBar } from "../ui/ConfidenceBar";
 import { Button } from "../ui/Button";
+import { PageToolbar } from "../ui/PageToolbar";
 
 export function InboxPage() {
   const { tx, locale, mails, customers, boxes, query, sendMail, saveDraft, rejectMail, markRead, applyMailAnalysis, applyMailOps, addPastedMail } =
@@ -125,16 +126,17 @@ export function InboxPage() {
   const aiStep: 0 | 1 | 2 | 3 = !mail ? 0 : !hasDraft ? 1 : editing ? 2 : 3;
 
   return (
-    <div className="page page--inbox">
-      <div className="page-head">
-        <div>
-          <h1>{tx("inboxTitle")}</h1>
-          <p>{tx("inboxHint")}</p>
-        </div>
-        <Button variant="ghost" onClick={() => setPasteOpen((v) => !v)} aria-expanded={pasteOpen}>
-          {tx("pasteMail")}
-        </Button>
-      </div>
+    <div className="page page--workspace page--inbox">
+      <PageToolbar
+        title={tx("inboxTitle")}
+        count={shown.length}
+        hint={tx("inboxHint")}
+        actions={
+          <Button variant="ghost" onClick={() => setPasteOpen((v) => !v)} aria-expanded={pasteOpen}>
+            {tx("pasteMail")}
+          </Button>
+        }
+      />
 
       <AiSteps active={aiStep} />
 

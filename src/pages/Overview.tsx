@@ -7,6 +7,7 @@ import { customerName } from "../data";
 import { useStore } from "../store";
 import { AiBriefChat } from "../ui/AiBriefChat";
 import { BoxLedgerCards } from "../ui/BoxLedgerCards";
+import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
 export function OverviewPage() {
@@ -76,18 +77,16 @@ export function OverviewPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("navOverview")}</h1>
-          <p>{tx("laneHint")}</p>
-        </div>
-        <div className="toolbar">
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("navOverview")}
+        hint={tx("laneHint")}
+        actions={
           <Link className="btn btn-primary" to="/boxes?status=hold">
             {tx("primaryDash")}
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       <AiBriefChat brief={brief} busy={briefing} error={briefErr} onRun={runBrief} />
 
@@ -112,7 +111,7 @@ export function OverviewPage() {
 
       {exceptions.length > 0 ? (
         <section className="block exceptions">
-          <div className="page-head">
+          <div className="block-head">
             <h2>{tx("exceptionsTitle")}</h2>
             <Link to="/boxes?status=hold">{tx("viewAll")}</Link>
           </div>
@@ -148,7 +147,7 @@ export function OverviewPage() {
 
       <div className="split">
         <section className="block">
-          <div className="page-head">
+          <div className="block-head">
             <h2>{tx("todayTitle")}</h2>
             <Link to="/tasks">{tx("viewAll")}</Link>
           </div>
@@ -169,7 +168,7 @@ export function OverviewPage() {
         </section>
 
         <section className="block">
-          <div className="page-head">
+          <div className="block-head">
             <h2>{tx("tabTimeline")}</h2>
             <Link to="/inbox">{tx("navInbox")}</Link>
           </div>
@@ -190,7 +189,7 @@ export function OverviewPage() {
       </div>
 
       <section className="block">
-        <div className="page-head">
+        <div className="block-head">
           <h2>{tx("recentBoxes")}</h2>
           <Link to="/boxes">{tx("viewAll")}</Link>
         </div>
@@ -202,8 +201,8 @@ export function OverviewPage() {
             onOpen={(b) => navigate(`/boxes?q=${b.id}`)}
           />
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>{tx("colBox")}</th>

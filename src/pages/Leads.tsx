@@ -2,12 +2,14 @@ import { useMemo, useState, type FormEvent } from "react";
 import { leadStageI18n, leadStages, type LeadStage } from "../crm";
 import { useStore } from "../store";
 import { LeadLedgerCards } from "../ui/LeadLedgerCards";
+import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
 export function LeadsPage() {
   const { tx, locale, leads, query, setLeadStage, convertLead, addLead } = useStore();
   const mobile = useMedia("(max-width: 1024px)");
   const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<LeadStage | "all">("all");
   const [form, setForm] = useState({
     company: "",
     city: "",
@@ -21,11 +23,18 @@ export function LeadsPage() {
   const rows = useMemo(
     () =>
       leads.filter((l) => {
+        if (stage !== "all" && l.stage !== stage) return false;
         const blob = `${l.company} ${l.city} ${l.lane} ${l.contact} ${l.source} ${l.owner}`.toLowerCase();
         return !q || blob.includes(q);
       }),
-    [leads, q],
+    [leads, q, stage],
   );
+
+  const counts = useMemo(() => {
+    const map: Record<LeadStage | "all", number> = { all: leads.length, new: 0, working: 0, qualified: 0, lost: 0 };
+    for (const l of leads) map[l.stage] += 1;
+    return map;
+  }, [leads]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -35,16 +44,44 @@ export function LeadsPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("leadsTitle")}</h1>
-          <p>{tx("leadsHint")}</p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          {tx("addLead")}
-        </button>
-      </div>
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("leadsTitle")}
+        count={rows.length}
+        hint={tx("leadsHint")}
+        actions={
+          <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {tx("addLead")}
+          </button>
+        }
+        filters={
+          <div className="filter-row" role="tablist" aria-label={tx("colStage")}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={stage === "all"}
+              className={`filter-chip${stage === "all" ? " is-on" : ""}`}
+              onClick={() => setStage("all")}
+            >
+              <span>{tx("filterAll")}</span>
+              <em>{counts.all}</em>
+            </button>
+            {leadStages.map((s) => (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={stage === s}
+                className={`filter-chip${stage === s ? " is-on" : ""}`}
+                onClick={() => setStage(s)}
+              >
+                <span>{tx(leadStageI18n[s])}</span>
+                <em>{counts[s]}</em>
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {open ? (
         <form className="form" onSubmit={submit}>
@@ -88,8 +125,8 @@ export function LeadsPage() {
       ) : mobile ? (
         <LeadLedgerCards leads={rows} locale={locale} onStageChange={setLeadStage} onConvert={convertLead} />
       ) : (
-        <div className="table-wrap">
-          <table>
+        <div className="table-shell">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>{tx("colCompany")}</th>
@@ -106,9 +143,9 @@ export function LeadsPage() {
             <tbody>
               {rows.map((l) => (
                 <tr key={l.id}>
-                  <td>{l.company}</td>
+                  <td className="cell-strong">{l.company}</td>
                   <td>{l.city}</td>
-                  <td>{l.lane}</td>
+                  <td className="cell-truncate">{l.lane}</td>
                   <td>{l.contact}</td>
                   <td>{l.source}</td>
                   <td>

@@ -3637,8 +3637,43 @@ td .pill {
   margin-inline: var(--space-md);
 }
 
-.page--workspace .kpi-row {
-  margin: var(--space-sm) var(--space-md);
+.page--workspace .kpis,
+.page--workspace .block,
+.page--workspace .pipe-strip,
+.page--workspace .split,
+.page--workspace.page--inbox .mail-layout,
+.page--workspace.page--inbox > .empty,
+.page--workspace.page--inbox .ai-paste,
+.page--workspace.page--pipe .board-wrap,
+.page--workspace.page--pipe .pipe-tabs,
+.page--workspace.page--pipe .fold {
+  margin-inline: var(--space-md);
+}
+
+.page--workspace .kpis,
+.page--workspace .pipe-strip {
+  margin-block-start: var(--space-sm);
+}
+
+.page--workspace.page--inbox > .ai-steps {
+  margin: var(--space-sm) var(--space-md) 0;
+}
+
+.page--workspace > .ai-chat-panel {
+  margin: var(--space-sm) var(--space-md) 0;
+}
+
+.page--workspace .block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.page--workspace .block-head h2 {
+  font-size: var(--body-sm);
+  font-weight: 700;
 }
 
 .split-panels {
