@@ -858,6 +858,29 @@ tbody tr[aria-selected="true"] {
   background: var(--seal-soft);
 }
 
+.ledger-row--static {
+  cursor: default;
+}
+
+.ledger-row--static:active {
+  background: transparent;
+}
+
+.ledger-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--seal-deep);
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.ledger-link:hover {
+  text-decoration: underline;
+}
+
 .ledger-row-head {
   display: flex;
   justify-content: space-between;
@@ -1551,6 +1574,17 @@ tr.row-active {
 
   .ai-chat-bubble {
     max-width: 100%;
+  }
+
+  .ledger-row .doc-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .ledger-row .doc-actions .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline: 8px;
   }
 
   .btn,

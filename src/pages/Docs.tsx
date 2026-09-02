@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import type { DocStatus } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
+import { DocLedgerCards } from "../ui/DocLedgerCards";
 import { Segment } from "../ui/Segment";
 import { Button } from "../ui/Button";
+import { useMedia } from "../ui/useMedia";
 
 const statuses: Array<DocStatus | "all"> = ["all", "ok", "wait", "late"];
 const docActions: DocStatus[] = ["ok", "wait", "late"];
@@ -12,6 +14,7 @@ const docActions: DocStatus[] = ["ok", "wait", "late"];
 export function DocsPage() {
   const { tx, locale, docs, customers, query, setDocStatus } = useStore();
   const navigate = useNavigate();
+  const mobile = useMedia("(max-width: 1024px)");
   const [status, setStatus] = useState<DocStatus | "all">("all");
   const q = query.trim().toLowerCase();
   const rows = useMemo(
@@ -41,6 +44,15 @@ export function DocsPage() {
       />
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyDocs")}</p>
+      ) : mobile ? (
+        <DocLedgerCards
+          docs={rows}
+          customers={customers}
+          locale={locale}
+          onOpenCustomer={(id) => navigate(`/customers/${id}`)}
+          onOpenBox={(id) => navigate(`/boxes?q=${id}`)}
+          onStatusChange={setDocStatus}
+        />
       ) : (
         <div className="table-wrap">
           <table>

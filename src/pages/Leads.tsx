@@ -1,9 +1,12 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { leadStageI18n, leadStages, type LeadStage } from "../crm";
 import { useStore } from "../store";
+import { LeadLedgerCards } from "../ui/LeadLedgerCards";
+import { useMedia } from "../ui/useMedia";
 
 export function LeadsPage() {
-  const { tx, leads, query, setLeadStage, convertLead, addLead } = useStore();
+  const { tx, locale, leads, query, setLeadStage, convertLead, addLead } = useStore();
+  const mobile = useMedia("(max-width: 1024px)");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     company: "",
@@ -82,6 +85,8 @@ export function LeadsPage() {
 
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyLeads")}</p>
+      ) : mobile ? (
+        <LeadLedgerCards leads={rows} locale={locale} onStageChange={setLeadStage} onConvert={convertLead} />
       ) : (
         <div className="table-wrap">
           <table>

@@ -2,10 +2,13 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { cityName, customerName, laneName } from "../data";
 import { useStore } from "../store";
+import { CustomerLedgerCards } from "../ui/CustomerLedgerCards";
+import { useMedia } from "../ui/useMedia";
 
 export function CustomersPage() {
   const { tx, locale, customers, boxes, query, addCustomer, reset } = useStore();
   const navigate = useNavigate();
+  const mobile = useMedia("(max-width: 1024px)");
   const [params] = useSearchParams();
   const q = (params.get("q") ?? query).trim().toLowerCase();
   const [open, setOpen] = useState(false);
@@ -20,6 +23,14 @@ export function CustomersPage() {
       }),
     [customers, q],
   );
+
+  const boxCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const c of rows) {
+      map[c.id] = boxes.filter((b) => b.customerId === c.id).length;
+    }
+    return map;
+  }, [boxes, rows]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -92,6 +103,13 @@ export function CustomersPage() {
 
       {rows.length === 0 ? (
         <p className="empty">{tx("noMatch")}</p>
+      ) : mobile ? (
+        <CustomerLedgerCards
+          customers={rows}
+          boxCounts={boxCounts}
+          locale={locale}
+          onOpen={(c) => navigate(`/customers/${c.id}`)}
+        />
       ) : (
         <div className="table-wrap">
           <table>
