@@ -824,6 +824,139 @@ tbody tr[aria-selected="true"] {
   align-items: start;
 }
 
+.ledger-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  overflow: hidden;
+}
+
+.ledger-row {
+  display: grid;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 0;
+  border-block-end: 1px solid var(--line);
+  background: transparent;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.ledger-list > li:last-child .ledger-row {
+  border-block-end: 0;
+}
+
+.ledger-row:active {
+  background: var(--seal-soft);
+}
+
+.ledger-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.ledger-row-id {
+  font-weight: 650;
+  font-size: var(--body-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ledger-row-eta,
+.ledger-row-dates {
+  font-size: var(--caption);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.ledger-row-dates {
+  margin: 0;
+}
+
+.ledger-row-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-xs);
+  color: var(--ink-soft);
+  font-size: var(--caption);
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.ledger-row-meta span:not([aria-hidden]) {
+  min-width: 0;
+}
+
+.ledger-row-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.ledger-row-foot--spread {
+  flex-wrap: wrap;
+}
+
+.ledger-row-lane {
+  font-size: var(--caption);
+  color: var(--ink-soft);
+}
+
+.ledger-row-nums {
+  font-size: var(--caption);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-row-status {
+  margin-inline-start: auto;
+}
+
+.ledger-row-status .status-select {
+  min-height: 32px;
+  font-size: var(--caption);
+}
+
+.box-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: oklch(0.26 0.045 255 / 0.35);
+  z-index: 80;
+  cursor: pointer;
+}
+
+.box-drawer--sheet {
+  position: fixed;
+  inset-inline: var(--space-sm);
+  inset-block-end: calc(72px + var(--space-sm) + env(safe-area-inset-bottom, 0px));
+  inset-block-start: auto;
+  top: auto;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  z-index: 85;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
 .box-drawer {
   border: 1px solid var(--line);
   background: var(--paper);

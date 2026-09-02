@@ -6,10 +6,13 @@ import { overdueInvoices } from "../logistics";
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { AiBriefChat } from "../ui/AiBriefChat";
+import { BoxLedgerCards } from "../ui/BoxLedgerCards";
+import { useMedia } from "../ui/useMedia";
 
 export function OverviewPage() {
   const { tx, locale, boxes, customers, mails, deals, tasks, docs, activities, invoices } = useStore();
   const navigate = useNavigate();
+  const mobile = useMedia("(max-width: 1024px)");
   const teu = boxes.filter((b) => b.status === "yard" || b.status === "empty" || b.status === "hold").reduce((n, b) => n + b.teu, 0);
   const hold = boxes.filter((b) => b.status === "hold").length;
   const openMail = mails.filter((m) => m.state === "open").length;
@@ -191,44 +194,53 @@ export function OverviewPage() {
           <h2>{tx("recentBoxes")}</h2>
           <Link to="/boxes">{tx("viewAll")}</Link>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{tx("colBox")}</th>
-                <th>{tx("colCustomer")}</th>
-                <th>{tx("colType")}</th>
-                <th>{tx("colDir")}</th>
-                <th>{tx("colStatus")}</th>
-                <th className="num">{tx("colEta")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {boxes.slice(0, 6).map((b) => {
-                const c = customers.find((x) => x.id === b.customerId);
-                return (
-                  <tr
-                    key={b.id}
-                    tabIndex={0}
-                    onClick={() => navigate(`/boxes?q=${b.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") navigate(`/boxes?q=${b.id}`);
-                    }}
-                  >
-                    <td className="mono">{b.id}</td>
-                    <td>{c ? customerName(c, locale) : "—"}</td>
-                    <td>{b.type}</td>
-                    <td>{tx(b.dir === "in" ? "inboundShort" : "outboundShort")}</td>
-                    <td>
-                      <span className={`pill pill-${b.status}`}>{tx(`st${cap(b.status)}`)}</span>
-                    </td>
-                    <td className="num">{b.eta}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {mobile ? (
+          <BoxLedgerCards
+            boxes={boxes.slice(0, 6)}
+            customers={customers}
+            locale={locale}
+            onOpen={(b) => navigate(`/boxes?q=${b.id}`)}
+          />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{tx("colBox")}</th>
+                  <th>{tx("colCustomer")}</th>
+                  <th>{tx("colType")}</th>
+                  <th>{tx("colDir")}</th>
+                  <th>{tx("colStatus")}</th>
+                  <th className="num">{tx("colEta")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {boxes.slice(0, 6).map((b) => {
+                  const c = customers.find((x) => x.id === b.customerId);
+                  return (
+                    <tr
+                      key={b.id}
+                      tabIndex={0}
+                      onClick={() => navigate(`/boxes?q=${b.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") navigate(`/boxes?q=${b.id}`);
+                      }}
+                    >
+                      <td className="mono">{b.id}</td>
+                      <td>{c ? customerName(c, locale) : "—"}</td>
+                      <td>{b.type}</td>
+                      <td>{tx(b.dir === "in" ? "inboundShort" : "outboundShort")}</td>
+                      <td>
+                        <span className={`pill pill-${b.status}`}>{tx(`st${cap(b.status)}`)}</span>
+                      </td>
+                      <td className="num">{b.eta}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -3,11 +3,14 @@ import { Link } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { customerName, type Box, type BoxStatus, type Direction } from "../data";
 import { useStore } from "../store";
+import { BoxLedgerCards } from "../ui/BoxLedgerCards";
+import { useMedia } from "../ui/useMedia";
 
 const statuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
 
 export function BoxesPage() {
   const { tx, locale, boxes, customers, docs, shipments, query, addBox, setBoxStatus } = useStore();
+  const mobile = useMedia("(max-width: 1024px)");
   const [params] = useSearchParams();
   const q = (params.get("q") ?? query).trim().toLowerCase();
   const preset = (params.get("status") as BoxStatus | null) ?? "all";
@@ -154,9 +157,17 @@ export function BoxesPage() {
         </form>
       ) : null}
 
-      <div className="boxes-layout">
+      <div className={`boxes-layout${active && !mobile ? " boxes-layout--drawer" : ""}`}>
         {rows.length === 0 ? (
           <p className="empty">{tx("noMatch")}</p>
+        ) : mobile ? (
+          <BoxLedgerCards
+            boxes={rows}
+            customers={customers}
+            locale={locale}
+            onOpen={(b) => setSelected(b)}
+            onStatusChange={setBoxStatus}
+          />
         ) : (
           <div className="table-wrap">
             <table>
@@ -220,7 +231,11 @@ export function BoxesPage() {
         )}
 
         {active ? (
-          <aside className="box-drawer" aria-label={tx("boxDetailTitle")}>
+          <>
+            {mobile ? (
+              <button type="button" className="box-drawer-backdrop" aria-label={tx("closeMenu")} onClick={() => setSelected(null)} />
+            ) : null}
+            <aside className={`box-drawer${mobile ? " box-drawer--sheet" : ""}`} aria-label={tx("boxDetailTitle")}>
             <header className="box-drawer-head">
               <h2 className="mono">{active.id}</h2>
               <button type="button" className="btn btn-ghost" onClick={() => setSelected(null)}>
@@ -277,6 +292,7 @@ export function BoxesPage() {
               )}
             </section>
           </aside>
+          </>
         ) : null}
       </div>
     </div>
