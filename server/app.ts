@@ -3,13 +3,13 @@ import { hasGeminiKey } from "./gemini.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
-  const app = new Hono();
+  const app = new Hono().basePath("/api");
 
-  app.get("/api/ai/health", (c) => {
+  app.get("/ai/health", (c) => {
     return c.json({ ok: hasGeminiKey(), model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash" });
   });
 
-  app.post("/api/ai/mail", async (c) => {
+  app.post("/ai/mail", async (c) => {
     if (!hasGeminiKey()) return c.json({ error: "missing_key" }, 503);
     try {
       const { analyzeLaneMail } = await import("./analyze.js");
@@ -23,7 +23,7 @@ export function createApp() {
     }
   });
 
-  app.post("/api/ai/brief", async (c) => {
+  app.post("/ai/brief", async (c) => {
     if (!hasGeminiKey()) return c.json({ error: "missing_key" }, 503);
     try {
       const { summarizeFacts } = await import("./analyze.js");
