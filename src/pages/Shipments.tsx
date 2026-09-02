@@ -58,38 +58,39 @@ export function ShipmentsPage() {
         count={rows.length}
         hint={tx("shipmentsHintShort")}
         filters={
-          <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
-            {statuses.map((s) => (
-              <button
-                key={s}
-                type="button"
-                role="tab"
-                aria-selected={status === s}
-                className={`filter-chip${status === s ? " is-on" : ""}`}
-                onClick={() => setStatus(s)}
-              >
-                <span>{s === "all" ? tx("filterAll") : tx(shipmentStatusI18n[s])}</span>
-                <em>{counts[s]}</em>
-              </button>
-            ))}
+          <div className="toolbar-stack">
+            <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
+              {statuses.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="tab"
+                  aria-selected={status === s}
+                  className={`filter-chip${status === s ? " is-on" : ""}`}
+                  onClick={() => setStatus(s)}
+                >
+                  <span>{s === "all" ? tx("filterAll") : tx(shipmentStatusI18n[s])}</span>
+                  <em>{counts[s]}</em>
+                </button>
+              ))}
+            </div>
+            <div className="toolbar-stats" aria-label={tx("shipmentsHintShort")}>
+              <span className="toolbar-stat">
+                <span>{tx("colTeu")}</span>
+                <strong>{totalTeu}</strong>
+              </span>
+              <span className="toolbar-stat">
+                <span>{tx("colBoxes")}</span>
+                <strong>{Object.values(boxCounts).reduce((n, v) => n + v, 0)}</strong>
+              </span>
+              <span className="toolbar-stat">
+                <span>{tx("filterAll")}</span>
+                <strong>{rows.length}</strong>
+              </span>
+            </div>
           </div>
         }
       />
-
-      <div className="stat-strip">
-        <div className="stat-chip">
-          <span>{tx("colTeu")}</span>
-          <strong>{totalTeu}</strong>
-        </div>
-        <div className="stat-chip">
-          <span>{tx("colBoxes")}</span>
-          <strong>{Object.values(boxCounts).reduce((n, v) => n + v, 0)}</strong>
-        </div>
-        <div className="stat-chip">
-          <span>{tx("filterAll")}</span>
-          <strong>{rows.length}</strong>
-        </div>
-      </div>
 
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyShipments")}</p>
