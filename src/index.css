@@ -260,7 +260,6 @@ p {
 
 .bar-cta:hover {
   background: var(--seal-deep);
-  transform: translateY(-1px);
 }
 
 .bar-user {
@@ -539,11 +538,11 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  margin-bottom: var(--space-sm);
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  margin-bottom: 0;
   border: 1px solid color-mix(in srgb, var(--seal) 35%, var(--line));
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--seal) 8%, var(--paper));
 }
 
@@ -562,13 +561,15 @@ p {
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-decoration: none;
   font-size: var(--body-sm);
+  font-weight: 600;
+  line-height: 1;
 }
 
 .btn:active {
@@ -1736,6 +1737,179 @@ tr.row-active {
   color: var(--ink-soft);
 }
 
+/* —— Workspace density: 32px controls, inline filters, tight rhythm —— */
+.page--workspace {
+  --control-h: 32px;
+}
+
+.page--workspace .btn {
+  min-height: var(--control-h);
+  height: var(--control-h);
+  padding: 0 10px;
+  font-size: var(--caption);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.page--workspace .btn-slim,
+.page--workspace .data-table .btn,
+.page--workspace .doc-actions .btn {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 0.6875rem;
+}
+
+.page--workspace .form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding-block: 8px;
+  margin-inline: var(--space-md);
+}
+
+.page--workspace .form.form-stack,
+.page--workspace .form.task-form,
+.page--workspace .form.note-form,
+.page--workspace form.note-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  align-items: start;
+  gap: 8px;
+}
+
+.page--workspace form.note-form textarea {
+  min-height: 4rem;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+}
+
+.page--workspace form.note-form .btn {
+  justify-self: start;
+}
+
+.page--workspace .form label {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 10.5rem;
+  min-width: 9rem;
+  max-width: 14rem;
+  font-size: var(--caption);
+  color: var(--ink-soft);
+}
+
+.page--workspace .form.form-stack label,
+.page--workspace .form.task-form label,
+.page--workspace .form.note-form label {
+  flex: unset;
+  min-width: 0;
+  max-width: none;
+}
+
+.page--workspace .form.filter-form label {
+  flex: 1 1 9.5rem;
+  max-width: 12rem;
+}
+
+.page--workspace .form input,
+.page--workspace .form select {
+  min-height: var(--control-h);
+  height: var(--control-h);
+  padding: 0 8px;
+  font-size: var(--body-sm);
+  border-radius: var(--radius-sm);
+}
+
+.page--workspace .form textarea {
+  min-height: 4.5rem;
+  height: auto;
+  padding: 8px;
+}
+
+.page--workspace .form .form-wide,
+.page--workspace .form .form-actions {
+  flex: 1 1 100%;
+  max-width: none;
+}
+
+.page--workspace .form.form-stack .form-wide,
+.page--workspace .form.form-stack .form-actions,
+.page--workspace .form.task-form .form-wide,
+.page--workspace .form.task-form .form-actions,
+.page--workspace .form.note-form .form-actions {
+  grid-column: 1 / -1;
+}
+
+.page--workspace .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.page--workspace .form > .btn,
+.page--workspace .form-actions .btn {
+  flex: 0 0 auto;
+  align-self: flex-end;
+}
+
+.page--workspace .demo-banner {
+  margin: 6px var(--space-md) 0;
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: var(--radius-sm);
+}
+
+.page--workspace .demo-banner strong {
+  font-size: var(--body-sm);
+}
+
+.page--workspace .demo-banner p {
+  margin-top: 2px;
+  font-size: var(--caption);
+  line-height: 1.4;
+  max-width: none;
+}
+
+.page--workspace > .meta,
+.page--workspace > .form-err {
+  margin-block: 2px 4px;
+  font-size: var(--caption);
+  line-height: 1.4;
+}
+
+.page--workspace .empty {
+  padding-block: var(--space-md);
+  font-size: var(--body-sm);
+}
+
+.page--workspace .table-shell {
+  margin-block-start: 6px;
+}
+
+.page-toolbar-actions .btn {
+  min-height: var(--control-h, 32px);
+  height: var(--control-h, 32px);
+}
+
+.page--workspace .toolbar .btn {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: var(--caption);
+}
+
+.page--workspace .toolbar .btn.is-active {
+  background: var(--seal-soft);
+  border-color: var(--seal);
+  color: var(--seal-deep);
+}
+
 .page-toolbar {
   display: grid;
   gap: var(--space-sm);
@@ -1945,8 +2119,8 @@ tr.row-active {
 .form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-md);
-  padding-block: var(--space-sm) var(--space-lg);
+  gap: var(--space-sm);
+  padding-block: var(--space-xs) var(--space-sm);
 }
 
 .form label {
@@ -1960,7 +2134,7 @@ tr.row-active {
 .form select,
 .draft-edit,
 .status-select {
-  min-height: 48px;
+  min-height: 36px;
   border: 1px solid var(--line);
   background: var(--paper-raised);
   padding: 0 var(--space-sm);
@@ -3770,10 +3944,6 @@ td .pill {
   font-size: var(--body-sm);
   font-weight: 700;
   margin-bottom: var(--space-xs);
-}
-
-.page--workspace .demo-banner {
-  margin: var(--space-sm) var(--space-md) 0;
 }
 
 .page--workspace .table-wrap {

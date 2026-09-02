@@ -114,7 +114,7 @@ export function BoxesPage() {
       {containerErr ? <p className="meta form-err">{containerErr}</p> : null}
 
       {open ? (
-        <form className="form" onSubmit={submit} noValidate>
+        <form className="form form-stack" onSubmit={submit} noValidate>
           <label>
             {tx("boxNo")}
             <input

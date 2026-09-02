@@ -64,7 +64,7 @@ export function CustomersPage() {
       />
 
       {open ? (
-        <form className="form" onSubmit={submit} noValidate>
+        <form className="form form-stack" onSubmit={submit} noValidate>
           <label>
             {tx("name")}
             <input

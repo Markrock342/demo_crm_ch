@@ -80,7 +80,7 @@ export function RatesPage() {
       <PageToolbar title={tx("ratesTitle")} count={rows.length} hint={isDemo ? tx("ratesDemoPreviewHint") : tx("ratesHint")} />
       {isDemo ? <DemoModuleBanner /> : null}
 
-      <form className="form pipe-form" onSubmit={submit}>
+      <form className="form filter-form pipe-form" onSubmit={submit}>
         <label>
           {tx("colOrigin")}
           <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} />
@@ -117,13 +117,14 @@ export function RatesPage() {
             </label>
           </>
         ) : null}
-        <button type="submit" className="btn btn-primary">
-          {tx("searchRates")}
-        </button>
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? tx("loading") : tx("searchRates")}
+          </button>
+        </div>
       </form>
 
       {err ? <p className="form-err">{err}</p> : null}
-      {loading ? <p className="meta">{tx("loading")}</p> : null}
       {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
 
       <div className="table-shell">
@@ -159,7 +160,7 @@ export function RatesPage() {
                 </td>
                 {!isDemo ? (
                   <td>
-                    <button type="button" className="btn btn-ghost" onClick={() => void createQuote(r.laneId)}>
+                    <button type="button" className="btn btn-ghost btn-slim" onClick={() => void createQuote(r.laneId)}>
                       {tx("createQuote")}
                     </button>
                   </td>

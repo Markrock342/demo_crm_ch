@@ -90,7 +90,7 @@ export function PipelinePage() {
 
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">
-          <form className="form pipe-form" onSubmit={submit} aria-hidden={!open}>
+          <form className="form form-stack pipe-form" onSubmit={submit} aria-hidden={!open}>
             <label>
               {tx("colCustomer")}
               <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>

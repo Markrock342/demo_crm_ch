@@ -84,7 +84,7 @@ export function LeadsPage() {
       />
 
       {open ? (
-        <form className="form" onSubmit={submit}>
+        <form className="form form-stack" onSubmit={submit}>
           <label>
             {tx("colCompany")}
             <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} required />

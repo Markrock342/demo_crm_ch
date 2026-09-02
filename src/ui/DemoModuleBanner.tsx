@@ -9,7 +9,7 @@ export function DemoModuleBanner() {
         <strong>{tx("demoModuleTitle")}</strong>
         <p>{tx("demoModuleHint")}</p>
       </div>
-      <Link to="/login" className="btn btn-primary">
+      <Link to="/login" className="btn btn-primary btn-slim">
         {tx("loginSubmit")}
       </Link>
     </div>

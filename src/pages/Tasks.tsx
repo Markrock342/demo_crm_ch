@@ -73,7 +73,7 @@ export function TasksPage() {
 
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">
-          <form className="form task-form" onSubmit={submit} aria-hidden={!open}>
+          <form className="form form-stack task-form" onSubmit={submit} aria-hidden={!open}>
             <label className="form-wide">
               {tx("addTask")}
               <input value={title} onChange={(e) => setTitle(e.target.value)} required={open} />

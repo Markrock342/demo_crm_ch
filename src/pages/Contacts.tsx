@@ -50,7 +50,7 @@ export function ContactsPage() {
       />
 
       {open ? (
-        <form className="form" onSubmit={submit}>
+        <form className="form form-stack" onSubmit={submit}>
           <label>
             {tx("colCustomer")}
             <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
