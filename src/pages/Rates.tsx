@@ -6,6 +6,7 @@ import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
 import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
+import { PageToolbar } from "../ui/PageToolbar.tsx";
 
 const statusClass: Record<RateSearchRow["status"], string> = {
   ACTIVE: "pill-ok",
@@ -75,14 +76,8 @@ export function RatesPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("ratesTitle")}</h1>
-          <p>{isDemo ? tx("ratesDemoPreviewHint") : tx("ratesHint")}</p>
-        </div>
-      </div>
-
+    <div className="page page--workspace">
+      <PageToolbar title={tx("ratesTitle")} count={rows.length} hint={isDemo ? tx("ratesDemoPreviewHint") : tx("ratesHint")} />
       {isDemo ? <DemoModuleBanner /> : null}
 
       <form className="form pipe-form" onSubmit={submit}>
@@ -131,8 +126,8 @@ export function RatesPage() {
       {loading ? <p className="meta">{tx("loading")}</p> : null}
       {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
 
-      <div className="table-wrap">
-        <table className="ledger">
+      <div className="table-shell">
+        <table className="data-table ledger">
           <thead>
             <tr>
               <th>{tx("colCarrier")}</th>

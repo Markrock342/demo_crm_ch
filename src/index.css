@@ -19,7 +19,8 @@
   --grid-line: oklch(0.88 0.014 240 / 0.55);
   --shadow: 0 12px 32px oklch(0.26 0.045 255 / 0.1);
   --shadow-sm: 0 2px 12px oklch(0.26 0.045 255 / 0.07);
-  --radius: 10px;
+  --radius: 8px;
+  --radius-sm: 6px;
   --radius-pill: 999px;
   --font-ui: "IBM Plex Sans", "IBM Plex Sans Thai", "Noto Sans SC", "Noto Sans Thai", system-ui, sans-serif;
   --font-serif: var(--font-ui);
@@ -35,8 +36,8 @@
   --h1: 1.375rem;
   --h2: 1.125rem;
   --h3: 1rem;
-  --body: 0.875rem;
-  --body-sm: 0.8125rem;
+  --body: 1rem;
+  --body-sm: 0.875rem;
   --caption: 0.75rem;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --dur: 200ms;
@@ -1104,21 +1105,37 @@ tr.row-active {
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2xs);
+  gap: 6px;
 }
 
 .filters button {
-  border: 0;
-  background: transparent;
-  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
   padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--paper);
   color: var(--ink-soft);
+  font-size: var(--caption);
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.filters button:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
 
 .filters button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--seal);
+  border-color: var(--seal-deep);
+  color: var(--on-seal);
 }
 
 .mail-layout {
@@ -1776,6 +1793,9 @@ tr.row-active {
 }
 
 .page-toolbar-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -3556,10 +3576,75 @@ td .pill {
   margin-inline-start: var(--space-xs);
 }
 
+.page--workspace.page--split .split-panels,
+.page--workspace.page--with-drawer .boxes-layout {
+  margin-inline: var(--space-md);
+  margin-block-end: var(--space-sm);
+}
+
+.page--workspace.page--split .split-panels {
+  gap: var(--space-sm);
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  align-items: start;
+}
+
+.page--workspace .split-panels .panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: var(--space-sm);
+  min-height: 0;
+}
+
+.page--workspace .split-panels .panel h2 {
+  font-size: var(--body-sm);
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+.page--workspace .demo-banner {
+  margin: var(--space-sm) var(--space-md) 0;
+}
+
+.page--workspace .table-wrap {
+  overflow: auto;
+  max-height: calc(100svh - 220px);
+  margin-inline: var(--space-md);
+  margin-block: var(--space-sm);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.page--workspace .table-wrap table {
+  font-size: var(--body-sm);
+}
+
+.page--workspace .table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper-raised);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.page--workspace .table-wrap tbody tr:nth-child(even) {
+  background: oklch(0.985 0.006 240);
+}
+
+.page--workspace .form,
+.page--workspace .empty,
+.page--workspace > .meta,
+.page--workspace > .form-err {
+  margin-inline: var(--space-md);
+}
+
+.page--workspace .kpi-row {
+  margin: var(--space-sm) var(--space-md);
+}
+
 .split-panels {
   display: grid;
   grid-template-columns: minmax(240px, 320px) 1fr;
-  gap: var(--space-lg);
+  gap: var(--space-md);
 }
 
 @media (max-width: 900px) {
@@ -3572,19 +3657,28 @@ td .pill {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
   text-align: start;
-  padding: var(--space-sm);
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  margin-bottom: var(--space-xs);
+  background: var(--paper);
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: var(--body-sm);
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.list-btn:hover {
+  background: var(--canvas);
 }
 
 .list-btn.is-active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-color: var(--seal);
+  background: var(--seal-soft);
 }
 
 .quote-public {

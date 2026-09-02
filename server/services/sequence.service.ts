@@ -1,26 +1,19 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "../db/index.js";
-import { docSequences } from "../db/schema/commercial.js";
 
 export async function nextDocNumber(db: Db, kind: string, prefix: string): Promise<string> {
   const year = new Date().getFullYear();
 
   return db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select()
-      .from(docSequences)
-      .where(sql`${docSequences.kind} = ${kind} AND ${docSequences.year} = ${year}`)
-      .limit(1);
-
-    let seq: number;
-    if (!existing) {
-      await tx.insert(docSequences).values({ kind, year, lastSeq: 1 });
-      seq = 1;
-    } else {
-      seq = existing.lastSeq + 1;
-      await tx.update(docSequences).set({ lastSeq: seq }).where(sql`${docSequences.kind} = ${kind} AND ${docSequences.year} = ${year}`);
-    }
-
-    return `${prefix}-${year}-${String(seq).padStart(6, "0")}`;
+    const rows = await tx.execute<{ last_seq: number }>(sql`
+      INSERT INTO doc_sequences (kind, year, last_seq)
+      VALUES (${kind}, ${year}, 1)
+      ON CONFLICT (kind, year)
+      DO UPDATE SET last_seq = doc_sequences.last_seq + 1
+      RETURNING last_seq
+    `);
+    const row = rows[0] as { last_seq: number } | undefined;
+    if (!row) throw new Error("doc_sequence_failed");
+    return `${prefix}-${year}-${String(row.last_seq).padStart(6, "0")}`;
   });
 }

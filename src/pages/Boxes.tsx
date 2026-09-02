@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { customerName, type Box, type BoxStatus, type Direction } from "../data";
 import { useStore } from "../store";
 import { BoxLedgerCards } from "../ui/BoxLedgerCards";
+import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
 const statuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
@@ -60,41 +61,51 @@ export function BoxesPage() {
     setOpen(false);
   }
 
-  return (
-    <div className={`page${active ? " page--with-drawer" : ""}`}>
-      <div className="page-head">
-        <div>
-          <h1>{tx("boxesTitle")}</h1>
-          <p>{tx("boxesHint")}</p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          {tx("addBox")}
-        </button>
-      </div>
+  const statusCounts = useMemo(() => {
+    const map: Record<BoxStatus | "all", number> = { all: boxes.length, yard: 0, sail: 0, clear: 0, hold: 0, empty: 0 };
+    for (const b of boxes) map[b.status] += 1;
+    return map;
+  }, [boxes]);
 
-      <div className="toolbar">
-        <div className="filters" role="group" aria-label={tx("colStatus")}>
-          <button type="button" aria-pressed={status === "all"} onClick={() => setStatus("all")}>
-            {tx("filterAll")}
+  return (
+    <div className={`page page--workspace${active ? " page--with-drawer" : ""}`}>
+      <PageToolbar
+        title={tx("boxesTitle")}
+        count={rows.length}
+        hint={tx("boxesHint")}
+        actions={
+          <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {tx("addBox")}
           </button>
-          {statuses.map((s) => (
-            <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>
-              {tx(`st${cap(s)}`)}
-            </button>
-          ))}
-        </div>
-        <div className="filters" role="group" aria-label={tx("filterDir")}>
-          <button type="button" aria-pressed={dir === "all"} onClick={() => setDir("all")}>
-            {tx("filterAll")}
-          </button>
-          <button type="button" aria-pressed={dir === "in"} onClick={() => setDir("in")}>
-            {tx("inboundShort")}
-          </button>
-          <button type="button" aria-pressed={dir === "out"} onClick={() => setDir("out")}>
-            {tx("outboundShort")}
-          </button>
-        </div>
-      </div>
+        }
+        filters={
+          <>
+            <div className="filter-row" role="group" aria-label={tx("colStatus")}>
+              <button type="button" aria-pressed={status === "all"} className={`filter-chip${status === "all" ? " is-on" : ""}`} onClick={() => setStatus("all")}>
+                <span>{tx("filterAll")}</span>
+                <em>{statusCounts.all}</em>
+              </button>
+              {statuses.map((s) => (
+                <button key={s} type="button" aria-pressed={status === s} className={`filter-chip${status === s ? " is-on" : ""}`} onClick={() => setStatus(s)}>
+                  <span>{tx(`st${cap(s)}`)}</span>
+                  <em>{statusCounts[s]}</em>
+                </button>
+              ))}
+            </div>
+            <div className="filter-row" role="group" aria-label={tx("filterDir")}>
+              <button type="button" aria-pressed={dir === "all"} className={`filter-chip${dir === "all" ? " is-on" : ""}`} onClick={() => setDir("all")}>
+                <span>{tx("filterAll")}</span>
+              </button>
+              <button type="button" aria-pressed={dir === "in"} className={`filter-chip${dir === "in" ? " is-on" : ""}`} onClick={() => setDir("in")}>
+                <span>{tx("inboundShort")}</span>
+              </button>
+              <button type="button" aria-pressed={dir === "out"} className={`filter-chip${dir === "out" ? " is-on" : ""}`} onClick={() => setDir("out")}>
+                <span>{tx("outboundShort")}</span>
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {open ? (
         <form className="form" onSubmit={submit} noValidate>
@@ -169,8 +180,8 @@ export function BoxesPage() {
             onStatusChange={setBoxStatus}
           />
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>{tx("colBox")}</th>

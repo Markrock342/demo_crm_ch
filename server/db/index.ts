@@ -15,7 +15,8 @@ export function getDb(): Db | null {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) return null;
   if (!db) {
-    client = postgres(url, { max: 10 });
+    const poolMax = Math.max(1, Number(process.env.DB_POOL_MAX ?? "3") || 3);
+    client = postgres(url, { max: poolMax, idle_timeout: 20 });
     db = drizzle(client, { schema });
   }
   return db;

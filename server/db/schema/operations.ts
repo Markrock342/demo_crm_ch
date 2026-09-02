@@ -1,4 +1,4 @@
-import { boolean, integer, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, date, integer, numeric, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { customers } from "./crm.js";
 import { quotations, quotationRevisions, vendors } from "./commercial.js";
 
@@ -88,3 +88,42 @@ export const shipmentCharges = pgTable("shipment_charges", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const containers = pgTable("containers", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
+  customerId: text("customer_id")
+    .notNull()
+    .references(() => customers.id, { onDelete: "restrict" }),
+  containerNo: text("container_no").notNull().unique(),
+  type: text("type").notNull(),
+  status: text("status").notNull().default("yard"),
+  direction: text("direction").notNull(),
+  bl: text("bl"),
+  pol: text("pol"),
+  pod: text("pod"),
+  teu: integer("teu").notNull().default(1),
+  eta: date("eta"),
+  yardCode: text("yard_code"),
+  vessel: text("vessel"),
+  seal: text("seal"),
+  commodity: text("commodity"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const jobMilestones = pgTable(
+  "job_milestones",
+  {
+    id: text("id").primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    plannedAt: timestamp("planned_at", { withTimezone: true }),
+    actualAt: timestamp("actual_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [unique("job_milestones_job_code").on(t.jobId, t.code)],
+);

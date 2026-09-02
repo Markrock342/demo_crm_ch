@@ -17,6 +17,7 @@ import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
 import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
+import { PageToolbar } from "../ui/PageToolbar.tsx";
 
 export function InvoicesPage() {
   const { tx, locale, customers } = useStore();
@@ -90,14 +91,12 @@ export function InvoicesPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("invoicesTitle")}</h1>
-          <p>{isDemo ? tx("invoicesDemoPreviewHint") : tx("invoicesHint")}</p>
-        </div>
-      </div>
-
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("invoicesTitle")}
+        count={invoices.length}
+        hint={isDemo ? tx("invoicesDemoPreviewHint") : tx("invoicesHint")}
+      />
       {isDemo ? <DemoModuleBanner /> : null}
       {msg ? <p className="meta">{msg}</p> : null}
 
@@ -126,8 +125,8 @@ export function InvoicesPage() {
         </div>
       ) : null}
 
-      <div className="table-wrap">
-        <table className="ledger">
+      <div className="table-shell">
+        <table className="data-table ledger">
           <thead>
             <tr>
               {!isDemo ? <th /> : null}

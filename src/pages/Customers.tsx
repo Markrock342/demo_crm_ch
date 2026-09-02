@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { cityName, customerName, laneName } from "../data";
 import { useStore } from "../store";
 import { CustomerLedgerCards } from "../ui/CustomerLedgerCards";
+import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
 export function CustomersPage() {
@@ -45,21 +46,22 @@ export function CustomersPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>{tx("customersTitle")}</h1>
-          <p>{tx("customersHint")}</p>
-        </div>
-        <div className="toolbar">
-          <button type="button" className="btn btn-ghost" onClick={reset}>
-            {tx("resetDemo")}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            {tx("addCustomer")}
-          </button>
-        </div>
-      </div>
+    <div className="page page--workspace">
+      <PageToolbar
+        title={tx("customersTitle")}
+        count={rows.length}
+        hint={tx("customersHint")}
+        actions={
+          <>
+            <button type="button" className="btn btn-ghost" onClick={reset}>
+              {tx("resetDemo")}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+              {tx("addCustomer")}
+            </button>
+          </>
+        }
+      />
 
       {open ? (
         <form className="form" onSubmit={submit} noValidate>
@@ -111,8 +113,8 @@ export function CustomersPage() {
           onOpen={(c) => navigate(`/customers/${c.id}`)}
         />
       ) : (
-        <div className="table-wrap">
-          <table>
+        <div className="table-shell">
+          <table className="data-table">
             <caption className="sr-only">{tx("selectRow")}</caption>
             <thead>
               <tr>

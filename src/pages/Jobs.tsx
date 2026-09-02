@@ -6,6 +6,7 @@ import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
 import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
+import { PageToolbar } from "../ui/PageToolbar.tsx";
 
 export function JobsPage() {
   const { tx, locale, customers } = useStore();
@@ -51,18 +52,19 @@ export function JobsPage() {
   }, [selected, tab, tx, isDemo]);
 
   return (
-    <div className="page page--split">
-      <div className="page-head">
-        <div>
-          <h1>{tx("jobsTitle")}</h1>
-          <p>{isDemo ? tx("jobsDemoPreviewHint") : tx("jobsHint")}</p>
-        </div>
-        {isDemo ? (
-          <Link to="/shipments" className="btn btn-ghost">
-            {tx("navShipments")}
-          </Link>
-        ) : null}
-      </div>
+    <div className="page page--workspace page--split">
+      <PageToolbar
+        title={tx("jobsTitle")}
+        count={displayRows.length}
+        hint={isDemo ? tx("jobsDemoPreviewHint") : tx("jobsHint")}
+        actions={
+          isDemo ? (
+            <Link to="/shipments" className="btn btn-ghost">
+              {tx("navShipments")}
+            </Link>
+          ) : null
+        }
+      />
 
       {isDemo ? <DemoModuleBanner /> : null}
       {msg ? <p className="meta">{msg}</p> : null}

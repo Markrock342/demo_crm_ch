@@ -17,6 +17,7 @@ import { customerName } from "../data.ts";
 import { useAuth } from "../auth/AuthProvider.tsx";
 import { useStore } from "../store.tsx";
 import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
+import { PageToolbar } from "../ui/PageToolbar.tsx";
 
 type QuoteDetail = DemoQuoteDetail;
 
@@ -87,14 +88,12 @@ export function QuotationsPage() {
   }
 
   return (
-    <div className="page page--split">
-      <div className="page-head">
-        <div>
-          <h1>{tx("quotationsTitle")}</h1>
-          <p>{isDemo ? tx("quotationsDemoPreviewHint") : tx("quotationsHint")}</p>
-        </div>
-      </div>
-
+    <div className="page page--workspace page--split">
+      <PageToolbar
+        title={tx("quotationsTitle")}
+        count={rows.length}
+        hint={isDemo ? tx("quotationsDemoPreviewHint") : tx("quotationsHint")}
+      />
       {isDemo ? <DemoModuleBanner /> : null}
       {msg ? <p className="meta">{msg}</p> : null}
 
