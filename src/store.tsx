@@ -33,9 +33,12 @@ import {
   type CrmDoc,
 } from "./crm";
 import type { MailAnalysis } from "./ai/client";
+import { invoices as seedInvoices, shipments as seedShipments, type Invoice, type Shipment } from "./logistics";
+import { applyMailOps, syncCustomerBoxCounts } from "./ops";
 import { t, type Locale } from "./i18n";
+import type { DocStatus } from "./crm";
 
-const KEY = "cangzhan-demo-v3";
+const KEY = "cangzhan-demo-v4";
 
 type Persist = {
   locale: Locale;
@@ -48,15 +51,18 @@ type Persist = {
   tasks: TaskItem[];
   activities: Activity[];
   docs: CrmDoc[];
+  shipments: Shipment[];
+  invoices: Invoice[];
   compact: boolean;
   motion: boolean;
 };
 
 function emptyPersist(): Persist {
+  const boxes = seedBoxes;
   return {
     locale: "zh",
-    customers: seedCustomers,
-    boxes: seedBoxes,
+    customers: syncCustomerBoxCounts(seedCustomers, boxes),
+    boxes,
     mails: mailsSeed,
     contacts: seedContacts,
     leads: seedLeads,
@@ -64,6 +70,8 @@ function emptyPersist(): Persist {
     tasks: seedTasks,
     activities: seedActs,
     docs: seedDocs,
+    shipments: seedShipments,
+    invoices: seedInvoices,
     compact: false,
     motion: true,
   };
@@ -77,7 +85,7 @@ function load(): Persist {
       const base = emptyPersist();
       return {
         locale: p.locale ?? base.locale,
-        customers: p.customers ?? base.customers,
+        customers: syncCustomerBoxCounts(p.customers ?? base.customers, p.boxes ?? base.boxes),
         boxes: p.boxes ?? base.boxes,
         mails: p.mails ?? base.mails,
         contacts: p.contacts ?? base.contacts,
@@ -86,6 +94,8 @@ function load(): Persist {
         tasks: p.tasks ?? base.tasks,
         activities: p.activities ?? base.activities,
         docs: p.docs ?? base.docs,
+        shipments: p.shipments ?? base.shipments,
+        invoices: p.invoices ?? base.invoices,
         compact: p.compact ?? base.compact,
         motion: p.motion ?? base.motion,
       };
@@ -111,6 +121,8 @@ type Store = Persist & {
   rejectMail: (id: string) => void;
   markRead: (id: string) => void;
   applyMailAnalysis: (id: string, a: MailAnalysis) => void;
+  applyMailOps: (id: string) => void;
+  setDocStatus: (id: string, status: DocStatus) => void;
   addPastedMail: (input: { from: string; subject: string; body: string; analysis?: MailAnalysis }) => string;
   addNote: (customerId: string, body: string) => void;
   moveDeal: (id: string, stage: DealStage) => void;
@@ -141,6 +153,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState(init.tasks);
   const [activities, setActivities] = useState(init.activities);
   const [docs, setDocs] = useState(init.docs);
+  const [shipments, setShipments] = useState(init.shipments);
+  const [invoices, setInvoices] = useState(init.invoices);
   const [compact, setCompact] = useState(init.compact);
   const [motion, setMotionState] = useState(init.motion);
   const [toast, setToast] = useState<string | null>(null);
@@ -160,11 +174,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         tasks,
         activities,
         docs,
+        shipments,
+        invoices,
         compact,
         motion,
       }),
     );
-  }, [locale, customers, boxes, mails, contacts, leads, deals, tasks, activities, docs, compact, motion]);
+  }, [locale, customers, boxes, mails, contacts, leads, deals, tasks, activities, docs, shipments, invoices, compact, motion]);
 
   const tx = useCallback((key: string, vars?: Record<string, string | number>) => t(locale, key, vars), [locale]);
 
@@ -215,7 +231,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const id = b.id.trim().toUpperCase();
       if (boxes.some((x) => x.id === id)) return "errorBox";
       setBoxes((list) => {
-        return [
+        const next = [
           {
             ...b,
             id,
@@ -225,10 +241,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
           ...list,
         ];
+        setCustomers((cs) => syncCustomerBoxCounts(cs, next));
+        return next;
       });
-      setCustomers((list) =>
-        list.map((c) => (c.id === b.customerId ? { ...c, boxes: c.boxes + 1 } : c)),
-      );
       flash("savedBox");
       return null;
     },
@@ -237,7 +252,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const setBoxStatus = useCallback(
     (id: string, status: BoxStatus) => {
-      setBoxes((list) => list.map((b) => (b.id === id ? { ...b, status } : b)));
+      setBoxes((list) => {
+        const next = list.map((b) => (b.id === id ? { ...b, status } : b));
+        setCustomers((cs) => syncCustomerBoxCounts(cs, next));
+        return next;
+      });
       flash("statusChanged");
     },
     [flash],
@@ -249,6 +268,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         list.map((b) => (b.id === id ? { ...b, yardZh: yard, yardTh: yard, yardEn: yard } : b)),
       );
       flash("movedYard");
+    },
+    [flash],
+  );
+
+  const setDocStatus = useCallback(
+    (id: string, status: DocStatus) => {
+      const stamp = `${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+      setDocs((list) => list.map((d) => (d.id === id ? { ...d, status, updated: stamp } : d)));
+      flash("docUpdated");
     },
     [flash],
   );
@@ -305,6 +333,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 dest: a.dest,
                 extractedBoxes: a.boxIds,
                 docsMissing: a.docsMissing,
+                suggestedStatus: a.suggestedStatus,
                 needsHuman: a.needsHuman,
                 customerId: a.customerId || m.customerId,
               }
@@ -314,6 +343,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       flash("draftSaved");
     },
     [flash],
+  );
+
+  const applyMailOpsFn = useCallback(
+    (id: string) => {
+      const mail = mails.find((m) => m.id === id);
+      if (!mail) return;
+      const a: MailAnalysis = {
+        intent: mail.intent ?? "",
+        summary: mail.summary ?? "",
+        origin: mail.origin ?? "",
+        dest: mail.dest ?? "",
+        boxIds: mail.extractedBoxes ?? [],
+        blNumbers: [],
+        docsMissing: mail.docsMissing ?? [],
+        suggestedStatus: mail.suggestedStatus ?? "",
+        confidence: mail.confidence,
+        needsHuman: mail.needsHuman ?? false,
+        draftZh: mail.draftZh,
+        draftTh: mail.draftTh,
+        draftEn: mail.draftEn,
+        customerId: mail.customerId || null,
+      };
+      const result = applyMailOps(a, boxes, docs, tasks, mail.customerId);
+      setBoxes(result.boxes);
+      setDocs(result.docs);
+      setTasks(result.tasks);
+      setCustomers((cs) => syncCustomerBoxCounts(cs, result.boxes));
+      if (result.applied.length) {
+        setActivities((list) => [
+          {
+            id: `a${Date.now()}`,
+            type: "task",
+            at: `${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")} ${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`,
+            user: "林晓衡",
+            customerId: mail.customerId,
+            body: `Applied mail ops: ${result.applied.join(", ")}`,
+          },
+          ...list,
+        ]);
+      }
+      flash("opsApplied");
+    },
+    [boxes, docs, flash, mails, tasks],
   );
 
   const addPastedMail = useCallback(
@@ -347,6 +419,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           dest: a?.dest,
           extractedBoxes: a?.boxIds,
           docsMissing: a?.docsMissing,
+          suggestedStatus: a?.suggestedStatus,
           needsHuman: a?.needsHuman ?? true,
         },
         ...list,
@@ -496,6 +569,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTasks(fresh.tasks);
     setActivities(fresh.activities);
     setDocs(fresh.docs);
+    setShipments(fresh.shipments);
+    setInvoices(fresh.invoices);
     flash("resetDemo");
   }, [flash, locale]);
 
@@ -510,6 +585,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     tasks,
     activities,
     docs,
+    shipments,
+    invoices,
     compact,
     motion,
     toast,
@@ -526,6 +603,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     rejectMail,
     markRead,
     applyMailAnalysis,
+    applyMailOps: applyMailOpsFn,
+    setDocStatus,
     addPastedMail,
     addNote,
     moveDeal,

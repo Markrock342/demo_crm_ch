@@ -1,18 +1,20 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
-import { customerName, type BoxStatus, type Direction } from "../data";
+import { customerName, type Box, type BoxStatus, type Direction } from "../data";
 import { useStore } from "../store";
 
 const statuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
 
 export function BoxesPage() {
-  const { tx, locale, boxes, customers, query, addBox, setBoxStatus } = useStore();
+  const { tx, locale, boxes, customers, docs, shipments, query, addBox, setBoxStatus } = useStore();
   const [params] = useSearchParams();
   const q = (params.get("q") ?? query).trim().toLowerCase();
   const preset = (params.get("status") as BoxStatus | null) ?? "all";
   const [status, setStatus] = useState<BoxStatus | "all">(preset === "hold" ? "hold" : "all");
   const [dir, setDir] = useState<Direction | "all">("all");
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Box | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "",
@@ -30,7 +32,7 @@ export function BoxesPage() {
     () =>
       boxes.filter((b) => {
         const c = customers.find((x) => x.id === b.customerId);
-        const blob = `${b.id} ${b.bl} ${b.yardZh} ${c ? customerName(c, locale) : ""}`.toLowerCase();
+        const blob = `${b.id} ${b.bl} ${b.yardZh} ${b.vessel ?? ""} ${c ? customerName(c, locale) : ""}`.toLowerCase();
         if (q && !blob.includes(q)) return false;
         if (status !== "all" && b.status !== status) return false;
         if (dir !== "all" && b.dir !== dir) return false;
@@ -38,6 +40,10 @@ export function BoxesPage() {
       }),
     [boxes, customers, dir, locale, q, status],
   );
+
+  const active = selected && rows.some((b) => b.id === selected.id) ? boxes.find((b) => b.id === selected.id) ?? null : null;
+  const linkedDocs = active ? docs.filter((d) => d.boxId === active.id) : [];
+  const shipment = active?.shipmentId ? shipments.find((s) => s.id === active.shipmentId) : shipments.find((s) => s.bl === active?.bl);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -52,7 +58,7 @@ export function BoxesPage() {
   }
 
   return (
-    <div className="page">
+    <div className={`page${active ? " page--with-drawer" : ""}`}>
       <div className="page-head">
         <div>
           <h1>{tx("boxesTitle")}</h1>
@@ -148,61 +154,131 @@ export function BoxesPage() {
         </form>
       ) : null}
 
-      {rows.length === 0 ? (
-        <p className="empty">{tx("noMatch")}</p>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{tx("colBox")}</th>
-                <th>{tx("colCustomer")}</th>
-                <th>{tx("colType")}</th>
-                <th>{tx("colDir")}</th>
-                <th>{tx("colStatus")}</th>
-                <th>{tx("colYard")}</th>
-                <th className="num">{tx("colTeu")}</th>
-                <th className="num">{tx("colEta")}</th>
-                <th>{tx("colBl")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((b) => {
-                const c = customers.find((x) => x.id === b.customerId);
-                return (
-                  <tr key={b.id}>
-                    <td className="mono">{b.id}</td>
-                    <td>{c ? customerName(c, locale) : "—"}</td>
-                    <td>{b.type}</td>
-                    <td>{tx(b.dir === "in" ? "inboundShort" : "outboundShort")}</td>
-                    <td>
-                      <label className="sr-only" htmlFor={`st-${b.id}`}>
-                        {tx("pickStatus")}
-                      </label>
-                      <select
-                        id={`st-${b.id}`}
-                        className={`status-select pill-${b.status}`}
-                        value={b.status}
-                        onChange={(e) => setBoxStatus(b.id, e.target.value as BoxStatus)}
-                      >
-                        {statuses.map((s) => (
-                          <option key={s} value={s}>
-                            {tx(`st${cap(s)}`)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{locale === "th" ? b.yardTh : locale === "en" ? b.yardEn : b.yardZh}</td>
-                    <td className="num">{b.teu}</td>
-                    <td className="num">{b.eta}</td>
-                    <td className="mono">{b.bl}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="boxes-layout">
+        {rows.length === 0 ? (
+          <p className="empty">{tx("noMatch")}</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{tx("colBox")}</th>
+                  <th>{tx("colCustomer")}</th>
+                  <th>{tx("colType")}</th>
+                  <th>{tx("colDir")}</th>
+                  <th>{tx("colStatus")}</th>
+                  <th>{tx("colYard")}</th>
+                  <th className="num">{tx("colTeu")}</th>
+                  <th className="num">{tx("colEta")}</th>
+                  <th>{tx("colBl")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((b) => {
+                  const c = customers.find((x) => x.id === b.customerId);
+                  return (
+                    <tr
+                      key={b.id}
+                      className={active?.id === b.id ? "row-active" : undefined}
+                      tabIndex={0}
+                      onClick={() => setSelected(b)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setSelected(b);
+                      }}
+                    >
+                      <td className="mono">{b.id}</td>
+                      <td>{c ? customerName(c, locale) : "—"}</td>
+                      <td>{b.type}</td>
+                      <td>{tx(b.dir === "in" ? "inboundShort" : "outboundShort")}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <label className="sr-only" htmlFor={`st-${b.id}`}>
+                          {tx("pickStatus")}
+                        </label>
+                        <select
+                          id={`st-${b.id}`}
+                          className={`status-select pill-${b.status}`}
+                          value={b.status}
+                          onChange={(e) => setBoxStatus(b.id, e.target.value as BoxStatus)}
+                        >
+                          {statuses.map((s) => (
+                            <option key={s} value={s}>
+                              {tx(`st${cap(s)}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{locale === "th" ? b.yardTh : locale === "en" ? b.yardEn : b.yardZh}</td>
+                      <td className="num">{b.teu}</td>
+                      <td className="num">{b.eta}</td>
+                      <td className="mono">{b.bl}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {active ? (
+          <aside className="box-drawer" aria-label={tx("boxDetailTitle")}>
+            <header className="box-drawer-head">
+              <h2 className="mono">{active.id}</h2>
+              <button type="button" className="btn btn-ghost" onClick={() => setSelected(null)}>
+                {tx("closeMenu")}
+              </button>
+            </header>
+            <dl className="box-facts">
+              <div>
+                <dt>{tx("colBl")}</dt>
+                <dd className="mono">{active.bl || "—"}</dd>
+              </div>
+              <div>
+                <dt>{tx("colVessel")}</dt>
+                <dd>{active.vessel ?? shipment?.vessel ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>{tx("colLane")}</dt>
+                <dd className="mono">
+                  {active.pol ?? shipment?.pol ?? "—"} → {active.pod ?? shipment?.pod ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>{tx("colSeal")}</dt>
+                <dd className="mono">{active.seal ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>{tx("colCommodity")}</dt>
+                <dd>{active.commodity ?? "—"}</dd>
+              </div>
+              {shipment ? (
+                <div>
+                  <dt>{tx("colBooking")}</dt>
+                  <dd>
+                    <Link to={`/shipments`}>{shipment.bookingNo}</Link>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+            <section>
+              <h3>{tx("colLinkedDocs")}</h3>
+              {linkedDocs.length === 0 ? (
+                <p className="meta">{tx("emptyDocs")}</p>
+              ) : (
+                <ul className="box-doc-list">
+                  {linkedDocs.map((d) => (
+                    <li key={d.id}>
+                      <span className="mono">{d.kind}</span> {d.name}
+                      <span className={`pill pill-${d.status === "ok" ? "clear" : d.status === "late" ? "hold" : "yard"}`}>
+                        {tx(`doc${cap(d.status)}`)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </aside>
+        ) : null}
+      </div>
     </div>
   );
 }

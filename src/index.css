@@ -761,6 +761,133 @@ tbody tr[aria-selected="true"] {
   color: var(--ink-soft);
 }
 
+.pill-sh-booking {
+  background: oklch(0.93 0.02 240);
+  color: var(--slate);
+}
+
+.pill-sh-gate_in {
+  background: oklch(0.93 0.03 180);
+  color: var(--seal-deep);
+}
+
+.pill-sh-sail {
+  background: oklch(0.93 0.03 210);
+  color: var(--slate);
+}
+
+.pill-sh-arrived {
+  background: oklch(0.93 0.03 160);
+  color: var(--olive);
+}
+
+.pill-sh-delivered {
+  background: oklch(0.92 0.01 240);
+  color: var(--ink-soft);
+}
+
+.boxes-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+.page--with-drawer .boxes-layout {
+  grid-template-columns: minmax(0, 1fr) min(22rem, 36vw);
+  align-items: start;
+}
+
+.box-drawer {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: var(--space-md);
+  position: sticky;
+  top: var(--space-md);
+}
+
+.box-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.box-facts {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.box-facts div {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: var(--space-xs);
+}
+
+.box-facts dt {
+  color: var(--ink-soft);
+  font-size: var(--caption);
+}
+
+.box-doc-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-sm) 0 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.box-doc-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+
+.doc-actions .btn {
+  min-height: 2rem;
+  padding: 0 8px;
+  font-size: var(--caption);
+}
+
+.exception-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.exception-list a {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  color: inherit;
+}
+
+.exception-list strong {
+  grid-column: 2;
+}
+
+.exception-list .meta {
+  grid-column: 2;
+}
+
+tr.row-active {
+  background: var(--seal-soft);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

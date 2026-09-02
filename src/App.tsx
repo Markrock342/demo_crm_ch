@@ -12,6 +12,7 @@ import {
   List,
   ListChecks,
   MagnifyingGlass,
+  Package,
   SquaresFour,
   Tray,
   Users,
@@ -37,6 +38,7 @@ import { OverviewPage } from "./pages/Overview";
 import { PipelinePage } from "./pages/Pipeline";
 import { ReportsPage } from "./pages/Reports";
 import { SettingsPage } from "./pages/Settings";
+import { ShipmentsPage } from "./pages/Shipments";
 import { TasksPage } from "./pages/Tasks";
 import { YardPage } from "./pages/Yard";
 import { useStore } from "./store";
@@ -56,6 +58,7 @@ const groups = [
     key: "navOps",
     items: [
       { to: "/boxes", key: "navBoxes", icon: Cube },
+      { to: "/shipments", key: "navShipments", icon: Package },
       { to: "/yard", key: "navYard", icon: SquaresFour },
       { to: "/inbox", key: "navInbox", icon: EnvelopeSimple },
       { to: "/docs", key: "navDocs", icon: FileText },
@@ -257,6 +260,7 @@ export default function App() {
             <Route path="/customers/:id" element={<AccountPage />} />
             <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/boxes" element={<BoxesPage />} />
+            <Route path="/shipments" element={<ShipmentsPage />} />
             <Route path="/yard" element={<YardPage />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/docs" element={<DocsPage />} />

@@ -22,6 +22,7 @@ export type Customer = {
 export type Box = {
   id: string;
   customerId: string;
+  shipmentId?: string;
   type: string;
   dir: Direction;
   status: BoxStatus;
@@ -31,6 +32,11 @@ export type Box = {
   eta: string;
   teu: number;
   bl: string;
+  vessel?: string;
+  pol?: string;
+  pod?: string;
+  seal?: string;
+  commodity?: string;
 };
 
 export type Mail = {
@@ -56,6 +62,7 @@ export type Mail = {
   dest?: string;
   extractedBoxes?: string[];
   docsMissing?: string[];
+  suggestedStatus?: string;
   needsHuman?: boolean;
 };
 
@@ -223,21 +230,21 @@ export const customers: Customer[] = [
 ];
 
 export const boxes: Box[] = [
-  { id: "MSCU4829103", customerId: "c1", type: "40HC", dir: "out", status: "sail", yardZh: "盐田三期", yardTh: "หยานเถียน 3", yardEn: "Yantian T3", eta: "09-06", teu: 2, bl: "SHZ25090281" },
-  { id: "COSU7193348", customerId: "c4", type: "20GP", dir: "out", status: "hold", yardZh: "南沙一期", yardTh: "หนานซา 1", yardEn: "Nansha T1", eta: "09-04", teu: 1, bl: "NSA25082911" },
-  { id: "OOLU2611084", customerId: "c2", type: "40HC", dir: "in", status: "yard", yardZh: "林查班 B4", yardTh: "แหลมฉบัง B4", yardEn: "LCB B4", eta: "09-02", teu: 2, bl: "NGB25081844" },
-  { id: "EMCU9037712", customerId: "c5", type: "40HC", dir: "out", status: "sail", yardZh: "义乌监管仓", yardTh: "คลังศุลกากรอี้อู", yardEn: "Yiwu bonded", eta: "09-08", teu: 2, bl: "YIW25090102" },
-  { id: "TEMU5541209", customerId: "c3", type: "20GP", dir: "in", status: "hold", yardZh: "林查班 C1", yardTh: "แหลมฉบัง C1", yardEn: "LCB C1", eta: "08-29", teu: 1, bl: "TAO25080177" },
-  { id: "CMAU3382106", customerId: "c6", type: "40HC", dir: "out", status: "clear", yardZh: "虎门驳运", yardTh: "ฮูเหมิน เรือลำเลียง", yardEn: "Humen barge", eta: "09-03", teu: 2, bl: "DGN25082209" },
-  { id: "TCLU8820145", customerId: "c8", type: "40HC", dir: "in", status: "empty", yardZh: "林查班空箱区", yardTh: "โซนตู้เปล่า ลฉบ.", yardEn: "LCB empty", eta: "09-01", teu: 2, bl: "LCB25083001" },
-  { id: "FCIU1479033", customerId: "c7", type: "20GP", dir: "in", status: "yard", yardZh: "曼谷空功", yardTh: "คลองเตย", yardEn: "Khlong Toei", eta: "09-02", teu: 1, bl: "SHA25081560" },
-  { id: "GESU6108821", customerId: "c1", type: "40HC", dir: "out", status: "yard", yardZh: "盐田堆存", yardTh: "ลานหยานเถียน", yardEn: "Yantian yard", eta: "09-05", teu: 2, bl: "SHZ25082814" },
-  { id: "HLXU2299017", customerId: "c4", type: "40HC", dir: "out", status: "hold", yardZh: "南沙待补", yardTh: "หนานซารอเอกสาร", yardEn: "Nansha hold", eta: "09-04", teu: 2, bl: "NSA25083022" },
-  { id: "MSCU9012284", customerId: "c5", type: "20GP", dir: "out", status: "sail", yardZh: "义乌拼箱", yardTh: "LCL อี้อู", yardEn: "Yiwu LCL", eta: "09-07", teu: 1, bl: "YIW25082755" },
-  { id: "COSU4410876", customerId: "c2", type: "40HC", dir: "in", status: "clear", yardZh: "北榄仓", yardTh: "คลังสมุทรปราการ", yardEn: "Samut Prakan", eta: "08-31", teu: 2, bl: "NGB25080103" },
-  { id: "TCLU3308812", customerId: "c9", type: "40HC", dir: "out", status: "hold", yardZh: "林查班 A2", yardTh: "แหลมฉบัง A2", yardEn: "LCB A2", eta: "09-05", teu: 2, bl: "LCB25090201" },
-  { id: "MSCU2201198", customerId: "c9", type: "40HC", dir: "out", status: "sail", yardZh: "林查班码头", yardTh: "ท่าเรือแหลมฉบัง", yardEn: "LCB berth", eta: "09-04", teu: 2, bl: "LCB25082844" },
-  { id: "OOLU8844011", customerId: "c10", type: "20GP", dir: "out", status: "yard", yardZh: "林查班 B1", yardTh: "แหลมฉบัง B1", yardEn: "LCB B1", eta: "09-07", teu: 1, bl: "LCB25090155" },
+  { id: "MSCU4829103", customerId: "c1", shipmentId: "s3", type: "40HC", dir: "out", status: "sail", yardZh: "盐田三期", yardTh: "หยานเถียน 3", yardEn: "Yantian T3", eta: "09-06", teu: 2, bl: "SHZ25090281", vessel: "MSC LONDON", pol: "CNYTN", pod: "THLCH", seal: "ML-CN882901", commodity: "家具" },
+  { id: "COSU7193348", customerId: "c4", shipmentId: "s1", type: "20GP", dir: "out", status: "hold", yardZh: "南沙一期", yardTh: "หนานซา 1", yardEn: "Nansha T1", eta: "09-04", teu: 1, bl: "NSA25082911", vessel: "COSCO SHIPPING ARIES", pol: "CNNSA", pod: "THLCH", seal: "CS-771902", commodity: "机械配件" },
+  { id: "OOLU2611084", customerId: "c2", type: "40HC", dir: "in", status: "yard", yardZh: "林查班 B4", yardTh: "แหลมฉบัง B4", yardEn: "LCB B4", eta: "09-02", teu: 2, bl: "NGB25081844", pol: "CNNGB", pod: "THLCH", commodity: "塑料粒" },
+  { id: "EMCU9037712", customerId: "c5", shipmentId: "s5", type: "40HC", dir: "out", status: "sail", yardZh: "义乌监管仓", yardTh: "คลังศุลกากรอี้อู", yardEn: "Yiwu bonded", eta: "09-08", teu: 2, bl: "YIW25090102", vessel: "CMA CGM THALASSA", pol: "CNNGB", pod: "THBKK", commodity: "小商品" },
+  { id: "TEMU5541209", customerId: "c3", shipmentId: "s6", type: "20GP", dir: "in", status: "hold", yardZh: "林查班 C1", yardTh: "แหลมฉบัง C1", yardEn: "LCB C1", eta: "08-29", teu: 1, bl: "TAO25080177", vessel: "PIL BANGKOK", pol: "CNTAO", pod: "THLCH", commodity: "化工" },
+  { id: "CMAU3382106", customerId: "c6", type: "40HC", dir: "out", status: "clear", yardZh: "虎门驳运", yardTh: "ฮูเหมิน เรือลำเลียง", yardEn: "Humen barge", eta: "09-03", teu: 2, bl: "DGN25082209", pol: "CNHMN", pod: "THRYG", commodity: "电子" },
+  { id: "TCLU8820145", customerId: "c8", type: "40HC", dir: "in", status: "empty", yardZh: "林查班空箱区", yardTh: "โซนตู้เปล่า ลฉบ.", yardEn: "LCB empty", eta: "09-01", teu: 2, bl: "LCB25083001", pol: "THLCH", pod: "THLCH" },
+  { id: "FCIU1479033", customerId: "c7", type: "20GP", dir: "in", status: "yard", yardZh: "林查班 D2", yardTh: "แหลมฉบัง D2", yardEn: "LCB D2", eta: "09-02", teu: 1, bl: "SHA25081560", pol: "CNSHA", pod: "THLCH", commodity: "棉纱" },
+  { id: "GESU6108821", customerId: "c1", shipmentId: "s3", type: "40HC", dir: "out", status: "yard", yardZh: "盐田堆存", yardTh: "ลานหยานเถียน", yardEn: "Yantian yard", eta: "09-05", teu: 2, bl: "SHZ25090281", vessel: "MSC LONDON", pol: "CNYTN", pod: "THLCH", seal: "ML-CN882902", commodity: "家具" },
+  { id: "HLXU2299017", customerId: "c4", shipmentId: "s1", type: "40HC", dir: "out", status: "hold", yardZh: "南沙待补", yardTh: "หนานซารอเอกสาร", yardEn: "Nansha hold", eta: "09-04", teu: 2, bl: "NSA25083022", vessel: "COSCO SHIPPING ARIES", pol: "CNNSA", pod: "THLCH", seal: "CS-771903", commodity: "机械配件" },
+  { id: "MSCU9012284", customerId: "c5", shipmentId: "s5", type: "20GP", dir: "out", status: "sail", yardZh: "义乌拼箱", yardTh: "LCL อี้อู", yardEn: "Yiwu LCL", eta: "09-07", teu: 1, bl: "YIW25082755", vessel: "CMA CGM THALASSA", pol: "CNNGB", pod: "THBKK", commodity: "小商品" },
+  { id: "COSU4410876", customerId: "c2", type: "40HC", dir: "in", status: "clear", yardZh: "北榄仓", yardTh: "คลังสมุทรปราการ", yardEn: "Samut Prakan", eta: "08-31", teu: 2, bl: "NGB25080103", pol: "CNNGB", pod: "THBKK", commodity: "塑料粒" },
+  { id: "TCLU3308812", customerId: "c9", shipmentId: "s2", type: "40HC", dir: "out", status: "hold", yardZh: "林查班 A2", yardTh: "แหลมฉบัง A2", yardEn: "LCB A2", eta: "09-05", teu: 2, bl: "LCB25090201", vessel: "ONE COMMITMENT", pol: "THLCH", pod: "CNYTN", seal: "ONE-330881", commodity: "冷冻食品" },
+  { id: "MSCU2201198", customerId: "c9", shipmentId: "s2", type: "40HC", dir: "out", status: "sail", yardZh: "林查班码头", yardTh: "ท่าเรือแหลมฉบัง", yardEn: "LCB berth", eta: "09-04", teu: 2, bl: "LCB25082844", vessel: "ONE COMMITMENT", pol: "THLCH", pod: "CNYTN", commodity: "冷冻食品" },
+  { id: "OOLU8844011", customerId: "c10", type: "20GP", dir: "out", status: "yard", yardZh: "林查班 B1", yardTh: "แหลมฉบัง B1", yardEn: "LCB B1", eta: "09-07", teu: 1, bl: "LCB25090155", pol: "THLCH", pod: "CNNGB", commodity: "树胶" },
 ];
 
 export const mailsSeed: Mail[] = [

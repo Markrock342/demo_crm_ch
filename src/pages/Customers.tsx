@@ -4,7 +4,7 @@ import { cityName, customerName, laneName } from "../data";
 import { useStore } from "../store";
 
 export function CustomersPage() {
-  const { tx, locale, customers, query, addCustomer, reset } = useStore();
+  const { tx, locale, customers, boxes, query, addCustomer, reset } = useStore();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const q = (params.get("q") ?? query).trim().toLowerCase();
@@ -120,7 +120,7 @@ export function CustomersPage() {
                   <td>{customerName(c, locale)}</td>
                   <td>{cityName(c, locale)}</td>
                   <td>{laneName(c, locale)}</td>
-                  <td className="num">{c.boxes}</td>
+                  <td className="num">{boxes.filter((b) => b.customerId === c.id).length}</td>
                   <td>{c.owner}</td>
                   <td className="num">{c.arDays}</td>
                   <td className="num">{c.updated}</td>

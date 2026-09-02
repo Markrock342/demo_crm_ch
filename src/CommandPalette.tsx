@@ -10,6 +10,7 @@ const pages = [
   { to: "/customers", key: "navCustomers" },
   { to: "/contacts", key: "navContacts" },
   { to: "/boxes", key: "navBoxes" },
+  { to: "/shipments", key: "navShipments" },
   { to: "/inbox", key: "navInbox" },
   { to: "/docs", key: "navDocs" },
   { to: "/tasks", key: "navTasks" },

@@ -4,11 +4,13 @@ import type { DocStatus } from "../crm";
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { Segment } from "../ui/Segment";
+import { Button } from "../ui/Button";
 
 const statuses: Array<DocStatus | "all"> = ["all", "ok", "wait", "late"];
+const docActions: DocStatus[] = ["ok", "wait", "late"];
 
 export function DocsPage() {
-  const { tx, locale, docs, customers, query } = useStore();
+  const { tx, locale, docs, customers, query, setDocStatus } = useStore();
   const navigate = useNavigate();
   const [status, setStatus] = useState<DocStatus | "all">("all");
   const q = query.trim().toLowerCase();
@@ -35,7 +37,7 @@ export function DocsPage() {
         label={tx("colStatus")}
         value={status}
         onChange={setStatus}
-        options={statuses.map((s) => ({ value: s, label: s === "all" ? tx("filterAll") : s }))}
+        options={statuses.map((s) => ({ value: s, label: s === "all" ? tx("filterAll") : tx(`doc${cap(s)}`) }))}
       />
       {rows.length === 0 ? (
         <p className="empty">{tx("emptyDocs")}</p>
@@ -50,23 +52,41 @@ export function DocsPage() {
                 <th>{tx("colCustomer")}</th>
                 <th>{tx("colStatus")}</th>
                 <th className="num">{tx("colUpdated")}</th>
+                <th>{tx("docActions")}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((d) => {
                 const c = customers.find((x) => x.id === d.customerId);
                 return (
-                  <tr key={d.id} onClick={() => navigate(`/customers/${d.customerId}`)}>
-                    <td>{d.name}</td>
-                    <td className="mono">{d.kind}</td>
-                    <td className="mono">{d.boxId}</td>
-                    <td>{c ? customerName(c, locale) : "—"}</td>
+                  <tr key={d.id}>
+                    <td onClick={() => navigate(`/customers/${d.customerId}`)}>{d.name}</td>
+                    <td className="mono" onClick={() => navigate(`/boxes?q=${d.boxId}`)}>
+                      {d.kind}
+                    </td>
+                    <td className="mono" onClick={() => navigate(`/boxes?q=${d.boxId}`)}>
+                      {d.boxId}
+                    </td>
+                    <td onClick={() => navigate(`/customers/${d.customerId}`)}>{c ? customerName(c, locale) : "—"}</td>
                     <td>
                       <span className={`pill pill-${d.status === "ok" ? "clear" : d.status === "late" ? "hold" : "yard"}`}>
-                        {d.status}
+                        {tx(`doc${cap(d.status)}`)}
                       </span>
                     </td>
                     <td className="num">{d.updated}</td>
+                    <td>
+                      <div className="doc-actions" onClick={(e) => e.stopPropagation()}>
+                        {docActions.map((st) => (
+                          <Button
+                            key={st}
+                            variant={d.status === st ? "primary" : "ghost"}
+                            onClick={() => setDocStatus(d.id, st)}
+                          >
+                            {tx(`doc${cap(st)}`)}
+                          </Button>
+                        ))}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -76,4 +96,8 @@ export function DocsPage() {
       )}
     </div>
   );
+}
+
+function cap(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

@@ -8,7 +8,7 @@ import { ConfidenceBar } from "../ui/ConfidenceBar";
 import { Button } from "../ui/Button";
 
 export function InboxPage() {
-  const { tx, locale, mails, customers, boxes, query, sendMail, saveDraft, rejectMail, markRead, applyMailAnalysis, addPastedMail } =
+  const { tx, locale, mails, customers, boxes, query, sendMail, saveDraft, rejectMail, markRead, applyMailAnalysis, applyMailOps, addPastedMail } =
     useStore();
   const open = mails.filter((m) => m.state === "open");
   const shown = useMemo(() => {
@@ -121,6 +121,7 @@ export function InboxPage() {
 
   const customer = mail ? customers.find((c) => c.id === mail.customerId) : null;
   const hasDraft = Boolean(draftText().trim());
+  const canApplyOps = Boolean(mail?.extractedBoxes?.length || mail?.docsMissing?.length || mail?.suggestedStatus);
   const aiStep: 0 | 1 | 2 | 3 = !mail ? 0 : !hasDraft ? 1 : editing ? 2 : 3;
 
   return (
@@ -302,6 +303,11 @@ export function InboxPage() {
                         {tx("edit")}
                       </Button>
                     )
+                  ) : null}
+                  {canApplyOps ? (
+                    <Button variant="primary" onClick={() => applyMailOps(mail.id)}>
+                      {tx("applyOps")}
+                    </Button>
                   ) : null}
                   <Button variant="ghost" onClick={() => rejectMail(mail.id)}>
                     {tx("reject")}

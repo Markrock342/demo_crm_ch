@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AiError, aiBrief } from "../ai/client";
 import { activityI18n, dealStageI18n, dealStages, money, priI18n } from "../crm";
+import { overdueInvoices } from "../logistics";
 import { customerName } from "../data";
 import { useStore } from "../store";
 import { AiBriefChat } from "../ui/AiBriefChat";
 
 export function OverviewPage() {
-  const { tx, locale, boxes, customers, mails, deals, tasks, docs, activities } = useStore();
+  const { tx, locale, boxes, customers, mails, deals, tasks, docs, activities, invoices } = useStore();
   const navigate = useNavigate();
   const teu = boxes.filter((b) => b.status === "yard" || b.status === "empty" || b.status === "hold").reduce((n, b) => n + b.teu, 0);
   const hold = boxes.filter((b) => b.status === "hold").length;
@@ -19,6 +20,33 @@ export function OverviewPage() {
   const [brief, setBrief] = useState<string | null>(null);
   const [briefing, setBriefing] = useState(false);
   const [briefErr, setBriefErr] = useState<string | null>(null);
+
+  const exceptions = useMemo(() => {
+    const rows: { id: string; label: string; meta: string; to: string; kind: "hold" | "late" | "wait" }[] = [];
+    for (const b of boxes.filter((x) => x.status === "hold")) {
+      const c = customers.find((x) => x.id === b.customerId);
+      rows.push({
+        id: b.id,
+        label: b.id,
+        meta: c ? customerName(c, locale) : b.bl,
+        to: `/boxes?q=${b.id}`,
+        kind: "hold",
+      });
+    }
+    for (const d of docs.filter((x) => x.status === "late" || x.status === "wait")) {
+      const c = customers.find((x) => x.id === d.customerId);
+      rows.push({
+        id: d.id,
+        label: `${d.kind} · ${d.boxId}`,
+        meta: c ? customerName(c, locale) : d.name,
+        to: `/docs`,
+        kind: d.status === "late" ? "late" : "wait",
+      });
+    }
+    return rows.slice(0, 8);
+  }, [boxes, customers, docs, locale]);
+
+  const overdueAr = overdueInvoices(invoices).length;
 
   async function runBrief() {
     setBriefing(true);
@@ -32,6 +60,8 @@ export function OverviewPage() {
         teuOnYard: teu,
         holdPapers: hold,
         openMail,
+        overdueInvoices: overdueAr,
+        exceptions: exceptions.length,
         lane: "Thailand to China, Laem Chabang to Yantian and Ningbo",
       });
       setBrief(text);
@@ -76,6 +106,29 @@ export function OverviewPage() {
           <div className="lbl">{tx("dashDocs")}</div>
         </div>
       </section>
+
+      {exceptions.length > 0 ? (
+        <section className="block exceptions">
+          <div className="page-head">
+            <h2>{tx("exceptionsTitle")}</h2>
+            <Link to="/boxes?status=hold">{tx("viewAll")}</Link>
+          </div>
+          <p className="hint">{tx("exceptionsHint")}</p>
+          <ul className="exception-list">
+            {exceptions.map((ex) => (
+              <li key={ex.id + ex.kind}>
+                <Link to={ex.to}>
+                  <span className={`pill pill-${ex.kind === "hold" ? "hold" : ex.kind === "late" ? "hold" : "yard"}`}>
+                    {tx(ex.kind === "hold" ? "stHold" : ex.kind === "late" ? "docLate" : "docWait")}
+                  </span>
+                  <strong className="mono">{ex.label}</strong>
+                  <span className="meta">{ex.meta}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="pipe-strip" aria-label={tx("navPipeline")}>
         {dealStages.map((st) => {
