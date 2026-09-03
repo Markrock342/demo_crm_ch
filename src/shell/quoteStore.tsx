@@ -1,5 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ShellQuotation, ShellQuoteCharge, ShellQuoteStatus } from "../ports/quote.port.ts";
+import { loadPersisted, savePersisted } from "./persist.ts";
+
+const STORAGE_KEY = "cangzhan-shell-quotes-v1";
+const VERSION = 1;
 
 type CreateInput = {
   customerId: string;
@@ -28,13 +32,20 @@ const QuoteCtx = createContext<ShellQuoteValue | null>(null);
 let seq = 1;
 
 export function ShellQuoteProvider({ children }: { children: ReactNode }) {
-  const [quotations, setQuotations] = useState<ShellQuotation[]>([]);
+  const [quotations, setQuotations] = useState<ShellQuotation[]>(
+    () => loadPersisted<ShellQuotation[]>(STORAGE_KEY, VERSION) ?? [],
+  );
+
+  useEffect(() => {
+    savePersisted(STORAGE_KEY, VERSION, quotations);
+  }, [quotations]);
 
   const getById = useCallback((id: string) => quotations.find((q) => q.id === id), [quotations]);
 
   const createDraft = useCallback((input: CreateInput) => {
     if (!input.customerId.trim()) return "quoteNeedCustomer";
-    const totalSell = input.charges.reduce((n, c) => n + (Number(c.sellAmount) || 0), 0);
+    const charges = input.charges.filter((c) => c.description.trim());
+    const totalSell = charges.reduce((n, c) => n + (Number(c.sellAmount) || 0), 0);
     const id = `sq${Date.now()}`;
     const n = seq++;
     const row: ShellQuotation = {
@@ -50,8 +61,8 @@ export function ShellQuoteProvider({ children }: { children: ReactNode }) {
       quantity: input.quantity || 1,
       currency: input.currency.trim() || "USD",
       status: "DRAFT",
-      charges: input.charges.length
-        ? input.charges
+      charges: charges.length
+        ? charges
         : [{ description: "Ocean freight", sellAmount: 0, currency: input.currency.trim() || "USD" }],
       totalSell,
       validUntil: input.validUntil.trim() || "—",

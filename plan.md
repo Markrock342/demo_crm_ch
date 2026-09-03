@@ -1,6 +1,6 @@
 # สรุปงาน CANGZHAN / demo_crm_ch
 
-> อัปเดต: 3 กันยายน 2569 (P0 Basics UI shell เสร็จ)  
+> อัปเดต: 3 กันยายน 2569 (Client full shell)  
 > Repo: `demo_crm_ch` · Deploy: `democrmch.vercel.app`
 
 ---
@@ -8,50 +8,45 @@
 ## ภาพรวม
 
 โปรเจกต์ CRM โลจิสติกส์จีน–ไทย (货代) — Vite + React + Hono + PostgreSQL  
-รอบ P0: **พื้นฐาน UI shell** (Login แผนก → CRM → เสนอราคา → วางบิล) ด้วย `src/shell` + ports/stub — ไม่เปิด/แก้ server, schema, `src/api/*`, Boxes/Yard/Shipments, Vercel
+รอบนี้: **เต็มรูปแบบบน client** (densify UI → Logistics → Quote→Job→Bill → โมดูลรอง) ด้วย shell + ports/stub + localStorage — **ยังไม่ต่อ API/DB**
 
-ดูแผนที่สถาปัตยกรรม: [`docs/index.md`](docs/index.md) · รายละเอียด P0: [`docs/basics-ui-p0.md`](docs/basics-ui-p0.md)
+ดูแผนที่: [`docs/index.md`](docs/index.md) · **Handoff:** [`docs/handoff-client-shell.md`](docs/handoff-client-shell.md) · [`docs/client-full-shell.md`](docs/client-full-shell.md) · P0: [`docs/basics-ui-p0.md`](docs/basics-ui-p0.md)
 
 ---
 
-## สถานะ P0 / รอบถัดไป
+## สถานะรอบนี้
 
 | รายการ | สถานะ |
 |---|---|
-| P0 Login + แผนก + กรองเมนู | ✅ |
-| P0 CRM empty walkthrough | ✅ |
-| P0 Quote wizard + shell preview | ✅ |
-| P0 Billing issue → BN → payment | ✅ |
-| P0 docs | ✅ |
-| P1 stub remote เต็ม / wire adapters จริง | ⏳ รอบถัดไป |
-| P2 logistics UI (Boxes/Yard/Shipments) | ⏸ นอกสcope P0 |
-| P3 ข้อ 8 architecture replan | ⏸ |
-| Vercel `DATABASE_URL` + migrate/seed prod | ⏳ รอ ops |
+| UI density (ledger-house compact) | ✅ |
+| แผนก Ops + เมนู logistics ตามมติ | ✅ |
+| Boxes ↔ Shipments ↔ Yard shell + seed + localStorage | ✅ |
+| Quote หลายรายการ + รับ/ปฏิเสธ · Job · Billing จาก job | ✅ |
+| Rates / Tasks / Docs checklist / Vendor bills stub | ✅ |
+| Docs | ✅ |
+| Stub → API จริง | ⏳ ภายหลัง |
+| Inbox / Reports เต็ม | ⏸ นอกสcope |
+| Vercel `DATABASE_URL` | ⏳ รอ ops |
 
 ---
 
-## สถานะ backlog ก่อนหน้า (ยังถือว่าปิดในโค้ด)
+## แผนก (shell)
 
-| รายการ | สถานะ |
-|---|---|
-| Foundation migrate/pool/PgBouncer | ✅ |
-| Drop `customers.boxes` | ✅ |
-| Vendor Bills from-job + approve | ✅ |
-| Mail/docs PG persistence | ✅ |
+Sales · **Ops** · Finance · Admin  
+Ops home = Yard · Sales เห็น Boxes/Shipments อ่านอย่างเดียว · Yard เฉพาะ Ops+Admin
 
 ---
 
-## ยังนอกสcope
+## นอกสcope
 
-- AP payment backend, mail-ops server, เปิดอ่าน API/DB ในรอบ shell
-- Logistics pages, Vercel DB setup
+LCL/บก/บิน · เชื่อม API จริง · Vercel DB · Inbox/Reports เต็ม · architecture replan · รีแบรนด์ UI
 
 ---
 
 ## Design Principles (จาก `.impeccable.md`)
 
-1. ภาษาจีนมาก่อน · ไทย/EN สวิตช์
-2. ตัวเลข TEU/ตู้ — tabular-nums เสมอ
-3. การ์ดเฉพาะเมื่อความสูงมีหน้าที่ · ที่เหลือเว้นระยะ
-4. Seal accent ใช้น้อย — ไม่ flood สีฟ้า
-5. AI อยู่ในกล่องจดหมาย ไม่ใช่ป้ายประกาย
+1. ภาษาจีนมาก่อน · ไทย/EN สวิตช์  
+2. ตัวเลข TEU/ตู้ — tabular-nums  
+3. การ์ดเฉพาะเมื่อจำเป็น · densify chrome  
+4. Seal accent ใช้น้อย  
+5. AI อยู่ในกล่องจดหมาย

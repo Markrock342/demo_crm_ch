@@ -1,46 +1,61 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import type { DocStatus } from "../crm";
-import { customerName } from "../data";
+import { useMemo, useState, type FormEvent } from "react";
+import { useShellOps } from "../shell/opsStore.tsx";
+import { useShellSupport } from "../shell/supportStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
-import { DocLedgerCards } from "../ui/DocLedgerCards";
 import { PageToolbar } from "../ui/PageToolbar";
-import { Button } from "../ui/Button";
-import { useMedia } from "../ui/useMedia";
 
-const statuses: Array<DocStatus | "all"> = ["all", "ok", "wait", "late"];
-const docActions: DocStatus[] = ["ok", "wait", "late"];
+const statuses = ["all", "ok", "wait", "late"] as const;
 
 export function DocsPage() {
-  const { tx, locale, docs, customers, query, setDocStatus } = useStore();
-  const mobile = useMedia("(max-width: 1024px)");
-  const [status, setStatus] = useState<DocStatus | "all">("all");
+  const shell = useIsShellMode();
+  const store = useStore();
+  const support = useShellSupport();
+  const ops = useShellOps();
+  const { tx, query } = store;
+  const [status, setStatus] = useState<(typeof statuses)[number]>("all");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "B/L", boxId: "", shipmentId: "" });
   const q = query.trim().toLowerCase();
+
+  const docs = shell ? support.docs : store.docs;
+
   const rows = useMemo(
     () =>
       docs.filter((d) => {
         if (status !== "all" && d.status !== status) return false;
-        const c = customers.find((x) => x.id === d.customerId);
-        const blob = `${d.name} ${d.kind} ${d.boxId} ${c ? customerName(c, locale) : ""}`.toLowerCase();
+        const blob = `${d.name} ${"boxId" in d ? d.boxId ?? "" : ""} ${"kind" in d ? (d as { kind?: string }).kind ?? "" : ""}`.toLowerCase();
         return !q || blob.includes(q);
       }),
-    [customers, docs, locale, q, status],
+    [docs, q, status],
   );
 
-  const counts = useMemo(() => {
-    const map: Record<DocStatus | "all", number> = { all: docs.length, ok: 0, wait: 0, late: 0 };
-    for (const d of docs) map[d.status] += 1;
-    return map;
-  }, [docs]);
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!shell) return;
+    support.addDoc({
+      name: form.name,
+      boxId: form.boxId || undefined,
+      shipmentId: form.shipmentId || undefined,
+    });
+    setOpen(false);
+  }
 
   return (
     <div className="page page--workspace">
       <PageToolbar
         title={tx("docsTitle")}
         count={rows.length}
-        hint={tx("docsHint")}
+        hint={shell ? `${tx("shellDataBadge")} · checklist` : tx("docsHint")}
+        actions={
+          shell ? (
+            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)}>
+              {tx("save")}
+            </button>
+          ) : null
+        }
         filters={
-          <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
+          <div className="filter-row" role="tablist">
             {statuses.map((s) => (
               <button
                 key={s}
@@ -50,87 +65,85 @@ export function DocsPage() {
                 className={`filter-chip${status === s ? " is-on" : ""}`}
                 onClick={() => setStatus(s)}
               >
-                <span>{s === "all" ? tx("filterAll") : tx(`doc${cap(s)}`)}</span>
-                <em>{counts[s]}</em>
+                {s === "all" ? tx("filterAll") : s}
               </button>
             ))}
           </div>
         }
       />
 
+      {open && shell ? (
+        <form className="form form-stack" onSubmit={submit}>
+          <label>
+            {tx("colTitle")}
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          </label>
+          <label>
+            {tx("colBox")}
+            <select value={form.boxId} onChange={(e) => setForm({ ...form, boxId: e.target.value })}>
+              <option value="">—</option>
+              {ops.boxes.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {tx("navShipments")}
+            <select value={form.shipmentId} onChange={(e) => setForm({ ...form, shipmentId: e.target.value })}>
+              <option value="">—</option>
+              {ops.shipments.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.bookingNo}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="btn btn-primary">
+            {tx("save")}
+          </button>
+        </form>
+      ) : null}
+
       {rows.length === 0 ? (
-        <p className="empty">{tx("emptyDocs")}</p>
-      ) : mobile ? (
-        <DocLedgerCards docs={rows} customers={customers} locale={locale} onStatusChange={setDocStatus} />
+        <p className="empty">{tx("emptyShellCrm")}</p>
       ) : (
         <div className="table-shell">
           <table className="data-table">
             <thead>
               <tr>
-                <th>{tx("colFile")}</th>
-                <th>{tx("colKind")}</th>
+                <th>{tx("colTitle")}</th>
                 <th>{tx("colBox")}</th>
-                <th>{tx("colCustomer")}</th>
                 <th>{tx("colStatus")}</th>
-                <th className="num">{tx("colUpdated")}</th>
-                <th>{tx("docActions")}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((d) => {
-                const c = customers.find((x) => x.id === d.customerId);
-                return (
-                  <tr key={d.id}>
-                    <td className="cell-strong">
-                      <Link className="table-link" to={`/customers/${d.customerId}`}>
-                        {d.name}
-                      </Link>
-                    </td>
-                    <td className="mono">
-                      <Link className="table-link" to={`/boxes?q=${d.boxId}`}>
-                        {d.kind}
-                      </Link>
-                    </td>
-                    <td className="mono">
-                      <Link className="table-link" to={`/boxes?q=${d.boxId}`}>
-                        {d.boxId}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link className="table-link" to={`/customers/${d.customerId}`}>
-                        {c ? customerName(c, locale) : "—"}
-                      </Link>
-                    </td>
-                    <td>
-                      <span className={`pill pill-${d.status === "ok" ? "clear" : d.status === "late" ? "hold" : "yard"}`}>
-                        {tx(`doc${cap(d.status)}`)}
-                      </span>
-                    </td>
-                    <td className="num">{d.updated}</td>
-                    <td>
-                      <div className="doc-actions" onClick={(e) => e.stopPropagation()}>
-                        {docActions.map((st) => (
-                          <Button
-                            key={st}
-                            variant={d.status === st ? "primary" : "ghost"}
-                            onClick={() => setDocStatus(d.id, st)}
-                          >
-                            {tx(`doc${cap(st)}`)}
-                          </Button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {rows.map((d) => (
+                <tr key={d.id}>
+                  <td className="cell-strong">{d.name}</td>
+                  <td className="mono">{"boxId" in d ? d.boxId ?? "—" : "—"}</td>
+                  <td>
+                    {shell ? (
+                      <select
+                        className="deal-select"
+                        value={d.status}
+                        onChange={(e) => support.setDocStatus(d.id, e.target.value as "ok" | "wait" | "late")}
+                      >
+                        <option value="ok">ok</option>
+                        <option value="wait">wait</option>
+                        <option value="late">late</option>
+                      </select>
+                    ) : (
+                      <span className="pill">{d.status}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
     </div>
   );
-}
-
-function cap(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

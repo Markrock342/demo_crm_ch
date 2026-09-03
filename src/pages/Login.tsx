@@ -9,6 +9,7 @@ import { useStore } from "../store";
 
 const deptLabelKey: Record<Department, string> = {
   sales: "deptSales",
+  ops: "deptOps",
   finance: "deptFinance",
   admin: "deptAdmin",
 };

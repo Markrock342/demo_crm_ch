@@ -1,175 +1,125 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { createQuotationFromRate, searchRates, type RateSearchRow } from "../api/commercial.ts";
-import { demoRates } from "../demo/commercial-demo.ts";
-import { customerName } from "../data.ts";
-import { useAuth } from "../auth/AuthProvider.tsx";
-import { useStore } from "../store.tsx";
-import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
-import { PageToolbar } from "../ui/PageToolbar.tsx";
-
-const statusClass: Record<RateSearchRow["status"], string> = {
-  ACTIVE: "pill-ok",
-  EXPIRING_SOON: "pill-warn",
-  EXPIRED: "pill-bad",
-};
+import { useMemo, useState, type FormEvent } from "react";
+import { useShellSupport } from "../shell/supportStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
+import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 export function RatesPage() {
-  const { tx, locale, customers } = useStore();
-  const { mode, user } = useAuth();
-  const navigate = useNavigate();
-  const isDemo = mode === "demo";
-  const [form, setForm] = useState({ origin: "Shanghai", destination: "Laem Chabang", containerType: "40HC", mode: "SEA_FCL" });
-  const [rows, setRows] = useState<RateSearchRow[]>(isDemo ? demoRates : []);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [quoteCustomer, setQuoteCustomer] = useState(customers[0]?.id ?? "c1");
-  const [qty, setQty] = useState(2);
+  const shell = useIsShellMode();
+  const { tx } = useStore();
+  const support = useShellSupport();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    origin: "Shanghai",
+    destination: "Laem Chabang",
+    containerType: "40HC",
+    sellAmount: 1200,
+    currency: "USD",
+    validUntil: "2026-12-31",
+  });
+  const [q, setQ] = useState({ origin: "", destination: "" });
 
-  const canSeeBuy = !isDemo && (user?.permissions.includes("rate.view_buy") || user?.permissions.includes("rate.buy.view"));
-  const canSeeMargin = !isDemo && (user?.permissions.includes("margin.view") || user?.permissions.includes("finance.margin.view"));
-
-  const load = useCallback(async () => {
-    if (isDemo) {
-      setRows(
-        demoRates.filter(
-          (r) =>
-            r.origin.toLowerCase().includes(form.origin.toLowerCase()) &&
-            r.destination.toLowerCase().includes(form.destination.toLowerCase()) &&
-            r.containerType === form.containerType,
-        ),
-      );
-      return;
-    }
-    if (mode !== "production" || !user) return;
-    setLoading(true);
-    setErr(null);
-    try {
-      const items = await searchRates(form);
-      setRows(items);
-    } catch {
-      setErr(tx("errorLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [form, isDemo, mode, user, tx]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function createQuote(laneId: string) {
-    if (isDemo) return;
-    try {
-      const result = (await createQuotationFromRate({ customerId: quoteCustomer, rateLaneId: laneId, quantity: qty })) as {
-        id: string;
-      };
-      navigate(`/quotations?id=${result.id}`);
-    } catch {
-      setErr(tx("errorSave"));
-    }
-  }
+  const rows = useMemo(() => {
+    if (!shell) return [];
+    return support.rates.filter((r) => {
+      if (q.origin && !r.origin.toLowerCase().includes(q.origin.toLowerCase())) return false;
+      if (q.destination && !r.destination.toLowerCase().includes(q.destination.toLowerCase())) return false;
+      return true;
+    });
+  }, [q, shell, support.rates]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    void load();
+    if (!shell) return;
+    support.addRate(form);
+    setOpen(false);
   }
 
   return (
     <div className="page page--workspace">
-      <PageToolbar title={tx("ratesTitle")} count={rows.length} hint={isDemo ? tx("ratesDemoPreviewHint") : tx("ratesHint")} />
-      {isDemo ? <DemoModuleBanner /> : null}
+      <PageToolbar
+        title={tx("ratesTitle")}
+        count={rows.length}
+        hint={shell ? `${tx("shellDataBadge")} · FCL` : tx("apiNotConfigured")}
+        actions={
+          shell ? (
+            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)}>
+              {tx("save")}
+            </button>
+          ) : null
+        }
+        filters={
+          shell ? (
+            <div className="form" style={{ marginInline: 0 }}>
+              <label>
+                Origin
+                <input value={q.origin} onChange={(e) => setQ({ ...q, origin: e.target.value })} />
+              </label>
+              <label>
+                Destination
+                <input value={q.destination} onChange={(e) => setQ({ ...q, destination: e.target.value })} />
+              </label>
+            </div>
+          ) : null
+        }
+      />
 
-      <form className="form filter-form pipe-form" onSubmit={submit}>
-        <label>
-          {tx("colOrigin")}
-          <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} />
-        </label>
-        <label>
-          {tx("colDest")}
-          <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
-        </label>
-        <label>
-          {tx("colBoxType")}
-          <select value={form.containerType} onChange={(e) => setForm({ ...form, containerType: e.target.value })}>
-            {["20GP", "40GP", "40HC", "45HC"].map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!isDemo ? (
-          <>
-            <label>
-              {tx("colCustomer")}
-              <select value={quoteCustomer} onChange={(e) => setQuoteCustomer(e.target.value)}>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {customerName(c, locale)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {tx("colQty")}
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-            </label>
-          </>
-        ) : null}
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? tx("loading") : tx("searchRates")}
+      {!shell ? <p className="meta">{tx("apiNotConfigured")}</p> : null}
+
+      {open && shell ? (
+        <form className="form form-stack" onSubmit={submit}>
+          <label>
+            Origin
+            <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} required />
+          </label>
+          <label>
+            Destination
+            <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} required />
+          </label>
+          <label>
+            {tx("colBoxType")}
+            <input value={form.containerType} onChange={(e) => setForm({ ...form, containerType: e.target.value })} />
+          </label>
+          <label>
+            {tx("colSell")}
+            <input type="number" value={form.sellAmount} onChange={(e) => setForm({ ...form, sellAmount: Number(e.target.value) })} />
+          </label>
+          <button type="submit" className="btn btn-primary">
+            {tx("save")}
           </button>
-        </div>
-      </form>
+        </form>
+      ) : null}
 
-      {err ? <p className="form-err">{err}</p> : null}
-      {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
+      {shell && rows.length === 0 ? <p className="empty">{tx("emptyShellCrm")}</p> : null}
 
-      <div className="table-shell">
-        <table className="data-table ledger">
-          <thead>
-            <tr>
-              <th>{tx("colCarrier")}</th>
-              <th>{tx("colLane")}</th>
-              <th>{tx("colBoxType")}</th>
-              {canSeeBuy ? <th>{tx("colBuy")}</th> : null}
-              <th>{tx("colSell")}</th>
-              {canSeeMargin ? <th>{tx("colMargin")}</th> : null}
-              <th>{tx("colStatus")}</th>
-              {!isDemo ? <th /> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.laneId}>
-                <td>{r.carrier ?? r.vendor}</td>
-                <td>
-                  {r.origin} → {r.destination}
-                  <span className="meta block">{r.pol} → {r.pod}</span>
-                </td>
-                <td>{r.containerType}</td>
-                {canSeeBuy ? <td className="mono">{r.totalBuy ? `${r.totalBuy} ${r.currency}` : "—"}</td> : null}
-                <td className="mono">{r.totalSell ? `${r.totalSell} ${r.currency}` : "—"}</td>
-                {canSeeMargin ? (
-                  <td className="mono">{r.marginPct ? `${r.marginPct}%` : "—"}</td>
-                ) : null}
-                <td>
-                  <span className={`pill ${statusClass[r.status]}`}>{r.status}</span>
-                </td>
-                {!isDemo ? (
-                  <td>
-                    <button type="button" className="btn btn-ghost btn-slim" onClick={() => void createQuote(r.laneId)}>
-                      {tx("createQuote")}
-                    </button>
-                  </td>
-                ) : null}
+      {shell && rows.length > 0 ? (
+        <div className="table-shell">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Origin</th>
+                <th>Destination</th>
+                <th>{tx("colBoxType")}</th>
+                <th>{tx("colSell")}</th>
+                <th>{tx("colClose")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.origin}</td>
+                  <td>{r.destination}</td>
+                  <td className="mono">{r.containerType}</td>
+                  <td className="mono">
+                    {r.sellAmount} {r.currency}
+                  </td>
+                  <td className="mono">{r.validUntil}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

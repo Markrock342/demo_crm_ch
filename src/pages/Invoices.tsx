@@ -63,12 +63,17 @@ export function InvoicesPage() {
       <PageToolbar
         title={tx("invoicesTitle")}
         count={invoices.length}
-        hint={shell ? tx("billingShellHint") : tx("invoicesDemoPreviewHint")}
+        hint={shell ? `${tx("shellDataBadge")} · ${tx("billingShellHint")}` : tx("invoicesDemoPreviewHint")}
         actions={
           shell ? (
-            <button type="button" className="btn btn-primary" onClick={() => setOpenDraft((v) => !v)} disabled={customers.length === 0}>
-              {tx("createDraftInvoice")}
-            </button>
+            <>
+              <Link className="btn btn-ghost" to="/jobs">
+                {tx("invoiceFromJob")}
+              </Link>
+              <button type="button" className="btn btn-primary" onClick={() => setOpenDraft((v) => !v)} disabled={customers.length === 0}>
+                {tx("createDraftInvoice")}
+              </button>
+            </>
           ) : null
         }
       />

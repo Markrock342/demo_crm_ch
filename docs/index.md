@@ -7,7 +7,9 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 
 | Module | Doc | Status |
 |--------|-----|--------|
-| Basics UI shell (P0) | [basics-ui-p0.md](./basics-ui-p0.md) | Done (in-memory walkthrough) |
+| **Handoff (ศึกษา/ทำงานต่อ)** | [handoff-client-shell.md](./handoff-client-shell.md) | Current — อ่านก่อน |
+| Client full shell | [client-full-shell.md](./client-full-shell.md) | Done (localStorage walkthrough) |
+| Basics UI shell (P0) | [basics-ui-p0.md](./basics-ui-p0.md) | Done (superseded by full shell) |
 | Foundation (DB, migrate, pool, auth) | [foundation.md](./foundation.md) | Ready (await Vercel DATABASE_URL) |
 | Finance AP (Vendor Bills) | [finance-ap.md](./finance-ap.md) | from-job + approve done |
 | Mail & Docs persistence | [mail-docs.md](./mail-docs.md) | metadata+body done |
@@ -26,6 +28,6 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 
 ## Locked product scope (current sprint)
 
-- **P0 Basics UI shell** — Login+dept → CRM → Quote → Billing (empty in-memory) — **done**; ไม่แตะ `server/**` / `src/api/**` / logistics pages
-- Next: **P1** stub remote เต็ม · **P2** logistics · **P3** ข้อ 8 architecture replan
-- Prior backlog (Vendor Bills / mail-docs / boxes derive) — **done** on code; Vercel `DATABASE_URL` ยังรอ ops
+- **Client full shell** — densify UI · Ops · Logistics · Quote→Job→Bill · Rates/Tasks/Docs/VB stub — **done** on client; ไม่ต่อ API/DB
+- Next: stub → API adapters · Inbox/Reports · Vercel `DATABASE_URL` · architecture replan (ข้อ 8)
+- Prior: P0 basics shell · Vendor Bills / mail-docs / boxes derive — done on code; prod DB ยังรอ ops

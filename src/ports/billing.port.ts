@@ -6,6 +6,7 @@ export type ShellInvoice = {
   id: string;
   invoiceNumber: string;
   customerId: string;
+  jobId?: string;
   total: number;
   balanceDue: number;
   currency: string;

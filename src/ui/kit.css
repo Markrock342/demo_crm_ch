@@ -401,8 +401,20 @@
 .app.is-dense {
   --space-lg: 12px;
   --space-xl: 16px;
+  --space-md: 10px;
+  --space-sm: 8px;
   --body: 0.8125rem;
   --body-sm: 0.75rem;
+}
+
+.app.is-dense .content {
+  padding: 4px 6px;
+  gap: 4px;
+}
+
+.app.is-dense .page--workspace .page-toolbar {
+  padding: 3px 8px;
+  gap: 2px;
 }
 
 .app.is-dense th,
@@ -413,16 +425,26 @@
 }
 
 .app.is-dense .btn:not(.btn-slim) {
-  min-height: 30px;
+  min-height: 28px;
 }
 
 .app.is-dense .filter-chip {
-  min-height: 26px;
+  min-height: 24px;
   padding: 0 8px;
 }
 
-.app.is-dense .table-shell {
-  max-height: calc(100svh - 196px);
+.app.is-dense .table-shell,
+.app.is-dense .page--workspace .table-wrap {
+  max-height: calc(100svh - 136px);
+}
+
+.app.is-dense .task-card {
+  padding: 6px 8px;
+}
+
+.app.is-dense .settings-card {
+  padding: 8px;
+  gap: 6px;
 }
 
 .app.is-still .toast,

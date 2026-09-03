@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
-import { customerName } from "../data";
+import { Navigate } from "react-router-dom";
+import { customerName, type Customer } from "../data";
 import { useContainers } from "../hooks/useContainers";
+import { canEditLogistics } from "../shell/nav.ts";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useShellOps, YARD_SLOTS, type YardSlot } from "../shell/opsStore.tsx";
+import { useIsShellMode, useShellSession } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
-
-const SLOTS = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4"] as const;
 
 function slotFromYard(yard: string) {
   const m = yard.match(/\b([ABC][1-4])\b/i);
@@ -12,19 +15,37 @@ function slotFromYard(yard: string) {
 }
 
 export function YardPage() {
-  const { tx, locale, customers } = useStore();
-  const { boxes, moveBox, err } = useContainers({ yardOnly: true });
+  const shell = useIsShellMode();
+  const { shellUser } = useShellSession();
+  const store = useStore();
+  const crm = useShellCrm();
+  const ops = useShellOps();
+  const containers = useContainers({ yardOnly: true });
+  const { tx, locale } = store;
+
+  if (shell && shellUser && !canEditLogistics(shellUser.department) && shellUser.department === "sales") {
+    return <Navigate to="/boxes" replace />;
+  }
+  if (shell && shellUser?.department === "finance") {
+    return <Navigate to="/invoices" replace />;
+  }
+
+  const customers = shell ? crm.customers : store.customers;
+  const boxes = shell ? ops.boxes.filter((b) => b.status === "yard" || b.status === "empty" || b.status === "hold") : containers.boxes;
+  const canEdit = shell ? canEditLogistics(shellUser?.department ?? null) : true;
   const [picked, setPicked] = useState<string | null>(null);
+  const moveBox = shell ? ops.moveBox : containers.moveBox;
+  const err = shell ? null : containers.err;
 
   const map = useMemo(() => {
     const placed = new Map<string, (typeof boxes)[number]>();
     const leftovers: typeof boxes = [];
     for (const b of boxes) {
-      const slot = slotFromYard(b.yardZh) ?? slotFromYard(b.yardEn);
-      if (slot && SLOTS.includes(slot as (typeof SLOTS)[number]) && !placed.has(slot)) placed.set(slot, b);
+      const slot = slotFromYard(b.yardZh) ?? slotFromYard(("yardEn" in b ? b.yardEn : "") as string);
+      if (slot && YARD_SLOTS.includes(slot as YardSlot) && !placed.has(slot)) placed.set(slot, b);
       else leftovers.push(b);
     }
-    for (const slot of SLOTS) {
+    for (const slot of YARD_SLOTS) {
       if (placed.has(slot)) continue;
       const next = leftovers.shift();
       if (next) placed.set(slot, next);
@@ -33,9 +54,10 @@ export function YardPage() {
   }, [boxes]);
 
   function onSlot(slot: string) {
+    if (!canEdit) return;
     const box = map.get(slot);
     if (picked && !box) {
-      void moveBox(picked, `林查班 ${slot}`);
+      void moveBox(picked, slot as YardSlot);
       setPicked(null);
       return;
     }
@@ -50,7 +72,7 @@ export function YardPage() {
       <PageToolbar
         title={tx("yardTitle")}
         count={boxes.length}
-        hint={picked ? tx("move") : tx("yardHint")}
+        hint={shell ? `${tx("shellDataBadge")} · ${picked ? tx("move") : tx("yardHint")}` : picked ? tx("move") : tx("yardHint")}
         actions={
           picked ? (
             <button type="button" className="btn btn-ghost" onClick={() => setPicked(null)}>
@@ -68,7 +90,7 @@ export function YardPage() {
           <span>{tx("teuInYard")}</span>
         </span>
         <span className="stat-chip">
-          <strong>{filled}</strong> / {SLOTS.length} slots
+          <strong>{filled}</strong> / {YARD_SLOTS.length} slots
         </span>
         {picked ? (
           <span className="stat-chip stat-chip--active">
@@ -78,7 +100,7 @@ export function YardPage() {
       </div>
 
       <div className="yard-grid" role="list">
-        {SLOTS.map((slot) => {
+        {YARD_SLOTS.map((slot) => {
           const box = map.get(slot);
           const c = box ? customers.find((x) => x.id === box.customerId) : null;
           return (
@@ -86,18 +108,19 @@ export function YardPage() {
               key={slot}
               type="button"
               role="listitem"
-              className={`slot ${box ? "slot-full" : "slot-empty"} ${picked === box?.id ? "slot-on" : ""} ${picked && !box ? "slot-target" : ""}`}
+              className={`yard-slot${box ? " is-filled" : ""}${picked === box?.id ? " is-picked" : ""}${picked && !box ? " is-drop" : ""}`}
               onClick={() => onSlot(slot)}
+              disabled={!canEdit && !box}
             >
-              <span className="slot-id">{slot}</span>
+              <span className="yard-slot-id">{slot}</span>
               {box ? (
                 <>
                   <strong className="mono">{box.id}</strong>
-                  <span className="cell-truncate">{c ? customerName(c, locale) : ""}</span>
-                  <span className={`pill pill-${box.status}`}>{tx(`st${cap(box.status)}`)}</span>
+                  <span className="meta">{c ? customerName(c as Customer, locale) : box.customerId}</span>
+                  <span className="num">{box.teu} TEU</span>
                 </>
               ) : (
-                <span className="meta">{picked ? tx("move") : tx("emptySlot")}</span>
+                <span className="meta">—</span>
               )}
             </button>
           );
@@ -105,8 +128,4 @@ export function YardPage() {
       </div>
     </div>
   );
-}
-
-function cap(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

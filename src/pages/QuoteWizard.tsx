@@ -6,6 +6,8 @@ import { useShellQuotes } from "../shell/quoteStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
+type ChargeRow = { description: string; sellAmount: number };
+
 export function QuoteWizardPage() {
   const { tx, locale } = useStore();
   const crm = useShellCrm();
@@ -22,11 +24,13 @@ export function QuoteWizardPage() {
     containerType: "40HC",
     quantity: 1,
     currency: "USD",
-    chargeDesc: "Ocean freight",
-    chargeAmount: 1200,
     validUntil: "",
     terms: "",
   });
+  const [charges, setCharges] = useState<ChargeRow[]>([
+    { description: "Ocean freight", sellAmount: 1200 },
+    { description: "THC", sellAmount: 150 },
+  ]);
   const [err, setErr] = useState<string | null>(null);
 
   function submit(e: FormEvent) {
@@ -46,7 +50,7 @@ export function QuoteWizardPage() {
       containerType: form.containerType,
       quantity: form.quantity,
       currency: form.currency,
-      charges: [{ description: form.chargeDesc, sellAmount: form.chargeAmount, currency: form.currency }],
+      charges: charges.map((c) => ({ ...c, currency: form.currency })),
       validUntil: form.validUntil,
       termsAndConditions: form.terms,
     });
@@ -71,8 +75,7 @@ export function QuoteWizardPage() {
 
       {customers.length === 0 ? (
         <p className="meta">
-          {tx("quoteNeedCustomer")}{" "}
-          <Link to="/customers">{tx("shellCreateCustomer")}</Link>
+          {tx("quoteNeedCustomer")} <Link to="/customers">{tx("shellCreateCustomer")}</Link>
         </p>
       ) : (
         <form className="form form-stack" onSubmit={submit}>
@@ -108,17 +111,51 @@ export function QuoteWizardPage() {
             <input value={form.pod} onChange={(e) => setForm({ ...form, pod: e.target.value })} />
           </label>
           <label>
-            {tx("colTeu")} / qty
+            Qty
             <input type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} />
           </label>
-          <label>
-            {tx("colTitle")}
-            <input value={form.chargeDesc} onChange={(e) => setForm({ ...form, chargeDesc: e.target.value })} required />
-          </label>
-          <label>
-            {tx("colSell")}
-            <input type="number" min={0} value={form.chargeAmount} onChange={(e) => setForm({ ...form, chargeAmount: Number(e.target.value) })} />
-          </label>
+
+          <div className="panel" style={{ gridColumn: "1 / -1" }}>
+            <h2>{tx("colSell")}</h2>
+            {charges.map((c, i) => (
+              <div key={i} className="form" style={{ marginInline: 0 }}>
+                <label>
+                  {tx("colTitle")}
+                  <input
+                    value={c.description}
+                    onChange={(e) => {
+                      const next = [...charges];
+                      next[i] = { ...c, description: e.target.value };
+                      setCharges(next);
+                    }}
+                    required
+                  />
+                </label>
+                <label>
+                  {tx("colAmount")}
+                  <input
+                    type="number"
+                    min={0}
+                    value={c.sellAmount}
+                    onChange={(e) => {
+                      const next = [...charges];
+                      next[i] = { ...c, sellAmount: Number(e.target.value) };
+                      setCharges(next);
+                    }}
+                  />
+                </label>
+                {charges.length > 1 ? (
+                  <button type="button" className="btn btn-ghost" onClick={() => setCharges(charges.filter((_, j) => j !== i))}>
+                    {tx("cancel")}
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            <button type="button" className="btn btn-ghost" onClick={() => setCharges([...charges, { description: "", sellAmount: 0 }])}>
+              {tx("addChargeRow")}
+            </button>
+          </div>
+
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
               {tx("save")}

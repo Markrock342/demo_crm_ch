@@ -1,212 +1,110 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import {
-  approveVendorBill,
-  createVendorBillFromJob,
-  fetchJobCharges,
-  fetchVendorBills,
-  fetchVendors,
-  type VendorBillRow,
-} from "../api/commercial.ts";
-import { useAuth } from "../auth/AuthProvider.tsx";
-import { useStore } from "../store.tsx";
-import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
-import { PageToolbar } from "../ui/PageToolbar.tsx";
-
-type ChargeRow = {
-  id: string;
-  chargeType: string;
-  description: string;
-  totalAmount: string;
-  invoiced: boolean;
-  billed?: boolean;
-  vendorId?: string | null;
-  currency: string;
-};
+import { useState, type FormEvent } from "react";
+import { useShellSupport } from "../shell/supportStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
+import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 export function VendorBillsPage() {
+  const shell = useIsShellMode();
   const { tx } = useStore();
-  const { mode, user } = useAuth();
-  const isDemo = mode === "demo";
-  const [params] = useSearchParams();
-  const jobId = params.get("jobId");
-
-  const [bills, setBills] = useState<VendorBillRow[]>([]);
-  const [charges, setCharges] = useState<ChargeRow[]>([]);
-  const [vendors, setVendors] = useState<Array<{ id: string; company: string }>>([]);
-  const [vendorId, setVendorId] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const support = useShellSupport();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ vendorName: "", amount: 500, currency: "USD" });
   const [msg, setMsg] = useState<string | null>(null);
 
-  const vendorMap = useMemo(() => Object.fromEntries(vendors.map((v) => [v.id, v.company])), [vendors]);
+  const bills = shell ? support.vendorBills : [];
 
-  const costCharges = useMemo(
-    () => charges.filter((c) => c.chargeType === "COST"),
-    [charges],
-  );
-
-  const load = useCallback(async () => {
-    if (isDemo) {
-      setBills([]);
-      return;
-    }
-    if (mode !== "production" || !user) return;
-    setBills(await fetchVendorBills(jobId ? { jobId } : undefined));
-    setVendors(await fetchVendors());
-  }, [isDemo, jobId, mode, user]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!jobId || isDemo || mode !== "production") return;
-    void fetchJobCharges(jobId).then((rows) => {
-      setCharges(rows);
-      const firstVendor = rows.find((c) => c.chargeType === "COST" && c.vendorId)?.vendorId;
-      if (firstVendor) setVendorId(firstVendor);
-      setSelected(rows.filter((c) => c.chargeType === "COST" && !c.billed).map((c) => c.id));
-    });
-  }, [jobId, isDemo, mode]);
-
-  async function act(fn: () => Promise<unknown>, okKey: string) {
-    try {
-      await fn();
-      setMsg(tx(okKey));
-      await load();
-      if (jobId) setCharges(await fetchJobCharges(jobId));
-    } catch {
-      setMsg(tx("errorSave"));
-    }
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!shell) return;
+    support.addVendorBill(form);
+    setForm({ vendorName: "", amount: 500, currency: "USD" });
+    setOpen(false);
+    setMsg(tx("vendorBillCreated"));
   }
-
-  function toggleCharge(id: string) {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  async function createBill() {
-    if (!jobId || !vendorId || !selected.length) return;
-    await act(
-      () => createVendorBillFromJob({ jobId, vendorId, chargeIds: selected }),
-      "vendorBillCreated",
-    );
-  }
-
-  const canCreate = Boolean(user?.permissions.includes("vendor_bill.create"));
-  const canApprove = Boolean(user?.permissions.includes("vendor_bill.approve"));
 
   return (
     <div className="page page--workspace">
       <PageToolbar
         title={tx("vendorBillsTitle")}
         count={bills.length}
-        hint={isDemo ? tx("vendorBillsDemoHint") : tx("vendorBillsHint")}
-      />
-      {isDemo ? <DemoModuleBanner /> : null}
-      {msg ? (
-        <p className="meta" role="status">
-          {msg}
-        </p>
-      ) : null}
-
-      {!isDemo && jobId ? (
-        <section className="panel" aria-labelledby="vb-from-job">
-          <h2 id="vb-from-job">{tx("createVendorBillFromJob")}</h2>
-          <label className="field">
-            <span>{tx("colVendor")}</span>
-            <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} required>
-              <option value="">{tx("selectVendor")}</option>
-              {vendors.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.company}
-                </option>
-              ))}
-            </select>
-          </label>
-          {costCharges.length === 0 ? (
-            <p className="empty">{tx("emptyCostCharges")}</p>
-          ) : (
-            <ul className="list-plain">
-              {costCharges.map((c) => (
-                <li key={c.id}>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(c.id)}
-                      disabled={Boolean(c.billed)}
-                      onChange={() => toggleCharge(c.id)}
-                    />
-                    <span>
-                      {c.description} — {c.totalAmount} {c.currency}
-                      {c.billed ? ` (${tx("billed")})` : ""}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
-          {canCreate ? (
-            <button type="button" className="btn btn-primary" disabled={!vendorId || !selected.length} onClick={() => void createBill()}>
+        hint={shell ? `${tx("shellDataBadge")} · stub` : tx("apiNotConfigured")}
+        actions={
+          shell ? (
+            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)}>
               {tx("createVendorBill")}
             </button>
-          ) : null}
-        </section>
+          ) : (
+            <button type="button" className="btn btn-ghost" disabled>
+              {tx("billingConnectApi")}
+            </button>
+          )
+        }
+      />
+      {msg ? <p className="meta">{msg}</p> : null}
+      {!shell ? <p className="meta">{tx("apiNotConfigured")}</p> : null}
+
+      {open && shell ? (
+        <form className="form form-stack" onSubmit={submit}>
+          <label>
+            Vendor
+            <input value={form.vendorName} onChange={(e) => setForm({ ...form, vendorName: e.target.value })} required />
+          </label>
+          <label>
+            {tx("colAmount")}
+            <input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} />
+          </label>
+          <button type="submit" className="btn btn-primary">
+            {tx("save")}
+          </button>
+        </form>
       ) : null}
 
-      {bills.length === 0 ? (
-        <p className="empty">{tx("emptyVendorBills")}</p>
-      ) : (
+      {shell && bills.length === 0 ? <p className="empty">{tx("emptyShellCrm")}</p> : null}
+
+      {shell && bills.length > 0 ? (
         <div className="table-shell">
-          <table className="data-table ledger">
+          <table className="data-table">
             <thead>
               <tr>
-                <th scope="col">{tx("colBillNumber")}</th>
-                <th scope="col">{tx("colVendor")}</th>
-                <th scope="col">{tx("navJobs")}</th>
-                <th scope="col" className="num">
-                  {tx("colTotal")}
-                </th>
-                <th scope="col">{tx("colStatus")}</th>
-                <th scope="col">{tx("colActions")}</th>
+                <th>{tx("colInvoice")}</th>
+                <th>Vendor</th>
+                <th>{tx("colTotal")}</th>
+                <th>{tx("colStatus")}</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {bills.map((b) => (
                 <tr key={b.id}>
-                  <td className="cell-strong">{b.billNumber}</td>
-                  <td>{vendorMap[b.vendorId] ?? b.vendorId}</td>
-                  <td>
-                    {b.jobId ? (
-                      <Link to={`/jobs?selected=${b.jobId}`}>{b.jobId}</Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="num">
-                    {b.total} {b.currency}
+                  <td className="mono">{b.billNumber}</td>
+                  <td>{b.vendorName}</td>
+                  <td className="mono">
+                    {b.amount} {b.currency}
                   </td>
                   <td>
-                    <span className="pill pill-yard">{b.status}</span>
+                    <span className="pill">{b.status}</span>
                   </td>
                   <td>
-                    {b.status === "DRAFT" && canApprove ? (
+                    {b.status === "DRAFT" ? (
                       <button
                         type="button"
                         className="btn btn-ghost"
-                        onClick={() => void act(() => approveVendorBill(b.id), "vendorBillApproved")}
+                        onClick={() => {
+                          support.approveVendorBill(b.id);
+                          setMsg(tx("vendorBillApproved"));
+                        }}
                       >
                         {tx("approveVendorBill")}
                       </button>
-                    ) : (
-                      "—"
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -24,7 +24,7 @@ export function QuotePublicShellPage() {
     <div className="login-page">
       <div className="login-shell">
         <div className="login-card quote-public">
-          <p className="meta">{tx("shellMode")}</p>
+          <p className="meta">{tx("shellDataBadge")}</p>
           <h1>{quote.quotationNumber}</h1>
           <p>
             {quote.origin} → {quote.destination}
@@ -46,11 +46,18 @@ export function QuotePublicShellPage() {
             {tx("colSell")}: {quote.totalSell} {quote.currency}
           </p>
           {quote.status === "SENT" ? (
-            <button type="button" className="btn btn-primary" onClick={() => setStatus(quote.id, "ACCEPTED")}>
-              {tx("approve")}
-            </button>
+            <div className="toolbar">
+              <button type="button" className="btn btn-primary" onClick={() => setStatus(quote.id, "ACCEPTED")}>
+                {tx("approve")}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setStatus(quote.id, "REJECTED")}>
+                {tx("rejectQuote")}
+              </button>
+            </div>
           ) : quote.status === "ACCEPTED" ? (
             <p className="meta">{tx("quoteApproved")}</p>
+          ) : quote.status === "REJECTED" ? (
+            <p className="meta">{tx("quoteRejected")}</p>
           ) : (
             <p className="meta">{tx("quoteWizardHint")}</p>
           )}

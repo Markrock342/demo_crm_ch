@@ -1,6 +1,6 @@
 import type { Department } from "./types.ts";
 
-/** Nav item paths allowed per department. Logistics routes never included. */
+/** Nav allowlists per department (mirrors locked product matrix). */
 const allowedByDept: Record<Department, ReadonlySet<string>> = {
   sales: new Set([
     "/",
@@ -10,6 +10,18 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/contacts",
     "/rates",
     "/quotations",
+    "/boxes",
+    "/shipments",
+    "/tasks",
+    "/calendar",
+    "/settings",
+  ]),
+  ops: new Set([
+    "/yard",
+    "/boxes",
+    "/shipments",
+    "/jobs",
+    "/docs",
     "/tasks",
     "/calendar",
     "/settings",
@@ -26,6 +38,9 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/jobs",
     "/invoices",
     "/vendor-bills",
+    "/boxes",
+    "/shipments",
+    "/yard",
     "/inbox",
     "/docs",
     "/tasks",
@@ -42,5 +57,11 @@ export function navPathAllowed(department: Department | null, path: string): boo
 
 export function homePathFor(department: Department): string {
   if (department === "finance") return "/invoices";
+  if (department === "ops") return "/yard";
   return "/";
+}
+
+/** Sales tracks boxes/shipments read-only; Ops/Admin can mutate logistics. */
+export function canEditLogistics(department: Department | null): boolean {
+  return department === "ops" || department === "admin";
 }

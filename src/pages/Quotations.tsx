@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { quoteStub } from "../adapters/stub/quote.stub.ts";
 import { customerName, type Customer } from "../data";
 import { useShellCrm } from "../shell/crmStore.tsx";
+import { useShellJobs } from "../shell/jobStore.tsx";
 import { useShellQuotes } from "../shell/quoteStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
@@ -13,17 +14,19 @@ export function QuotationsPage() {
   const { tx, locale } = useStore();
   const crm = useShellCrm();
   const quoteStore = useShellQuotes();
+  const jobs = useShellJobs();
+  const navigate = useNavigate();
   const customers = crm.customers;
   const rows = shell ? quoteStore.quotations : [];
   const [selected, setSelected] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
+  void quoteStub;
+
   const customerMap = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c])), [customers]);
   const detail = selected ? quoteStore.quotations.find((q) => q.id === selected) ?? null : rows[0] ?? null;
   const activeId = detail?.id ?? null;
-
-  // Keep stub port referenced so remote path stays empty / not_configured.
-  void quoteStub;
+  const hasJob = detail ? jobs.jobs.some((j) => j.quotationId === detail.id) : false;
 
   function pick(id: string) {
     setSelected(id);
@@ -35,7 +38,7 @@ export function QuotationsPage() {
       <PageToolbar
         title={tx("quotationsTitle")}
         count={rows.length}
-        hint={shell ? tx("quoteWizardHint") : tx("quotationsDemoHint")}
+        hint={shell ? `${tx("shellDataBadge")} · ${tx("quoteWizardHint")}` : tx("quotationsDemoHint")}
         actions={
           shell ? (
             <Link className="btn btn-primary" to="/quotations/new">
@@ -107,31 +110,42 @@ export function QuotationsPage() {
                   </button>
                 ) : null}
                 {detail.status === "PENDING_APPROVAL" ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => {
-                        setMsg(tx("quoteApproved"));
-                      }}
-                    >
-                      {tx("approve")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => {
-                        quoteStore.setStatus(detail.id, "SENT");
-                        setMsg(tx("quoteSent"));
-                      }}
-                    >
-                      {tx("quoteMarkSent")}
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      quoteStore.setStatus(detail.id, "SENT");
+                      setMsg(tx("quoteSent"));
+                    }}
+                  >
+                    {tx("quoteMarkSent")}
+                  </button>
                 ) : null}
-                {detail.status === "SENT" || detail.status === "ACCEPTED" ? (
+                {detail.status === "SENT" || detail.status === "ACCEPTED" || detail.status === "REJECTED" ? (
                   <Link className="btn btn-ghost" to={`/q/shell/${detail.id}`} target="_blank" rel="noopener noreferrer">
                     {tx("quoteOpenPreview")}
+                  </Link>
+                ) : null}
+                {detail.status === "ACCEPTED" && !hasJob ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const fail = jobs.createFromQuote(detail);
+                      if (fail) {
+                        setMsg(tx(fail));
+                        return;
+                      }
+                      setMsg(tx("jobCreated"));
+                      navigate("/jobs");
+                    }}
+                  >
+                    {tx("createJobFromQuote")}
+                  </button>
+                ) : null}
+                {hasJob ? (
+                  <Link className="btn btn-ghost" to="/jobs">
+                    {tx("navJobs")}
                   </Link>
                 ) : null}
                 <button type="button" className="btn btn-ghost" disabled title={tx("loginRemoteTodo")}>

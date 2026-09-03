@@ -1,18 +1,30 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { priI18n } from "../crm";
-import { customerName } from "../data";
+import { customerName, type Customer } from "../data";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useShellJobs } from "../shell/jobStore.tsx";
+import { useShellSupport } from "../shell/supportStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Check } from "../ui/Check";
 import { PageToolbar } from "../ui/PageToolbar";
 
 export function TasksPage() {
-  const { tx, locale, tasks, customers, query, toggleTask, addTask } = useStore();
+  const shell = useIsShellMode();
+  const store = useStore();
+  const crm = useShellCrm();
+  const jobs = useShellJobs();
+  const support = useShellSupport();
+  const { tx, locale, query } = store;
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [jobId, setJobId] = useState("");
   const [filter, setFilter] = useState<"open" | "done" | "all">("open");
   const q = query.trim().toLowerCase();
+
+  const tasks = shell ? support.tasks : store.tasks;
+  const customers = shell ? crm.customers : store.customers;
 
   const rows = useMemo(
     () =>
@@ -35,9 +47,18 @@ export function TasksPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    addTask(title);
+    if (shell) {
+      support.addTask({ title, customerId: customerId || undefined, jobId: jobId || undefined });
+    } else {
+      store.addTask(title);
+    }
     setTitle("");
     setOpen(false);
+  }
+
+  function toggle(id: string) {
+    if (shell) support.toggleTask(id);
+    else store.toggleTask(id);
   }
 
   return (
@@ -45,14 +66,14 @@ export function TasksPage() {
       <PageToolbar
         title={tx("tasksTitle")}
         count={rows.length}
-        hint={tx("tasksHint")}
+        hint={shell ? tx("shellDataBadge") : tx("tasksHint")}
         actions={
           <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
             {tx("addTask")}
           </Button>
         }
         filters={
-          <div className="filter-row" role="tablist" aria-label={tx("colStatus")}>
+          <div className="filter-row" role="tablist">
             {(["open", "done", "all"] as const).map((f) => (
               <button
                 key={f}
@@ -70,62 +91,60 @@ export function TasksPage() {
         }
       />
 
-      <div className={`fold${open ? " is-open" : ""}`}>
-        <div className="fold-inner">
-          <form
-            className="form form-stack task-form"
-            onSubmit={submit}
-            onReset={(e) => {
-              e.preventDefault();
-              setTitle("");
-              setOpen(false);
-            }}
-            aria-hidden={!open}
-          >
-            <label className="form-wide">
-              {tx("addTask")}
-              <input value={title} onChange={(e) => setTitle(e.target.value)} required={open} />
-            </label>
-            <div className="form-actions">
-              <Button type="reset">{tx("cancel")}</Button>
-              <Button type="submit" variant="primary">
-                {tx("save")}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
+      {open ? (
+        <form className="form form-stack task-form" onSubmit={submit}>
+          <label>
+            {tx("colTitle")}
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </label>
+          {shell ? (
+            <>
+              <label>
+                {tx("colCustomer")}
+                <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                  <option value="">—</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {customerName(c as Customer, locale)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {tx("navJobs")}
+                <select value={jobId} onChange={(e) => setJobId(e.target.value)}>
+                  <option value="">—</option>
+                  {jobs.jobs.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.jobNumber}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : null}
+          <button type="submit" className="btn btn-primary">
+            {tx("save")}
+          </button>
+        </form>
+      ) : null}
 
-      {rows.length === 0 ? (
-        <div className="task-empty">
-          <p>{tx("emptyTasks")}</p>
-        </div>
-      ) : (
-        <ul className="task-list">
-          {rows.map((t) => {
-            const c = t.customerId ? customers.find((x) => x.id === t.customerId) : undefined;
-            return (
-              <li key={t.id} className={`task-card pri-${t.priority} ${t.done ? "is-done" : ""}`}>
-                <div className="task-main">
-                  <Check checked={t.done} onChange={() => toggleTask(t.id)} label={t.title} />
-                  <div className="task-meta">
-                    {c ? (
-                      <Link className="linkish" to={`/customers/${c.id}`}>
-                        {customerName(c, locale)}
-                      </Link>
-                    ) : null}
-                    <time className="num" dateTime={t.due}>
-                      {t.due}
-                    </time>
-                    <span>{t.owner}</span>
-                  </div>
+      <ul className="task-list">
+        {rows.map((t) => {
+          const c = "customerId" in t && t.customerId ? customers.find((x) => x.id === t.customerId) : null;
+          return (
+            <li key={t.id} className={`task-card pri-${"priority" in t ? t.priority : "normal"} ${t.done ? "is-done" : ""}`}>
+              <div className="task-main">
+                <Check checked={t.done} onChange={() => toggle(t.id)} label={t.title} />
+                <div className="task-meta">
+                  {c ? <span>{customerName(c as Customer, locale)}</span> : null}
+                  {"jobId" in t && t.jobId ? <span className="mono">{t.jobId}</span> : null}
                 </div>
-                <span className={`task-pri pri-${t.priority}`}>{tx(priI18n[t.priority])}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

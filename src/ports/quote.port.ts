@@ -1,6 +1,6 @@
 import { NotConfiguredError } from "./auth.port.ts";
 
-export type ShellQuoteStatus = "DRAFT" | "PENDING_APPROVAL" | "SENT" | "ACCEPTED";
+export type ShellQuoteStatus = "DRAFT" | "PENDING_APPROVAL" | "SENT" | "ACCEPTED" | "REJECTED";
 
 export type ShellQuoteCharge = {
   description: string;
