@@ -14,6 +14,7 @@ export type ShellJobCost = {
   id: string;
   description: string;
   vendor: string;
+  vendorId?: string;
   amount: number;
   currency: string;
 };

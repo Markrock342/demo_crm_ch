@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { customerName, type Customer } from "../data";
 import { jobGrossProfit, jobMarginPct, jobTotalCost, type ShellJob } from "../ports/job.port.ts";
+import { SHELL_BOX_STATUSES, type ShellBoxStatus } from "../ports/ops.port.ts";
 import { useShellBilling } from "../shell/billingStore.tsx";
 import { useShellCrm } from "../shell/crmStore.tsx";
 import { useShellJobs } from "../shell/jobStore.tsx";
@@ -44,7 +45,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
   const billing = useShellBilling();
   const support = useShellSupport();
   const [msg, setMsg] = useState<string | null>(null);
-  const [costForm, setCostForm] = useState({ description: "", vendor: "", amount: 0 });
+  const [costForm, setCostForm] = useState({ description: "", vendorId: "", amount: 0 });
   const [noteBody, setNoteBody] = useState("");
   const [docForm, setDocForm] = useState({ name: "B/L", docType: "BL" as ShellDocType });
   const [boxForm, setBoxForm] = useState({ id: "", type: "40HC", teu: 2 });
@@ -80,8 +81,14 @@ function JobDetailBody({ job }: { job: ShellJob }) {
 
   function onAddCost(e: FormEvent) {
     e.preventDefault();
-    jobs.addCost(job.id, costForm);
-    setCostForm({ description: "", vendor: "", amount: 0 });
+    const v = support.vendors.find((x) => x.id === costForm.vendorId);
+    jobs.addCost(job.id, {
+      description: costForm.description,
+      vendor: v?.name ?? "—",
+      vendorId: costForm.vendorId || undefined,
+      amount: costForm.amount,
+    });
+    setCostForm({ description: "", vendorId: "", amount: 0 });
     setMsg(tx("save"));
   }
 
@@ -111,7 +118,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
       customerId: job.customerId,
       type: boxForm.type,
       dir: "in",
-      status: "yard",
+      status: "gate_in",
       slot: "A1",
       bl: job.jobNumber,
       teu: boxForm.teu,
@@ -258,7 +265,14 @@ function JobDetailBody({ job }: { job: ShellJob }) {
             </label>
             <label>
               Vendor
-              <input value={costForm.vendor} onChange={(e) => setCostForm({ ...costForm, vendor: e.target.value })} />
+              <select value={costForm.vendorId} onChange={(e) => setCostForm({ ...costForm, vendorId: e.target.value })}>
+                <option value="">—</option>
+                {support.vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               {tx("colAmount")}
@@ -346,13 +360,42 @@ function JobDetailBody({ job }: { job: ShellJob }) {
                   </label>
                   <label>
                     {tx("colStatus")}
-                    <select className="deal-select" value={b.status} onChange={(e) => ops.setBoxStatus(b.id, e.target.value as typeof b.status)}>
-                      {(["yard", "sail", "clear", "hold", "empty"] as const).map((s) => (
+                    <select
+                      className="deal-select"
+                      value={b.status}
+                      onChange={(e) => ops.setBoxStatus(b.id, e.target.value as ShellBoxStatus)}
+                    >
+                      {SHELL_BOX_STATUSES.map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>
                       ))}
                     </select>
+                  </label>
+                  <label>
+                    Flags
+                    <span className="meta">
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(b.etaChanged)}
+                          onChange={(e) => ops.patchBox(b.id, { etaChanged: e.target.checked })}
+                        />
+                        ETA
+                      </label>{" "}
+                      <label className="check">
+                        <input type="checkbox" checked={Boolean(b.coPending)} onChange={(e) => ops.patchBox(b.id, { coPending: e.target.checked })} />
+                        C/O
+                      </label>{" "}
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(b.missingDoc)}
+                          onChange={(e) => ops.patchBox(b.id, { missingDoc: e.target.checked })}
+                        />
+                        Doc
+                      </label>
+                    </span>
                   </label>
                 </div>
               </li>

@@ -1,11 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { loadPersisted, savePersisted } from "./persist.ts";
-import { LCS_DOCS, LCS_RATES, LCS_TASKS } from "./seedLcs.ts";
+import { LCS_DOCS, LCS_RATES, LCS_TASKS, LCS_VENDORS, LCS_VENDOR_BILLS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-support-v3";
-const VERSION = 3;
+const STORAGE_KEY = "cangzhan-shell-support-v4";
+const VERSION = 4;
 
 export type ShellDocType = "BOOKING" | "BL" | "CI" | "PL" | "CO" | "DO" | "POD" | "OTHER";
+
+export type ShellVendorType = "shipping_line" | "trucking" | "customs" | "depot" | "warehouse" | "other";
+
+export type ShellVendor = {
+  id: string;
+  name: string;
+  vendorType: ShellVendorType;
+  creditTerm?: string;
+};
 
 export type ShellRate = {
   id: string;
@@ -13,9 +22,13 @@ export type ShellRate = {
   destination: string;
   containerType: string;
   mode: "FCL";
+  buyAmount: number;
   sellAmount: number;
+  carrier: string;
   currency: string;
+  validFrom: string;
   validUntil: string;
+  localCharges?: number;
 };
 
 export type ShellTask = {
@@ -44,7 +57,9 @@ export type ShellDocItem = {
 export type ShellVendorBill = {
   id: string;
   billNumber: string;
+  vendorId: string;
   vendorName: string;
+  jobId?: string;
   amount: number;
   currency: string;
   status: "DRAFT" | "APPROVED";
@@ -52,6 +67,7 @@ export type ShellVendorBill = {
 };
 
 type Snapshot = {
+  vendors: ShellVendor[];
   rates: ShellRate[];
   tasks: ShellTask[];
   docs: ShellDocItem[];
@@ -60,18 +76,21 @@ type Snapshot = {
 
 function seed(): Snapshot {
   return {
+    vendors: LCS_VENDORS,
     rates: LCS_RATES,
     tasks: LCS_TASKS,
     docs: LCS_DOCS,
-    vendorBills: [],
+    vendorBills: LCS_VENDOR_BILLS,
   };
 }
 
 type SupportValue = {
+  vendors: ShellVendor[];
   rates: ShellRate[];
   tasks: ShellTask[];
   docs: ShellDocItem[];
   vendorBills: ShellVendorBill[];
+  addVendor: (input: { name: string; vendorType: ShellVendorType; creditTerm?: string }) => void;
   addRate: (input: Omit<ShellRate, "id" | "mode">) => void;
   addTask: (input: { title: string; customerId?: string; jobId?: string; priority?: "high" | "normal" }) => void;
   toggleTask: (id: string) => void;
@@ -85,7 +104,7 @@ type SupportValue = {
     shipmentId?: string;
     note?: string;
   }) => void;
-  addVendorBill: (input: { vendorName: string; amount: number; currency: string }) => void;
+  addVendorBill: (input: { vendorId: string; amount: number; currency: string; jobId?: string }) => void;
   approveVendorBill: (id: string) => void;
 };
 
@@ -97,6 +116,22 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     savePersisted(STORAGE_KEY, VERSION, state);
   }, [state]);
+
+  const addVendor = useCallback((input: { name: string; vendorType: ShellVendorType; creditTerm?: string }) => {
+    if (!input.name.trim()) return;
+    setState((s) => ({
+      ...s,
+      vendors: [
+        {
+          id: `sv${Date.now()}`,
+          name: input.name.trim(),
+          vendorType: input.vendorType,
+          creditTerm: input.creditTerm,
+        },
+        ...s.vendors,
+      ],
+    }));
+  }, []);
 
   const addRate = useCallback((input: Omit<ShellRate, "id" | "mode">) => {
     setState((s) => ({
@@ -175,23 +210,28 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const addVendorBill = useCallback((input: { vendorName: string; amount: number; currency: string }) => {
-    if (!input.vendorName.trim()) return;
-    setState((s) => ({
-      ...s,
-      vendorBills: [
-        {
-          id: `svb${Date.now()}`,
-          billNumber: `VB-SHELL-${String(s.vendorBills.length + 1).padStart(3, "0")}`,
-          vendorName: input.vendorName.trim(),
-          amount: input.amount,
-          currency: input.currency || "USD",
-          status: "DRAFT",
-          createdAt: new Date().toISOString().slice(0, 10),
-        },
-        ...s.vendorBills,
-      ],
-    }));
+  const addVendorBill = useCallback((input: { vendorId: string; amount: number; currency: string; jobId?: string }) => {
+    setState((s) => {
+      const v = s.vendors.find((x) => x.id === input.vendorId);
+      if (!v) return s;
+      return {
+        ...s,
+        vendorBills: [
+          {
+            id: `svb${Date.now()}`,
+            billNumber: `VB-SHELL-${String(s.vendorBills.length + 1).padStart(3, "0")}`,
+            vendorId: v.id,
+            vendorName: v.name,
+            jobId: input.jobId,
+            amount: input.amount,
+            currency: input.currency || "USD",
+            status: "DRAFT",
+            createdAt: new Date().toISOString().slice(0, 10),
+          },
+          ...s.vendorBills,
+        ],
+      };
+    });
   }, []);
 
   const approveVendorBill = useCallback((id: string) => {
@@ -204,6 +244,7 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       ...state,
+      addVendor,
       addRate,
       addTask,
       toggleTask,
@@ -213,7 +254,7 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
       addVendorBill,
       approveVendorBill,
     }),
-    [state, addRate, addTask, toggleTask, setDocStatus, patchDoc, addDoc, addVendorBill, approveVendorBill],
+    [state, addVendor, addRate, addTask, toggleTask, setDocStatus, patchDoc, addDoc, addVendorBill, approveVendorBill],
   );
 
   return <SupportCtx.Provider value={value}>{children}</SupportCtx.Provider>;

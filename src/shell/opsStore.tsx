@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ShellBox, ShellBoxDir, ShellBoxStatus, ShellDemurrageRisk, ShellShipment, ShellShipmentStatus } from "../ports/ops.port.ts";
+import { boxInYard, mapLegacyBoxStatus } from "../ports/ops.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
 import { LCS_BOXES, LCS_SHIPMENTS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-ops-v3";
-const VERSION = 3;
+const STORAGE_KEY = "cangzhan-shell-ops-v4";
+const VERSION = 4;
 
 export const YARD_SLOTS = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4"] as const;
 export type YardSlot = (typeof YARD_SLOTS)[number];
@@ -22,13 +23,48 @@ function yardLabel(slot: string) {
   };
 }
 
+function normalizeBox(b: ShellBox): ShellBox {
+  const status = mapLegacyBoxStatus(b.status as string);
+  return {
+    ...b,
+    status,
+    statusHistory: b.statusHistory?.length
+      ? b.statusHistory
+      : [{ at: new Date().toISOString().slice(0, 10), status, note: "seed" }],
+  };
+}
+
 function seedOps(): OpsSnapshot {
-  return { boxes: LCS_BOXES, shipments: LCS_SHIPMENTS };
+  return { boxes: LCS_BOXES.map(normalizeBox), shipments: LCS_SHIPMENTS };
 }
 
 function loadInitial(): OpsSnapshot {
-  return loadPersisted<OpsSnapshot>(STORAGE_KEY, VERSION) ?? seedOps();
+  const loaded = loadPersisted<OpsSnapshot>(STORAGE_KEY, VERSION);
+  if (!loaded) return seedOps();
+  return { boxes: loaded.boxes.map(normalizeBox), shipments: loaded.shipments };
 }
+
+function appendHistory(b: ShellBox, status: ShellBoxStatus, note?: string): ShellBox {
+  const ev = { at: new Date().toISOString(), status, note };
+  return { ...b, status, statusHistory: [...(b.statusHistory ?? []), ev] };
+}
+
+type PatchBox = Partial<
+  Pick<
+    ShellBox,
+    | "seal"
+    | "freeTimeDays"
+    | "lastFreeDay"
+    | "demurrageRisk"
+    | "status"
+    | "carrier"
+    | "etaChanged"
+    | "coPending"
+    | "missingDoc"
+    | "customsPending"
+    | "notReturned"
+  >
+>;
 
 type ShellOpsValue = {
   boxes: ShellBox[];
@@ -45,10 +81,7 @@ type ShellOpsValue = {
     shipmentId?: string;
   }) => string | null;
   setBoxStatus: (id: string, status: ShellBoxStatus) => void;
-  patchBox: (
-    id: string,
-    patch: Partial<Pick<ShellBox, "seal" | "freeTimeDays" | "lastFreeDay" | "demurrageRisk" | "status">>,
-  ) => void;
+  patchBox: (id: string, patch: PatchBox) => void;
   moveBox: (id: string, slot: YardSlot) => void;
   addShipment: (input: {
     customerId: string;
@@ -102,6 +135,7 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
       if (boxes.some((b) => b.id === id)) return "errorName";
       const slot = input.slot && YARD_SLOTS.includes(input.slot as YardSlot) ? input.slot : "A1";
       const labels = yardLabel(slot);
+      const status = mapLegacyBoxStatus(input.status);
       setBoxes((list) => [
         {
           id,
@@ -109,7 +143,7 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
           shipmentId: input.shipmentId,
           type: input.type.trim() || "40HC",
           dir: input.dir,
-          status: input.status,
+          status,
           ...labels,
           eta: "—",
           teu: input.teu || 1,
@@ -118,6 +152,7 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
           freeTimeDays: 7,
           lastFreeDay: "—",
           demurrageRisk: "none" as ShellDemurrageRisk,
+          statusHistory: [{ at: new Date().toISOString(), status, note: "created" }],
         },
         ...list,
       ]);
@@ -127,19 +162,29 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
   );
 
   const setBoxStatus = useCallback((id: string, status: ShellBoxStatus) => {
-    setBoxes((list) => list.map((b) => (b.id === id ? { ...b, status } : b)));
+    setBoxes((list) => list.map((b) => (b.id === id ? appendHistory(b, status) : b)));
   }, []);
 
-  const patchBox = useCallback(
-    (id: string, patch: Partial<Pick<ShellBox, "seal" | "freeTimeDays" | "lastFreeDay" | "demurrageRisk" | "status">>) => {
-      setBoxes((list) => list.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-    },
-    [],
-  );
+  const patchBox = useCallback((id: string, patch: PatchBox) => {
+    setBoxes((list) =>
+      list.map((b) => {
+        if (b.id !== id) return b;
+        const next = { ...b, ...patch };
+        if (patch.status && patch.status !== b.status) return appendHistory(next, patch.status);
+        return next;
+      }),
+    );
+  }, []);
 
   const moveBox = useCallback((id: string, slot: YardSlot) => {
     const labels = yardLabel(slot);
-    setBoxes((list) => list.map((b) => (b.id === id ? { ...b, ...labels, status: b.status === "empty" ? "empty" : "yard" } : b)));
+    setBoxes((list) =>
+      list.map((b) => {
+        if (b.id !== id) return b;
+        const status = boxInYard(b.status) ? b.status : "gate_in";
+        return appendHistory({ ...b, ...labels }, status, `moved to ${slot}`);
+      }),
+    );
   }, []);
 
   const addShipment = useCallback(
@@ -188,24 +233,28 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
     setShipments((list) => list.map((s) => (s.id === id ? { ...s, status } : s)));
   }, []);
 
-  const linkBoxToShipment = useCallback((boxId: string, shipmentId: string) => {
-    const ship = shipments.find((s) => s.id === shipmentId);
-    setBoxes((list) =>
-      list.map((b) =>
-        b.id === boxId
-          ? {
-              ...b,
-              shipmentId,
-              bl: ship?.bl ?? b.bl,
-              vessel: ship?.vessel ?? b.vessel,
-              pol: ship?.pol ?? b.pol,
-              pod: ship?.pod ?? b.pod,
-              customerId: ship?.customerId ?? b.customerId,
-            }
-          : b,
-      ),
-    );
-  }, [shipments]);
+  const linkBoxToShipment = useCallback(
+    (boxId: string, shipmentId: string) => {
+      const ship = shipments.find((s) => s.id === shipmentId);
+      setBoxes((list) =>
+        list.map((b) =>
+          b.id === boxId
+            ? {
+                ...b,
+                shipmentId,
+                bl: ship?.bl ?? b.bl,
+                vessel: ship?.vessel ?? b.vessel,
+                pol: ship?.pol ?? b.pol,
+                pod: ship?.pod ?? b.pod,
+                customerId: ship?.customerId ?? b.customerId,
+                carrier: ship?.carrier ?? b.carrier,
+              }
+            : b,
+        ),
+      );
+    },
+    [shipments],
+  );
 
   const createShipmentFromJob = useCallback(
     (input: { jobId: string; customerId: string; pol: string; pod: string; teu: number }) => {

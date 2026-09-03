@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { customerName, type BoxStatus, type Customer, type Direction } from "../data";
 import { useContainers } from "../hooks/useContainers";
+import { SHELL_BOX_STATUSES, type ShellBoxStatus } from "../ports/ops.port.ts";
 import { canEditLogistics } from "../shell/nav.ts";
 import { useShellCrm } from "../shell/crmStore.tsx";
 import { useShellOps, YARD_SLOTS } from "../shell/opsStore.tsx";
@@ -9,7 +10,7 @@ import { useIsShellMode, useShellSession } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
-const statuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
+const legacyStatuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
 
 export function BoxesPage() {
   const shell = useIsShellMode();
@@ -25,14 +26,15 @@ export function BoxesPage() {
   const canEdit = shell ? canEditLogistics(shellUser?.department ?? null) : true;
   const customers = shell ? crm.customers : store.customers;
   const boxes = shell ? ops.boxes : containers.boxes;
-  const [status, setStatus] = useState<BoxStatus | "all">("all");
+  const statusOptions = shell ? (SHELL_BOX_STATUSES as string[]) : legacyStatuses;
+  const [status, setStatus] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     id: "",
     customerId: "",
     type: "40HC",
     dir: "in" as Direction,
-    status: "yard" as BoxStatus,
+    status: "gate_in" as string,
     slot: "A1",
     bl: "",
     teu: 2,
@@ -63,6 +65,7 @@ export function BoxesPage() {
     if (!shell || !canEdit) return;
     const fail = ops.addBox({
       ...form,
+      status: form.status as ShellBoxStatus,
       customerId: form.customerId || customers[0]?.id || "",
     });
     if (fail) return;
@@ -98,7 +101,7 @@ export function BoxesPage() {
         }
         filters={
           <div className="filter-row" role="tablist">
-            {(["all", ...statuses] as const).map((s) => (
+            {(["all", ...statusOptions] as const).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -190,9 +193,9 @@ export function BoxesPage() {
                         <select
                           className="deal-select"
                           value={b.status}
-                          onChange={(e) => ops.setBoxStatus(b.id, e.target.value as BoxStatus)}
+                          onChange={(e) => ops.setBoxStatus(b.id, e.target.value as ShellBoxStatus)}
                         >
-                          {statuses.map((s) => (
+                          {SHELL_BOX_STATUSES.map((s) => (
                             <option key={s} value={s}>
                               {s}
                             </option>

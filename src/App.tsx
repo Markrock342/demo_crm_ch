@@ -42,7 +42,15 @@ import { VendorBillsPage } from "./pages/VendorBills";
 import { JobsPage } from "./pages/Jobs";
 import { JobDetailPage } from "./pages/JobDetail";
 import { LeadsPage } from "./pages/Leads";
+import { NotificationsPage } from "./pages/Notifications";
 import { OverviewPage } from "./pages/Overview";
+import {
+  PortalDocsPage,
+  PortalEnterPage,
+  PortalHomePage,
+  PortalInvoicesPage,
+  PortalJobPage,
+} from "./pages/Portal";
 import { PipelinePage } from "./pages/Pipeline";
 import { QuotePublicPage } from "./pages/QuotePublic";
 import { QuotePublicShellPage } from "./pages/QuotePublicShell";
@@ -54,9 +62,11 @@ import { SettingsPage } from "./pages/Settings";
 import { ShipmentsPage } from "./pages/Shipments";
 import { TasksPage } from "./pages/Tasks";
 import { YardPage } from "./pages/Yard";
+import { VendorsPage } from "./pages/Vendors";
 import { LoginPage } from "./pages/Login";
 import { homePathFor, navPathAllowed } from "./shell/nav.ts";
-import { useShellSession } from "./shell/session.tsx";
+import { useShellNotifications } from "./shell/notificationStore.tsx";
+import { useIsShellMode, useShellSession } from "./shell/session.tsx";
 import { useStore } from "./store";
 
 const groups = [
@@ -83,6 +93,7 @@ const groups = [
     items: [
       { to: "/jobs", key: "navJobs", icon: Package },
       { to: "/invoices", key: "navInvoices", icon: Receipt },
+      { to: "/vendors", key: "navVendors", icon: Users },
       { to: "/vendor-bills", key: "navVendorBills", icon: Receipt },
     ],
   },
@@ -95,6 +106,7 @@ const groups = [
       { to: "/inbox", key: "navInbox", icon: EnvelopeSimple },
       { to: "/docs", key: "navDocs", icon: FileText },
       { to: "/exceptions", key: "navExceptions", icon: Bell },
+      { to: "/notifications", key: "navNotifications", icon: Bell },
     ],
   },
   {
@@ -127,10 +139,21 @@ export default function App() {
     <Routes>
       <Route path="/q/:token" element={<QuotePublicPage />} />
       <Route path="/q/shell/:id" element={<QuotePublicShellPage />} />
+      <Route path="/portal" element={<PortalEnterPage />} />
+      <Route path="/portal/home" element={<PortalHomePage />} />
+      <Route path="/portal/jobs/:id" element={<PortalJobPage />} />
+      <Route path="/portal/docs" element={<PortalDocsPage />} />
+      <Route path="/portal/invoices" element={<PortalInvoicesPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/*"
-        element={!signedIn && loc.pathname !== "/login" ? <Navigate to="/login" replace /> : <AppShell />}
+        element={
+          !signedIn && !loc.pathname.startsWith("/portal") && loc.pathname !== "/login" ? (
+            <Navigate to="/login" replace />
+          ) : (
+            <AppShell />
+          )
+        }
       />
     </Routes>
   );
@@ -138,9 +161,11 @@ export default function App() {
 
 function AppShell() {
   const s = useStore();
-  const { tx, locale, setLocale, query, setQuery, mails, tasks, docs, toast, compact, motion } = s;
+  const { tx, locale, setLocale, query, setQuery, mails, toast, compact, motion } = s;
   const { user, mode, logout } = useAuth();
   const { shellUser, leave } = useShellSession();
+  const shellMode = useIsShellMode();
+  const shellNotes = useShellNotifications();
   const navigate = useNavigate();
   const loc = useLocation();
   const dept = shellUser?.department ?? (user ? "admin" : null);
@@ -154,8 +179,7 @@ function AppShell() {
     .filter((g) => g.items.length > 0);
 
   const unread = mails.filter((m) => m.unread && m.state === "open").length;
-  const hot = tasks.filter((t) => !t.done && t.priority === "high").length + docs.filter((d) => d.status !== "ok").length;
-  const openTasks = tasks.filter((t) => !t.done).length;
+  const hot = shellMode ? shellNotes.unreadCount : 0;
   const [cmd, setCmd] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -283,22 +307,33 @@ function AppShell() {
 
       {noteOpen ? (
         <div className="notify-panel">
-          {s.tasks
-            .filter((t) => !t.done)
-            .slice(0, 6)
-            .map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className="notify-row"
-                onClick={() => {
-                  navigate("/tasks");
-                  setNoteOpen(false);
-                }}
-              >
-                {t.title}
-              </button>
-            ))}
+          {shellMode
+            ? shellNotes.notifications.slice(0, 8).map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  className="notify-row"
+                  onClick={() => {
+                    shellNotes.markRead(n.id);
+                    navigate(n.href);
+                    setNoteOpen(false);
+                  }}
+                >
+                  {!n.read ? "• " : ""}
+                  {n.title} — {n.body}
+                </button>
+              ))
+            : null}
+          <button
+            type="button"
+            className="notify-row"
+            onClick={() => {
+              navigate("/notifications");
+              setNoteOpen(false);
+            }}
+          >
+            {tx("navNotifications")} →
+          </button>
         </div>
       ) : null}
 
@@ -353,12 +388,14 @@ function AppShell() {
             <Route path="/jobs" element={<JobsPage />} />
             <Route path="/jobs/:id" element={<JobDetailPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/vendors" element={<VendorsPage />} />
             <Route path="/vendor-bills" element={<VendorBillsPage />} />
             <Route path="/boxes" element={<BoxesPage />} />
             <Route path="/shipments" element={<ShipmentsPage />} />
             <Route path="/yard" element={<YardPage />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/docs" element={<DocsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/reports" element={<ReportsPage />} />
@@ -370,7 +407,7 @@ function AppShell() {
 
       <CommandPalette open={cmd} onClose={() => setCmd(false)} />
       {mobile ? (
-        <MobileDock unread={unread} openTasks={hot > 0 ? hot : openTasks} onMenu={() => setMenuOpen(true)} />
+        <MobileDock unread={unread} openTasks={hot} onMenu={() => setMenuOpen(true)} />
       ) : null}
       {toast ? (
         <div className="toast" role="status">

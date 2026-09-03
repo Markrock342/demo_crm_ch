@@ -31,7 +31,9 @@ export function YardPage() {
   }
 
   const customers = shell ? crm.customers : store.customers;
-  const boxes = shell ? ops.boxes.filter((b) => b.status === "yard" || b.status === "empty" || b.status === "hold") : containers.boxes;
+  const boxes = shell
+    ? ops.boxes.filter((b) => b.status === "gate_in" || b.status === "empty_returned" || b.status === "stuffing" || b.status === "empty_pickup")
+    : containers.boxes;
   const canEdit = shell ? canEditLogistics(shellUser?.department ?? null) : true;
   const [picked, setPicked] = useState<string | null>(null);
   const moveBox = shell ? ops.moveBox : containers.moveBox;

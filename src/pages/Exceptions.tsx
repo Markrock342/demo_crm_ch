@@ -65,6 +65,56 @@ export function ExceptionsPage() {
           to: ship?.jobId ? `/jobs/${ship.jobId}` : "/boxes",
         });
       }
+      if (b.etaChanged) {
+        const ship = ops.shipments.find((s) => s.id === b.shipmentId);
+        list.push({
+          id: `eta-${b.id}`,
+          kind: "ETA changed",
+          label: b.id,
+          meta: b.status,
+          to: ship?.jobId ? `/jobs/${ship.jobId}` : "/boxes",
+        });
+      }
+      if (b.coPending) {
+        const ship = ops.shipments.find((s) => s.id === b.shipmentId);
+        list.push({
+          id: `co-${b.id}`,
+          kind: "C/O pending",
+          label: b.id,
+          meta: b.status,
+          to: ship?.jobId ? `/jobs/${ship.jobId}` : "/boxes",
+        });
+      }
+      if (b.missingDoc) {
+        const ship = ops.shipments.find((s) => s.id === b.shipmentId);
+        list.push({
+          id: `md-${b.id}`,
+          kind: "Missing document",
+          label: b.id,
+          meta: b.status,
+          to: ship?.jobId ? `/jobs/${ship.jobId}` : "/docs?missing=1",
+        });
+      }
+      if (b.customsPending) {
+        const ship = ops.shipments.find((s) => s.id === b.shipmentId);
+        list.push({
+          id: `cu-${b.id}`,
+          kind: "Customs pending",
+          label: b.id,
+          meta: b.status,
+          to: ship?.jobId ? `/jobs/${ship.jobId}` : "/boxes",
+        });
+      }
+      if (b.notReturned) {
+        const ship = ops.shipments.find((s) => s.id === b.shipmentId);
+        list.push({
+          id: `nr-${b.id}`,
+          kind: "Container not returned",
+          label: b.id,
+          meta: b.status,
+          to: ship?.jobId ? `/jobs/${ship.jobId}` : "/boxes",
+        });
+      }
     }
     return list;
   }, [billing.invoices, crm.customers, jobs.jobs, locale, ops.boxes, ops.shipments, support.docs]);

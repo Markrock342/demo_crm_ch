@@ -54,9 +54,14 @@ export function AccountPage() {
         title={customerName(customer as Customer, locale)}
         hint={`${tx("shellDataBadge")} · ${customer.laneZh}`}
         actions={
-          <Link className="btn btn-ghost" to="/customers">
-            {tx("navCustomers")}
-          </Link>
+          <>
+            <Link className="btn btn-ghost" to={`/portal?customerId=${customer.id}`}>
+              {tx("portalOpenPreview")}
+            </Link>
+            <Link className="btn btn-ghost" to="/customers">
+              {tx("navCustomers")}
+            </Link>
+          </>
         }
       />
 

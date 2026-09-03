@@ -3,8 +3,8 @@ import type { ShellQuotation, ShellQuoteCharge, ShellQuoteStatus } from "../port
 import { loadPersisted, savePersisted } from "./persist.ts";
 import { LCS_QUOTES } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-quotes-v3";
-const VERSION = 3;
+const STORAGE_KEY = "cangzhan-shell-quotes-v4";
+const VERSION = 4;
 
 type CreateInput = {
   customerId: string;

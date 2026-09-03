@@ -4,7 +4,8 @@ import { DEFAULT_MILESTONES } from "../ports/job.port.ts";
 import type { ShellBox, ShellShipment, ShellDemurrageRisk, ShellBoxStatus, ShellShipmentStatus } from "../ports/ops.port.ts";
 import type { ShellQuotation, ShellQuoteStatus } from "../ports/quote.port.ts";
 import type { ShellInvoice } from "../ports/billing.port.ts";
-import type { ShellDocItem, ShellDocType, ShellRate, ShellTask } from "./supportStore.tsx";
+import type { ShellDocItem, ShellDocType, ShellRate, ShellTask, ShellVendor, ShellVendorBill } from "./supportStore.tsx";
+import { SHELL_BOX_STATUSES } from "../ports/ops.port.ts";
 
 const LANES = [
   { pol: "CNSHA", pod: "THLCH", origin: "Shanghai", destination: "Laem Chabang", laneZh: "上海→林查班" },
@@ -74,6 +75,7 @@ export const LCS_CUSTOMERS: ShellCustomer[] = CUSTOMER_META.map((c, i) => {
     billingAddress: `${c.cityEn} Industrial Zone, Unit ${i + 1}`,
     creditTerm: i % 3 === 0 ? "Net 45" : "Net 30",
     creditLimit: 50000 + i * 5000,
+    portalPin: "demo",
   };
 });
 
@@ -182,20 +184,21 @@ export const LCS_SHIPMENTS: ShellShipment[] = LCS_JOBS.map((j, i) => {
   };
 });
 
-const BOX_STATUSES: ShellBoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
+const BOX_STATUSES: ShellBoxStatus[] = [...SHELL_BOX_STATUSES];
 const RISKS: ShellDemurrageRisk[] = ["none", "none", "watch", "risk"];
 
 export const LCS_BOXES: ShellBox[] = Array.from({ length: 42 }, (_, i) => {
   const ship = LCS_SHIPMENTS[i % LCS_SHIPMENTS.length]!;
   const slot = ["A1", "A2", "B1", "B2", "C1", "C2"][i % 6]!;
   const risk = RISKS[i % RISKS.length]!;
+  const status = BOX_STATUSES[i % BOX_STATUSES.length]!;
   return {
     id: `TCLU${String(1000000 + i).slice(1)}`,
     customerId: ship.customerId,
     shipmentId: ship.id,
     type: i % 4 === 0 ? "20GP" : "40HC",
     dir: i % 2 === 0 ? "in" : "out",
-    status: BOX_STATUSES[i % BOX_STATUSES.length]!,
+    status,
     ...yard(slot),
     eta: ship.eta,
     teu: i % 4 === 0 ? 1 : 2,
@@ -207,6 +210,13 @@ export const LCS_BOXES: ShellBox[] = Array.from({ length: 42 }, (_, i) => {
     freeTimeDays: 5 + (i % 5),
     lastFreeDay: `09-${String(((i + 10) % 27) + 1).padStart(2, "0")}`,
     demurrageRisk: risk,
+    carrier: ship.carrier,
+    etaChanged: i % 8 === 0,
+    coPending: i % 7 === 0,
+    missingDoc: i % 9 === 0,
+    customsPending: i % 10 === 0,
+    notReturned: i % 11 === 0,
+    statusHistory: [{ at: "2026-09-01", status, note: "seed" }],
   };
 });
 
@@ -341,16 +351,70 @@ export const LCS_DOCS: ShellDocItem[] = LCS_JOBS.flatMap((j, i) => {
   return base;
 }).slice(0, 80);
 
-export const LCS_RATES: ShellRate[] = LANES.slice(0, 6).map((l, i) => ({
-  id: `sr${i + 1}`,
-  origin: l.origin,
-  destination: l.destination,
-  containerType: "40HC",
-  mode: "FCL" as const,
-  sellAmount: 1600 + i * 100,
-  currency: "USD",
-  validUntil: "2026-12-31",
-}));
+export const LCS_VENDORS: ShellVendor[] = [
+  { id: "sv-1", name: "COSCO Shipping", vendorType: "shipping_line", creditTerm: "Net 30" },
+  { id: "sv-2", name: "MSC Agency", vendorType: "shipping_line", creditTerm: "Net 30" },
+  { id: "sv-3", name: "LCB Haulage", vendorType: "trucking", creditTerm: "Net 15" },
+  { id: "sv-4", name: "Thai Customs Broker", vendorType: "customs", creditTerm: "Net 7" },
+  { id: "sv-5", name: "LCB Depot", vendorType: "depot", creditTerm: "Net 15" },
+  { id: "sv-6", name: "Bangkok CFS", vendorType: "warehouse", creditTerm: "Net 30" },
+  { id: "sv-7", name: "Evergreen Line", vendorType: "shipping_line", creditTerm: "Net 45" },
+  { id: "sv-8", name: "Rayong Trucking", vendorType: "trucking", creditTerm: "Net 15" },
+];
+
+export const LCS_VENDOR_BILLS: ShellVendorBill[] = [
+  {
+    id: "svb-1",
+    billNumber: "VB-260901",
+    vendorId: "sv-1",
+    vendorName: "COSCO Shipping",
+    jobId: "sj-seed-1",
+    amount: 1800,
+    currency: "USD",
+    status: "APPROVED",
+    createdAt: "2026-09-01",
+  },
+  {
+    id: "svb-2",
+    billNumber: "VB-260902",
+    vendorId: "sv-3",
+    vendorName: "LCB Haulage",
+    jobId: "sj-seed-2",
+    amount: 220,
+    currency: "USD",
+    status: "DRAFT",
+    createdAt: "2026-09-02",
+  },
+  {
+    id: "svb-3",
+    billNumber: "VB-260903",
+    vendorId: "sv-4",
+    vendorName: "Thai Customs Broker",
+    amount: 150,
+    currency: "USD",
+    status: "DRAFT",
+    createdAt: "2026-09-03",
+  },
+];
+
+export const LCS_RATES: ShellRate[] = LANES.slice(0, 8).map((l, i) => {
+  const buy = 1200 + i * 80;
+  const sell = buy + 200 + (i % 3) * 50;
+  return {
+    id: `sr${i + 1}`,
+    origin: l.origin,
+    destination: l.destination,
+    containerType: "40HC",
+    mode: "FCL" as const,
+    buyAmount: buy,
+    sellAmount: sell,
+    carrier: CARRIERS[i % CARRIERS.length]!,
+    currency: "USD",
+    validFrom: "2026-08-01",
+    validUntil: "2026-12-31",
+    localCharges: 120 + i * 10,
+  };
+});
 
 export const LCS_TASKS: ShellTask[] = [
   { id: "st1", title: "Chase C/O for delayed jobs", jobId: "sj-seed-1", done: false, priority: "high" },

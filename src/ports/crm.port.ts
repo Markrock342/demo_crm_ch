@@ -23,6 +23,7 @@ export type ShellCustomer = {
   billingAddress?: string;
   creditTerm?: string;
   creditLimit?: number;
+  portalPin?: string;
 };
 
 export type ShellContact = {

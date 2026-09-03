@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { useShellSupport } from "../shell/supportStore.tsx";
+import { Link } from "react-router-dom";
+import { useShellJobs } from "../shell/jobStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
+import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
@@ -8,17 +10,23 @@ export function VendorBillsPage() {
   const shell = useIsShellMode();
   const { tx } = useStore();
   const support = useShellSupport();
+  const jobs = useShellJobs();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ vendorName: "", amount: 500, currency: "USD" });
+  const [form, setForm] = useState({ vendorId: "", amount: 500, currency: "USD", jobId: "" });
   const [msg, setMsg] = useState<string | null>(null);
 
   const bills = shell ? support.vendorBills : [];
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (!shell) return;
-    support.addVendorBill(form);
-    setForm({ vendorName: "", amount: 500, currency: "USD" });
+    if (!shell || !form.vendorId) return;
+    support.addVendorBill({
+      vendorId: form.vendorId,
+      amount: form.amount,
+      currency: form.currency,
+      jobId: form.jobId || undefined,
+    });
+    setForm({ vendorId: "", amount: 500, currency: "USD", jobId: "" });
     setOpen(false);
     setMsg(tx("vendorBillCreated"));
   }
@@ -31,9 +39,14 @@ export function VendorBillsPage() {
         hint={shell ? `${tx("shellDataBadge")} · stub` : tx("apiNotConfigured")}
         actions={
           shell ? (
-            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)}>
-              {tx("createVendorBill")}
-            </button>
+            <>
+              <Link className="btn btn-ghost" to="/vendors">
+                {tx("navVendors")}
+              </Link>
+              <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} disabled={!support.vendors.length}>
+                {tx("createVendorBill")}
+              </button>
+            </>
           ) : (
             <button type="button" className="btn btn-ghost" disabled>
               {tx("billingConnectApi")}
@@ -48,7 +61,25 @@ export function VendorBillsPage() {
         <form className="form form-stack" onSubmit={submit}>
           <label>
             Vendor
-            <input value={form.vendorName} onChange={(e) => setForm({ ...form, vendorName: e.target.value })} required />
+            <select value={form.vendorId} onChange={(e) => setForm({ ...form, vendorId: e.target.value })} required>
+              <option value="">—</option>
+              {support.vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {tx("navJobs")}
+            <select value={form.jobId} onChange={(e) => setForm({ ...form, jobId: e.target.value })}>
+              <option value="">—</option>
+              {jobs.jobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.jobNumber}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             {tx("colAmount")}
@@ -69,6 +100,7 @@ export function VendorBillsPage() {
               <tr>
                 <th>{tx("colInvoice")}</th>
                 <th>Vendor</th>
+                <th>{tx("navJobs")}</th>
                 <th>{tx("colTotal")}</th>
                 <th>{tx("colStatus")}</th>
                 <th />
@@ -79,6 +111,7 @@ export function VendorBillsPage() {
                 <tr key={b.id}>
                   <td className="mono">{b.billNumber}</td>
                   <td>{b.vendorName}</td>
+                  <td>{b.jobId ? <Link to={`/jobs/${b.jobId}`}>{jobs.getById(b.jobId)?.jobNumber ?? b.jobId}</Link> : "—"}</td>
                   <td className="mono">
                     {b.amount} {b.currency}
                   </td>

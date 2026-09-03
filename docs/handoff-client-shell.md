@@ -1,23 +1,24 @@
 # Handoff — สรุปงาน CANGZHAN (สำหรับทำงานต่อ)
 
-> อัปเดต: 4 กันยายน 2569 (Phase A **Closed** — A3 closeout)  
+> อัปเดต: 4 กันยายน 2569 (Phase A **Closed** · Phase B **Closed**)  
 > Repo: `Markrock342/demo_crm_ch` · Local: `c:\my_job\crm` · Deploy: `democrmch.vercel.app`  
 > Audience: เพื่อนร่วมทีมที่ต้องศึกษาและต่อยอดได้ทันที  
 > Local UI: `http://localhost:5173/` (`npm run dev`)
 
-เอกสารนี้สรุป **สิ่งที่ทำแล้ว / ยังไม่ทำ / ไม่ยุ่ง** จากรอบ DB/API เดิม → P0 + Client full shell → **LCS Phase A (Closed)**
+เอกสารนี้สรุป **สิ่งที่ทำแล้ว / ยังไม่ทำ / ไม่ยุ่ง** จากรอบ DB/API เดิม → P0 + full shell → **LCS Phase A + B (Closed)**
 
 ---
 
 ## 1. ใจความสำคัญ (อ่านก่อน)
 
-1. **เป้าหมายปัจจุบันของ UI walkthrough:** ใช้งานได้จริงบน **shell client** (in-memory + `localStorage`) ไม่ใช่แค่ปุ่มเผื่อ — แต่ **ยังไม่เชื่อม API / PostgreSQL / Vercel DB**
-2. **สถาปัตยกรรมที่ล็อก:** `UI → ports → adapters/stub` + `src/shell/*` stores · ขนานกับ auth/API เดิม · **ห้ามแก้** `server/**` และ `src/api/**` ในรอบ shell
-3. **โดเมน:** CRM 货代 จีน–ไทย · FCL ทะเลเป็นหลัก · มีลานตู้เอง (Yard อยู่ในเมนู Ops; **แกนงาน = Job**)
-4. **แผนก Login:** Sales | **Ops** | Finance | Admin — เมนูต่างกัน · ซ่อน/จำกัด logistics ตามมติ
-5. **ข้อมูล:** seed §12 (`seedLcs.ts`) · persist keys **`*-v3`** · UI ติดป้าย shell data
-6. **LCS Phase A:** **Closed** — Job Detail 360 + A3 closeout + `/exceptions` — ดู [`docs/lcs-phase-a.md`](./lcs-phase-a.md) (มี Deferred list)
-7. **ถัดไป:** Phase B ตาม `LCS_LogisticsOS_PLAN.md`
+1. **เป้าหมายปัจจุบันของ UI walkthrough:** ใช้งานได้จริงบน **shell client** (in-memory + `localStorage`) — **ยังไม่เชื่อม API / PostgreSQL / Vercel DB**
+2. **สถาปัตยกรรมที่ล็อก:** `UI → ports → adapters/stub` + `src/shell/*` · **ห้ามแก้** `server/**` และ `src/api/**` ในรอบ shell
+3. **โดเมน:** CRM 货代 จีน–ไทย · FCL ทะเล · Job เป็นแกน · ลานตู้ + portal ลูกค้า
+4. **แผนก Login:** Sales | **Ops** | Finance | Admin
+5. **ข้อมูล:** seed LCS · persist keys **`*-v4`**
+6. **Phase A:** Closed — Job 360 + exceptions — [`lcs-phase-a.md`](./lcs-phase-a.md)
+7. **Phase B:** Closed — tracking §5 · vendors · rates→quote · notifications · `/portal` — [`lcs-phase-b.md`](./lcs-phase-b.md)
+8. **ถัดไป:** Phase C ตาม `LCS_LogisticsOS_PLAN.md`
 
 ---
 
@@ -67,10 +68,19 @@
 | งาน | สถานะ |
 |-----|--------|
 | Job domain + seed LCS แกน + Job Detail 360 | ✅ |
-| A3 closeout: filters, seal/LFD, Account credit, quote EXPIRED, Missing docs | ✅ |
-| Seed §12 (~15/30/40/20/20) · persist `*-v3` | ✅ |
-| `/exceptions` + Overview widgets/profit strips | ✅ |
-| Docs Closed + Deferred list | ✅ |
+| A3 closeout | ✅ |
+| Docs Closed + Deferred | ✅ |
+
+### 2.5 รอบ LCS Phase B (Closed)
+
+| งาน | สถานะ |
+|-----|--------|
+| Container tracking §5 + flags + history | ✅ |
+| Vendors master + bills/costs vendorId | ✅ |
+| Rates buy/sell + quote from rate | ✅ |
+| Notifications + กระดิ่ง | ✅ |
+| Customer portal `/portal` | ✅ |
+| Persist `*-v4` + docs Closed | ✅ |
 ---
 
 ## 3. อะไรที่เราไม่ได้ทำ (ยังค้าง / รอรอบถัดไป)
@@ -232,7 +242,7 @@ Ports มีไว้ให้รอบถัดไป **เสียบ adapter
 
 1. **เสียบ API:** เขียน adapter จริงใต้ `adapters/` ที่เรียก `src/api` / server — สลับเมื่อมี auth production  
 2. **Vercel DB:** ตั้ง pooled `DATABASE_URL` + `DB_POOL_MAX=1` → migrate/seed → ตรวจ `/api/health` = production  
-3. **Phase B** ตาม `LCS_LogisticsOS_PLAN.md` (notifications · tracking · vendors · rates · portal)  
+3. **Phase C** ตาม `LCS_LogisticsOS_PLAN.md` (อีเมลจริง · tracking API · accounting · AI ลึก · automation)  
 4. **อย่า commit** `.env` / secrets  
 
 ---

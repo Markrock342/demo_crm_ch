@@ -4,8 +4,8 @@ import type { ShellJob } from "../ports/job.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
 import { LCS_INVOICES } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-billing-v3";
-const VERSION = 3;
+const STORAGE_KEY = "cangzhan-shell-billing-v4";
+const VERSION = 4;
 
 type Snapshot = {
   invoices: ShellInvoice[];

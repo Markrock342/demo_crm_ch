@@ -5,8 +5,8 @@ import type { ShellQuotation } from "../ports/quote.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
 import { LCS_JOBS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-jobs-v3";
-const VERSION = 3;
+const STORAGE_KEY = "cangzhan-shell-jobs-v4";
+const VERSION = 4;
 
 export { DEFAULT_MILESTONES };
 type ShellJobValue = {
@@ -17,7 +17,7 @@ type ShellJobValue = {
   toggleMilestone: (jobId: string, code: string, complete: boolean) => void;
   attachShipment: (jobId: string, shipmentId: string) => void;
   getById: (id: string) => ShellJob | undefined;
-  addCost: (jobId: string, input: { description: string; vendor: string; amount: number; currency?: string }) => void;
+  addCost: (jobId: string, input: { description: string; vendor: string; vendorId?: string; amount: number; currency?: string }) => void;
   addNote: (jobId: string, body: string, author?: string) => void;
   setBillingStatus: (jobId: string, status: ShellBillingStatus) => void;
   patchJob: (jobId: string, patch: Partial<Pick<ShellJob, "opsOwner" | "salesOwner" | "etd" | "eta" | "carrier" | "vessel" | "voyage" | "delayed">>) => void;
@@ -110,12 +110,13 @@ export function ShellJobProvider({ children }: { children: ReactNode }) {
     setJobs((list) => list.map((j) => (j.id === jobId ? { ...j, shipmentId } : j)));
   }, []);
 
-  const addCost = useCallback((jobId: string, input: { description: string; vendor: string; amount: number; currency?: string }) => {
+  const addCost = useCallback((jobId: string, input: { description: string; vendor: string; vendorId?: string; amount: number; currency?: string }) => {
     if (!input.description.trim()) return;
     const cost: ShellJobCost = {
       id: `jc${Date.now()}`,
       description: input.description.trim(),
       vendor: input.vendor.trim() || "—",
+      vendorId: input.vendorId,
       amount: Number(input.amount) || 0,
       currency: input.currency || "USD",
     };

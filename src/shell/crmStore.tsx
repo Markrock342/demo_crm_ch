@@ -3,8 +3,8 @@ import type { ShellContact, ShellCustomer, ShellDeal, ShellLead } from "../ports
 import { loadPersisted, savePersisted } from "./persist.ts";
 import { LCS_CONTACTS, LCS_CUSTOMERS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-crm-v3";
-const VERSION = 3;
+const STORAGE_KEY = "cangzhan-shell-crm-v4";
+const VERSION = 4;
 
 function stamp() {
   const d = new Date();
