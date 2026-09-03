@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { homePathFor } from "../shell/nav.ts";
@@ -16,11 +16,15 @@ const deptLabelKey: Record<Department, string> = {
 
 export function LoginPage() {
   const { tx } = useStore();
-  const { user, loading } = useAuth();
+  const { user, loading, mode, login } = useAuth();
   const { shellUser, enterAs } = useShellSession();
   const navigate = useNavigate();
   const [busyDept, setBusyDept] = useState<Department | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [email, setEmail] = useState("admin@cangzhan.com");
+  const [password, setPassword] = useState("demo123");
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const production = mode === "production";
 
   if (!loading && (user || shellUser)) {
     const dest = shellUser ? homePathFor(shellUser.department) : "/";
@@ -37,6 +41,21 @@ export function LoginPage() {
       setErr(tx("loginFailed"));
     } finally {
       setBusyDept(null);
+    }
+  }
+
+  async function onRemote(e: FormEvent) {
+    e.preventDefault();
+    if (!production) return;
+    setRemoteBusy(true);
+    setErr(null);
+    try {
+      await login(email.trim(), password);
+      navigate("/", { replace: true });
+    } catch {
+      setErr(tx("loginFailed"));
+    } finally {
+      setRemoteBusy(false);
     }
   }
 
@@ -78,10 +97,34 @@ export function LoginPage() {
             <h2 id="login-remote-title" className="login-remote-title">
               {tx("loginRemoteTitle")}
             </h2>
-            <p className="meta">{tx("loginRemoteTodo")}</p>
-            <button type="button" className="btn btn-ghost login-submit" disabled title={tx("apiNotConfigured")}>
-              {tx("loginSubmit")} — {tx("apiNotConfigured")}
-            </button>
+            {production ? (
+              <form className="form form-stack" onSubmit={(e) => void onRemote(e)}>
+                <label>
+                  Email
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                </label>
+                <button type="submit" className="btn btn-ghost login-submit" disabled={remoteBusy}>
+                  {remoteBusy ? tx("loginBusy") : tx("loginSubmit")}
+                </button>
+              </form>
+            ) : (
+              <>
+                <p className="meta">{tx("loginRemoteTodo")}</p>
+                <button type="button" className="btn btn-ghost login-submit" disabled title={tx("apiNotConfigured")}>
+                  {tx("loginSubmit")} — {tx("apiNotConfigured")}
+                </button>
+              </>
+            )}
           </section>
         </div>
       </div>

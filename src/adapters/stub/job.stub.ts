@@ -1,5 +1,4 @@
 import type { JobPort } from "../../ports/job.port.ts";
-import { NotConfiguredError } from "../../ports/auth.port.ts";
 
 export const jobStub: JobPort = {
   async list() {
@@ -10,6 +9,7 @@ export const jobStub: JobPort = {
   },
 };
 
-export async function connectJobRemote(): Promise<never> {
-  throw new NotConfiguredError();
+export async function connectJobRemote(): Promise<JobPort> {
+  const { jobApiAdapter } = await import("../api/job.adapter.ts");
+  return jobApiAdapter;
 }

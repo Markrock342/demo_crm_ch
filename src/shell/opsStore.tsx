@@ -82,6 +82,10 @@ type ShellOpsValue = {
   }) => string | null;
   setBoxStatus: (id: string, status: ShellBoxStatus) => void;
   patchBox: (id: string, patch: PatchBox) => void;
+  applyTrackingSnapshot: (
+    id: string,
+    snap: { status: ShellBoxStatus; eta: string; vessel?: string; carrier?: string; lastFreeDay?: string },
+  ) => void;
   moveBox: (id: string, slot: YardSlot) => void;
   addShipment: (input: {
     customerId: string;
@@ -175,6 +179,37 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
       }),
     );
   }, []);
+
+  const applyTrackingSnapshot = useCallback(
+    (
+      id: string,
+      snap: {
+        status: ShellBoxStatus;
+        eta: string;
+        vessel?: string;
+        carrier?: string;
+        lastFreeDay?: string;
+      },
+    ) => {
+      setBoxes((list) =>
+        list.map((b) => {
+          if (b.id !== id) return b;
+          const etaChanged = Boolean(b.eta && b.eta !== "—" && snap.eta && snap.eta !== b.eta);
+          const next = {
+            ...b,
+            eta: snap.eta,
+            vessel: snap.vessel ?? b.vessel,
+            carrier: snap.carrier ?? b.carrier,
+            lastFreeDay: snap.lastFreeDay ?? b.lastFreeDay,
+            etaChanged: etaChanged || b.etaChanged,
+            demurrageRisk: (etaChanged ? "watch" : b.demurrageRisk) as ShellDemurrageRisk,
+          };
+          return appendHistory(next, snap.status, "tracking refresh");
+        }),
+      );
+    },
+    [],
+  );
 
   const moveBox = useCallback((id: string, slot: YardSlot) => {
     const labels = yardLabel(slot);
@@ -292,13 +327,14 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
       addBox,
       setBoxStatus,
       patchBox,
+      applyTrackingSnapshot,
       moveBox,
       addShipment,
       setShipmentStatus,
       linkBoxToShipment,
       createShipmentFromJob,
     }),
-    [boxes, shipments, addBox, setBoxStatus, patchBox, moveBox, addShipment, setShipmentStatus, linkBoxToShipment, createShipmentFromJob],
+    [boxes, shipments, addBox, setBoxStatus, patchBox, applyTrackingSnapshot, moveBox, addShipment, setShipmentStatus, linkBoxToShipment, createShipmentFromJob],
   );
 
   return <OpsCtx.Provider value={value}>{children}</OpsCtx.Provider>;

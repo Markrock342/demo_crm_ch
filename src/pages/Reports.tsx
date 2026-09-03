@@ -1,14 +1,20 @@
-import { useMemo, useState } from "react";
 import { AiError, aiBrief } from "../ai/client";
 import { money } from "../crm";
 import { openInvoiceTotal, overdueInvoices } from "../logistics";
+import { useIsShellMode } from "../shell/session.tsx";
+import { useShellBilling } from "../shell/billingStore.tsx";
+import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
+import { useMemo, useState } from "react";
 
 const depts = ["sales", "ops", "finance", "yard"] as const;
 
 export function ReportsPage() {
+  const shell = useIsShellMode();
   const { tx, locale, boxes, deals, invoices, flash } = useStore();
+  const billing = useShellBilling();
+  const support = useShellSupport();
   const [dept, setDept] = useState<(typeof depts)[number]>("sales");
   const [brief, setBrief] = useState<string | null>(null);
   const [briefing, setBriefing] = useState(false);
@@ -79,6 +85,29 @@ export function ReportsPage() {
     flash("csvDone");
   }
 
+  function exportAccountingPack() {
+    const inv = shell ? billing.invoices : invoices;
+    const bills = shell ? support.vendorBills : [];
+    const invLines = [
+      "type,number,customerOrVendor,amount,currency,status,dueOrDate",
+      ...inv.map((i) => {
+        const num = "invoiceNumber" in i ? i.invoiceNumber : (i as { id: string }).id;
+        const amt = "total" in i ? i.total : (i as { amount: number }).amount;
+        const due = "dueDate" in i ? i.dueDate : "";
+        const cust = "customerId" in i ? i.customerId : "";
+        return `invoice,${num},${cust},${amt},${i.currency},${i.status},${due ?? ""}`;
+      }),
+      ...bills.map((b) => `vendor_bill,${b.billNumber},${b.vendorName},${b.amount},${b.currency},${b.status},${b.createdAt}`),
+    ].join("\n");
+    const blob = new Blob([invLines], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "cangzhan-accounting-pack.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    flash("csvDone");
+  }
+
   async function runBrief() {
     setBriefing(true);
     setBriefErr(null);
@@ -109,6 +138,9 @@ export function ReportsPage() {
             </button>
             <button type="button" className="btn btn-primary" onClick={exportCsv}>
               {tx("exportCsv")}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={exportAccountingPack}>
+              {tx("exportAccountingPack")}
             </button>
           </>
         }

@@ -12,6 +12,7 @@ import { ShellQuoteProvider } from "./shell/quoteStore.tsx";
 import { ShellSessionProvider } from "./shell/session.tsx";
 import { ShellSupportProvider } from "./shell/supportStore.tsx";
 import { ShellNotificationProvider } from "./shell/notificationStore.tsx";
+import { ShellAutomationProvider } from "./shell/automationStore.tsx";
 import { PortalSessionProvider } from "./shell/portalSession.tsx";
 import { StoreProvider } from "./store.tsx";
 import "./index.css";
@@ -29,12 +30,14 @@ createRoot(document.getElementById("root")!).render(
                   <ShellBillingProvider>
                     <ShellSupportProvider>
                       <ShellNotificationProvider>
-                        <StoreProvider>
-                          <CrmSync />
-                          <BrowserRouter>
-                            <App />
-                          </BrowserRouter>
-                        </StoreProvider>
+                        <ShellAutomationProvider>
+                          <StoreProvider>
+                            <CrmSync />
+                            <BrowserRouter>
+                              <App />
+                            </BrowserRouter>
+                          </StoreProvider>
+                        </ShellAutomationProvider>
                       </ShellNotificationProvider>
                     </ShellSupportProvider>
                   </ShellBillingProvider>

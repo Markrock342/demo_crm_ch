@@ -117,6 +117,16 @@ export type JobRow = {
   status: string;
   teu: number;
   currency: string;
+  carrier?: string | null;
+  vessel?: string | null;
+  voyage?: string | null;
+  etd?: string | null;
+  eta?: string | null;
+  containerType?: string | null;
+  containerCount?: number | null;
+  incoterm?: string | null;
+  assignedOperator?: string | null;
+  salesOwnerId?: string | null;
   nextMilestoneCode?: string | null;
   nextMilestoneLabel?: string | null;
   nextMilestonePlannedAt?: string | null;
@@ -131,6 +141,10 @@ export async function fetchJobs(customerId?: string, milestoneFilter?: "all" | "
   const qs = q.toString();
   const data = await apiFetch(`/api/jobs${qs ? `?${qs}` : ""}`);
   return (data.items as JobRow[]) ?? [];
+}
+
+export async function fetchJob(id: string) {
+  return apiFetch(`/api/jobs/${id}`) as Promise<JobRow & Record<string, unknown>>;
 }
 
 export type JobFinancials = {

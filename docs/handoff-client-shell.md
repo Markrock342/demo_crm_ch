@@ -1,24 +1,24 @@
 # Handoff — สรุปงาน CANGZHAN (สำหรับทำงานต่อ)
 
-> อัปเดต: 4 กันยายน 2569 (Phase A **Closed** · Phase B **Closed**)  
+> อัปเดต: 4 กันยายน 2569 (Phase A/B/C **Closed**)  
 > Repo: `Markrock342/demo_crm_ch` · Local: `c:\my_job\crm` · Deploy: `democrmch.vercel.app`  
 > Audience: เพื่อนร่วมทีมที่ต้องศึกษาและต่อยอดได้ทันที  
 > Local UI: `http://localhost:5173/` (`npm run dev`)
 
-เอกสารนี้สรุป **สิ่งที่ทำแล้ว / ยังไม่ทำ / ไม่ยุ่ง** จากรอบ DB/API เดิม → P0 + full shell → **LCS Phase A + B (Closed)**
+เอกสารนี้สรุป **สิ่งที่ทำแล้ว / ยังไม่ทำ / ไม่ยุ่ง** จากรอบ DB/API เดิม → P0 + full shell → **LCS Phase A + B + C (Closed)**
 
 ---
 
 ## 1. ใจความสำคัญ (อ่านก่อน)
 
-1. **เป้าหมายปัจจุบันของ UI walkthrough:** ใช้งานได้จริงบน **shell client** (in-memory + `localStorage`) — **ยังไม่เชื่อม API / PostgreSQL / Vercel DB**
-2. **สถาปัตยกรรมที่ล็อก:** `UI → ports → adapters/stub` + `src/shell/*` · **ห้ามแก้** `server/**` และ `src/api/**` ในรอบ shell
+1. **Shell walkthrough** ยังใช้ได้เต็ม · **Phase C เพิ่ม** local API bridge (Job list เมื่อ login production) + sandbox email + mock tracking + C3a + automation
+2. **สถาปัตยกรรม:** `UI → ports → adapters` (`stub` / `api` / `mock`) + `src/shell/*` · Phase C **อนุญาต** `server/**` / `src/api/**`
 3. **โดเมน:** CRM 货代 จีน–ไทย · FCL ทะเล · Job เป็นแกน · ลานตู้ + portal ลูกค้า
-4. **แผนก Login:** Sales | **Ops** | Finance | Admin
-5. **ข้อมูล:** seed LCS · persist keys **`*-v4`**
-6. **Phase A:** Closed — Job 360 + exceptions — [`lcs-phase-a.md`](./lcs-phase-a.md)
-7. **Phase B:** Closed — tracking §5 · vendors · rates→quote · notifications · `/portal` — [`lcs-phase-b.md`](./lcs-phase-b.md)
-8. **ถัดไป:** Phase C ตาม `LCS_LogisticsOS_PLAN.md`
+4. **แผนก Login:** Sales | **Ops** | Finance | Admin · **remote login** เมื่อ `/api/health` = production
+5. **ข้อมูล:** seed LCS · persist keys **`*-v4`** (+ automation key)
+6. **Phase A:** Closed — [`lcs-phase-a.md`](./lcs-phase-a.md)
+7. **Phase B:** Closed — [`lcs-phase-b.md`](./lcs-phase-b.md)
+8. **Phase C:** Closed — [`lcs-phase-c.md`](./lcs-phase-c.md) · Deferred: SMTP จริง · carrier key · C3b ERP · Vercel DB ops
 
 ---
 
@@ -81,40 +81,49 @@
 | Notifications + กระดิ่ง | ✅ |
 | Customer portal `/portal` | ✅ |
 | Persist `*-v4` + docs Closed | ✅ |
+
+### 2.6 รอบ LCS Phase C (Closed)
+
+| งาน | สถานะ |
+|-----|--------|
+| C0 Job API bridge + Login production | ✅ |
+| C1 Email sandbox + confirm-to-send | ✅ |
+| C2 Tracking mock + Refresh UI | ✅ |
+| C4 AI summary/report + extract confirm | ✅ |
+| C3a AP pay + AR aging + CSV | ✅ |
+| C5 Automation ≥3 rules + audit | ✅ |
 ---
 
 ## 3. อะไรที่เราไม่ได้ทำ (ยังค้าง / รอรอบถัดไป)
 
 | รายการ | เหตุผล / สถานะ |
 |--------|----------------|
-| เชื่อม stub → API จริง | ตั้งใจเลื่อน — ยังห้ามยุ่ง `src/api` ในรอบ shell |
-| Vercel `DATABASE_URL` + migrate/seed prod | รอ ops; health อาจยัง `mode: demo` |
-| Inbox เต็ม (mail-ops จริง) | นอกสcope รอบนี้ |
-| Reports เต็ม (aggregate จาก DB) | นอกสcope |
-| AP payment / allocation / credit notes | นอกสcope |
-| LCL / ขนบก / บิน | ล็อกแล้วว่าไม่ทำในรอบนี้ (FCL ทะเลเท่านั้น) |
-| Phase B/C (portal, tracking API, อีเมลจริง) | นอกสcope Phase A |
+| Vercel `DATABASE_URL` + migrate/seed prod | รอ ops; local C0 ผ่านได้ |
+| SMTP/Gmail จริง · carrier tracking key | Deferred Phase C |
+| C3b ERP connector | Deferred |
+| Inbox เต็ม (mail-ops จริงนอก sandbox) | ขยายจาก C1 |
+| Reports aggregate จาก DB เต็ม | นอกสcope |
+| LCL / ขนบก / บิน | ล็อก FCL |
+| Portal OAuth · Push/LINE · auto-send | Deferred |
 | Architecture replan (ข้อ 8) | เลื่อน |
-| รีแบรนด์ UI ใหญ่ | ทำแค่ densify ภายใต้ ledger-house |
 | Persist ข้ามเครื่อง / sync ระหว่าง user | มีแค่ localStorage ต่อเบราว์เซอร์ |
-| Calendar โหมด shell เต็ม | ยังอยู่ใน nav แต่ไม่ใช่โฟกัสรอบนี้ |
 
 ---
 
 ## 4. อะไรที่เราไม่ยุ่ง (กฎแดง — อย่าพังของเดิม)
 
-ในรอบ **P0 + Client full shell** ทีมตั้งใจ **ไม่เปิดอ่าน/ไม่แก้**:
+ในรอบ **P0 + Client full shell + A/B** ทีมตั้งใจ **ไม่เปิดอ่าน/ไม่แก้** `server/**` / `src/api/**`  
+
+**Phase C ปลด:** อนุญาตแตะตามโดเมน C0–C5 — ยังไม่บังคับ rewrite ทั้งระบบ
 
 | พื้นที่ | หมายเหตุ |
 |---------|----------|
-| `server/**` | ไม่แก้ schema / routes / services ในรอบ shell |
-| `src/api/**` | ไม่เรียก/ไม่ refactor ใน path shell ที่ทำใหม่ |
-| Credentials / `.env` secrets | ไม่ commit; ไม่ตั้ง Vercel จากรอบนี้ |
-| Vercel / `DATABASE_URL` | ไม่ยุ่งในรอบ shell |
+| Credentials / `.env` secrets | ไม่ commit |
+| Vercel env จากเครื่องนี้ | รอ ops |
 | LCL / บก / บิน | นอกโดเมนที่ล็อก |
 
 **หมายเหตุ:** หน้า Boxes/Yard/Shipments **ถูกแก้** ในรอบ full shell เพื่อรองรับโหมด shell — แต่ logic remote เดิมใต้ `useContainers` / store ยังอยู่เมื่อไม่ใช่ shell mode  
-หน้า Jobs / Rates / Quotations / Invoices / VendorBills ในโหมด shell **เลิกพึ่ง import API** สำหรับ walkthrough — ไม่ได้ลบไฟล์ `src/api/*`
+หน้า Jobs ในโหมด production auth ใช้ `jobApiAdapter` แล้ว
 
 ---
 

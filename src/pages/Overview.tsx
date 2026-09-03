@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { aiBrief } from "../ai/client";
 import { customerName, type Customer } from "../data";
 import { jobGrossProfit } from "../ports/job.port.ts";
 import { useShellBilling } from "../shell/billingStore.tsx";
@@ -11,6 +12,20 @@ import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
+function arAgingBuckets(invoices: { balanceDue: number; dueDate?: string; status: string }[]) {
+  const today = new Date().toISOString().slice(0, 10);
+  const buckets = { b0: 0, b30: 0, b60: 0 };
+  for (const i of invoices) {
+    if (i.balanceDue <= 0) continue;
+    const due = i.dueDate || today;
+    const days = Math.floor((Date.parse(today) - Date.parse(due)) / 86400000);
+    if (days <= 30) buckets.b0 += i.balanceDue;
+    else if (days <= 60) buckets.b30 += i.balanceDue;
+    else buckets.b60 += i.balanceDue;
+  }
+  return buckets;
+}
+
 export function OverviewPage() {
   const shell = useIsShellMode();
   const { tx, locale } = useStore();
@@ -19,17 +34,20 @@ export function OverviewPage() {
   const billing = useShellBilling();
   const support = useShellSupport();
   const crm = useShellCrm();
+  const [mgmtReport, setMgmtReport] = useState<string | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
 
   const activeJobs = jobs.jobs.filter((j) => j.status !== "CLOSED");
   const delayed = jobs.jobs.filter((j) => j.delayed);
   const missingDocs = support.docs.filter((d) => d.status === "late" || d.status === "wait");
   const outstanding = billing.invoices.filter((i) => i.balanceDue > 0);
   const teu = ops.boxes.reduce((n, b) => n + b.teu, 0);
-  const inTransitTeu = ops.boxes.filter((b) => b.status === "sail").reduce((n, b) => n + b.teu, 0);
+  const inTransitTeu = ops.boxes.filter((b) => b.status === "in_transit" || b.status === "loaded").reduce((n, b) => n + b.teu, 0);
   const todayKey = "09-04";
   const departing = jobs.jobs.filter((j) => j.etd === todayKey || j.etd.endsWith("-04")).length;
   const arriving = jobs.jobs.filter((j) => j.eta === todayKey || j.eta.endsWith("-04")).length;
   const gpMonth = jobs.jobs.reduce((n, j) => n + jobGrossProfit(j), 0);
+  const aging = useMemo(() => arAgingBuckets(billing.invoices), [billing.invoices]);
 
   const byCustomer = useMemo(() => {
     const map = new Map<string, number>();
@@ -74,6 +92,29 @@ export function OverviewPage() {
     return rows;
   }, [delayed, missingDocs]);
 
+  async function runMgmtReport() {
+    setReportBusy(true);
+    const local = `Ops: ${activeJobs.length} active jobs, ${delayed.length} delayed, ${inTransitTeu} TEU in transit. Docs missing/wait: ${missingDocs.length}. AR open: ${outstanding.length} (0–30: ${aging.b0}, 31–60: ${aging.b30}, 61+: ${aging.b60}).`;
+    try {
+      const summary = await aiBrief(locale as "zh" | "th" | "en", {
+        activeJobs: activeJobs.length,
+        delayed: delayed.length,
+        missingDocs: missingDocs.length,
+        outstanding: outstanding.length,
+        inTransitTeu,
+        ar0_30: aging.b0,
+        ar31_60: aging.b30,
+        ar61: aging.b60,
+      });
+      setMgmtReport(summary || local);
+    } catch (e) {
+      void e;
+      setMgmtReport(local);
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
   if (!shell) {
     return (
       <div className="page page--workspace">
@@ -91,6 +132,9 @@ export function OverviewPage() {
         hint={`${tx("shellDataBadge")} · LogisticsOS`}
         actions={
           <>
+            <button type="button" className="btn btn-ghost" disabled={reportBusy} onClick={() => void runMgmtReport()}>
+              {reportBusy ? tx("runningGemini") : tx("aiMgmtReport")}
+            </button>
             <Link className="btn btn-ghost" to="/exceptions">
               {tx("navExceptions")}
             </Link>
@@ -100,6 +144,29 @@ export function OverviewPage() {
           </>
         }
       />
+      {mgmtReport ? (
+        <p className="meta panel" style={{ whiteSpace: "pre-wrap" }}>
+          {mgmtReport}
+        </p>
+      ) : null}
+
+      <section className="panel">
+        <h2>{tx("arAging")}</h2>
+        <div className="stat-row">
+          <div>
+            <span className="meta">0–30</span>
+            <strong className="num">{aging.b0}</strong>
+          </div>
+          <div>
+            <span className="meta">31–60</span>
+            <strong className="num">{aging.b30}</strong>
+          </div>
+          <div>
+            <span className="meta">61+</span>
+            <strong className="num">{aging.b60}</strong>
+          </div>
+        </div>
+      </section>
 
       <section className="kpis" aria-label={tx("navOverview")}>
         <div className="kpi-lead">

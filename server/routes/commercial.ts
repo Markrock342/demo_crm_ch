@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
 import { authMiddleware, requireAuth, requirePermission, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
-import { createInvoiceFromJob, createBillingNote, createVendorBillFromJob, approveVendorBill, getArSummary, getInvoice, getVendorBill, issueInvoice, listBillingNotes, listInvoices, listPayments, listVendorBills, recordPayment } from "../services/finance.service.js";
+import { createInvoiceFromJob, createBillingNote, createVendorBillFromJob, approveVendorBill, getArSummary, getInvoice, getVendorBill, issueInvoice, listBillingNotes, listInvoices, listPayments, listVendorBills, payVendorBill, recordPayment } from "../services/finance.service.js";
 import { createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
 import { ensureJobMilestones, listMilestonesForJobs, setMilestoneComplete, summarizeMilestones } from "../services/milestone.service.js";
 import { getJob, listBookingsByQuotation, listJobCharges, listJobs, updateChargeActual } from "../services/operations.service.js";
@@ -166,6 +166,16 @@ export function commercialRoutes() {
         status: j.status,
         teu: j.teu,
         currency: j.currency,
+        carrier: j.carrier,
+        vessel: j.vessel,
+        voyage: j.voyage,
+        etd: j.etd,
+        eta: j.eta,
+        containerType: j.containerType,
+        containerCount: j.containerCount,
+        incoterm: j.incoterm,
+        assignedOperator: j.assignedOperator,
+        salesOwnerId: j.salesOwnerId,
         nextMilestoneCode: summary.nextCode,
         nextMilestoneLabel: summary.nextLabel,
         nextMilestonePlannedAt: summary.nextPlannedAt,
@@ -553,6 +563,30 @@ export function commercialRoutes() {
       await writeAudit(db, {
         userId: user.id,
         action: "VENDOR_BILL_APPROVED",
+        entityType: "vendor_bill",
+        entityId: id,
+        newValue: result,
+      });
+      return c.json(result);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      if (msg === "not_found") return c.json({ error: "not_found" }, 404);
+      if (msg === "invalid_status") return c.json({ error: "invalid_status" }, 409);
+      throw e;
+    }
+  });
+
+  r.post("/vendor-bills/:id/pay", requireAuth(), requirePermission("vendor_bill.approve"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const id = c.req.param("id");
+    const body = z.object({ partial: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
+    try {
+      const result = await payVendorBill(db, id, body);
+      await writeAudit(db, {
+        userId: user.id,
+        action: "VENDOR_BILL_PAID",
         entityType: "vendor_bill",
         entityId: id,
         newValue: result,

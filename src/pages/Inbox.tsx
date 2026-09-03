@@ -112,12 +112,16 @@ export function InboxPage() {
 
   function onSend() {
     if (!mail) return;
+    if (!window.confirm(tx("confirmSendMail"))) return;
     setSending(true);
-    window.setTimeout(() => {
-      sendMail(mail.id);
-      setSending(false);
-      setActive(shown.find((m) => m.id !== mail.id)?.id ?? null);
-    }, 700);
+    void (async () => {
+      try {
+        sendMail(mail.id);
+        setActive(shown.find((m) => m.id !== mail.id)?.id ?? null);
+      } finally {
+        setSending(false);
+      }
+    })();
   }
 
   const customer = mail ? customers.find((c) => c.id === mail.customerId) : null;
@@ -316,7 +320,13 @@ export function InboxPage() {
                     )
                   ) : null}
                   {canApplyOps ? (
-                    <Button variant="primary" onClick={() => applyMailOps(mail.id)}>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        if (!window.confirm(tx("confirmApplyExtract"))) return;
+                        applyMailOps(mail.id);
+                      }}
+                    >
                       {tx("applyOps")}
                     </Button>
                   ) : null}

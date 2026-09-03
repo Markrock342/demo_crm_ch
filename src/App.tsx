@@ -43,6 +43,7 @@ import { JobsPage } from "./pages/Jobs";
 import { JobDetailPage } from "./pages/JobDetail";
 import { LeadsPage } from "./pages/Leads";
 import { NotificationsPage } from "./pages/Notifications";
+import { AutomationPage } from "./pages/Automation";
 import { OverviewPage } from "./pages/Overview";
 import {
   PortalDocsPage,
@@ -115,6 +116,7 @@ const groups = [
       { to: "/tasks", key: "navTasks", icon: ListChecks },
       { to: "/calendar", key: "navCalendar", icon: CalendarBlank },
       { to: "/reports", key: "navReports", icon: ChartBar },
+      { to: "/automation", key: "navAutomation", icon: ListChecks },
       { to: "/settings", key: "navSettings", icon: Gear },
     ],
   },
@@ -396,6 +398,7 @@ function AppShell() {
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/docs" element={<DocsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/automation" element={<AutomationPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/reports" element={<ReportsPage />} />

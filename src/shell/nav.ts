@@ -66,6 +66,7 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/tasks",
     "/calendar",
     "/reports",
+    "/automation",
     "/settings",
   ]),
 };

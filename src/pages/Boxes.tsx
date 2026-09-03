@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { snapshotStatusToShell, trackingMock } from "../adapters/mock/tracking.mock.ts";
 import { customerName, type BoxStatus, type Customer, type Direction } from "../data";
 import { useContainers } from "../hooks/useContainers";
 import { SHELL_BOX_STATUSES, type ShellBoxStatus } from "../ports/ops.port.ts";
@@ -29,6 +30,7 @@ export function BoxesPage() {
   const statusOptions = shell ? (SHELL_BOX_STATUSES as string[]) : legacyStatuses;
   const [status, setStatus] = useState<string>("all");
   const [open, setOpen] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({
     id: "",
     customerId: "",
@@ -71,6 +73,23 @@ export function BoxesPage() {
     if (fail) return;
     setForm({ ...form, id: "", bl: "" });
     setOpen(false);
+  }
+
+  async function refreshTracking(boxId: string, bl: string, eta: string) {
+    if (!shell) return;
+    setBusyId(boxId);
+    try {
+      const snap = await trackingMock.refresh({ containerNo: boxId, bl, currentEta: eta });
+      ops.applyTrackingSnapshot(boxId, {
+        status: snapshotStatusToShell(snap.status),
+        eta: snap.eta,
+        vessel: snap.vessel,
+        carrier: snap.carrier,
+        lastFreeDay: snap.lastFreeDay,
+      });
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
@@ -173,6 +192,7 @@ export function BoxesPage() {
                 <th>BL</th>
                 <th>{tx("colTeu")}</th>
                 {shell && canEdit ? <th /> : null}
+                {shell && canEdit ? <th /> : null}
               </tr>
             </thead>
             <tbody>
@@ -184,6 +204,7 @@ export function BoxesPage() {
                     <td>{c ? customerName(c as Customer, locale) : b.customerId}</td>
                     <td>
                       <span className="pill">{b.status}</span>
+                      {b.etaChanged ? <span className="pill pill-warn">ETA</span> : null}
                     </td>
                     <td>{b.yardZh}</td>
                     <td className="mono">{b.bl}</td>
@@ -201,6 +222,18 @@ export function BoxesPage() {
                             </option>
                           ))}
                         </select>
+                      </td>
+                    ) : null}
+                    {shell && canEdit ? (
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          disabled={busyId === b.id}
+                          onClick={() => void refreshTracking(b.id, b.bl, b.eta)}
+                        >
+                          {busyId === b.id ? "…" : tx("refreshTracking")}
+                        </button>
                       </td>
                     ) : null}
                   </tr>

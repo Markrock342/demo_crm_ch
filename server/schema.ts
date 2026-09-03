@@ -11,8 +11,10 @@ export const geminiMailSchema = z.object({
   destRaw: z.string().default(""),
   boxIds: z.array(z.string()).default([]),
   blNumbers: z.array(z.string()).default([]),
-  docsMissing: z.array(z.string()).default([]),
+    docsMissing: z.array(z.string()).default([]),
   suggestedStatus: z.enum(["hold", "sail", "yard", "clear", "empty", "none"]).default("none"),
+  etaHint: z.string().default(""),
+  requestedAction: z.string().default(""),
   confidence: z.coerce
     .number()
     .transform((n) => (n > 1 ? n / 100 : n))
@@ -94,6 +96,8 @@ export const geminiMailJsonSchema = {
       type: "string",
       enum: ["hold", "sail", "yard", "clear", "empty", "none"],
     },
+    etaHint: { type: "string" },
+    requestedAction: { type: "string" },
     confidence: { type: "number" },
     draftZh: { type: "string" },
     draftTh: { type: "string" },

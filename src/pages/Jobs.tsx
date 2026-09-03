@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { jobStub } from "../adapters/stub/job.stub.ts";
+import { jobApiAdapter } from "../adapters/api/job.adapter.ts";
+import { useAuth } from "../auth/AuthProvider";
 import { customerName, type Customer } from "../data";
-import { jobGrossProfit } from "../ports/job.port.ts";
+import { jobGrossProfit, type ShellJob } from "../ports/job.port.ts";
 import { useShellCrm } from "../shell/crmStore.tsx";
 import { useShellJobs } from "../shell/jobStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
@@ -16,12 +17,17 @@ type DateFilter = "all" | "hasEtd" | "hasEta" | "missing";
 
 export function JobsPage() {
   const shell = useIsShellMode();
+  const { mode, user } = useAuth();
+  const live = !shell && mode === "production" && Boolean(user);
   const { tx, locale, query } = useStore();
   const crm = useShellCrm();
   const jobStore = useShellJobs();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const rows = shell ? jobStore.jobs : [];
+  const [liveJobs, setLiveJobs] = useState<ShellJob[]>([]);
+  const [liveErr, setLiveErr] = useState<string | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const rows = shell ? jobStore.jobs : liveJobs;
   const [status, setStatus] = useState<StatusFilter>("all");
   const [billing, setBilling] = useState<BillingFilter>("all");
   const [delayedOnly, setDelayedOnly] = useState(false);
@@ -31,14 +37,37 @@ export function JobsPage() {
   const [owner, setOwner] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
 
-  void jobStub;
+  useEffect(() => {
+    if (!live) {
+      setLiveJobs([]);
+      setLiveErr(null);
+      return;
+    }
+    let cancelled = false;
+    setLiveLoading(true);
+    setLiveErr(null);
+    void jobApiAdapter
+      .list()
+      .then((items) => {
+        if (!cancelled) setLiveJobs(items);
+      })
+      .catch((e) => {
+        if (!cancelled) setLiveErr(e instanceof Error ? e.message : "load_failed");
+      })
+      .finally(() => {
+        if (!cancelled) setLiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [live]);
 
   useEffect(() => {
     const selected = params.get("selected");
-    if (selected && jobStore.getById(selected)) {
+    if (selected && (shell ? jobStore.getById(selected) : liveJobs.find((j) => j.id === selected))) {
       navigate(`/jobs/${selected}`, { replace: true });
     }
-  }, [params, jobStore, navigate]);
+  }, [params, jobStore, navigate, shell, liveJobs]);
 
   const carriers = useMemo(() => [...new Set(rows.map((j) => j.carrier).filter(Boolean))].sort(), [rows]);
   const owners = useMemo(
@@ -66,14 +95,18 @@ export function JobsPage() {
     });
   }, [billing, carrier, crm.customers, customerId, dateFilter, delayedOnly, locale, owner, q, routeQ, rows, status]);
 
+  const hint = shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("apiNotConfigured");
+  const showTable = (shell || live) && filtered.length > 0;
+  const showFilters = shell || live;
+
   return (
     <div className="page page--workspace">
       <PageToolbar
         title={tx("jobsTitle")}
         count={filtered.length}
-        hint={shell ? tx("shellDataBadge") : tx("apiNotConfigured")}
+        hint={hint}
         actions={
-          shell ? (
+          shell || live ? (
             <Link className="btn btn-ghost" to="/quotations">
               {tx("navQuotations")}
             </Link>
@@ -84,7 +117,7 @@ export function JobsPage() {
           )
         }
         filters={
-          shell ? (
+          showFilters ? (
             <div className="filter-row" style={{ flexWrap: "wrap", gap: 8 }}>
               {(["all", "OPEN", "IN_PROGRESS", "CLOSED"] as const).map((s) => (
                 <button key={s} type="button" className={`filter-chip${status === s ? " is-on" : ""}`} onClick={() => setStatus(s)}>
@@ -141,15 +174,21 @@ export function JobsPage() {
         }
       />
 
-      {!shell ? <p className="meta">{tx("apiNotConfigured")}</p> : null}
-
-      {shell && filtered.length === 0 ? (
-        <p className="empty">
-          {tx("emptyShellCrm")} <Link to="/quotations">{tx("navQuotations")}</Link>
+      {!shell && !live ? <p className="meta">{tx("apiNotConfigured")}</p> : null}
+      {liveLoading ? <p className="meta">{tx("loginBusy")}</p> : null}
+      {liveErr ? (
+        <p className="field-err" role="alert">
+          {liveErr}
         </p>
       ) : null}
 
-      {shell && filtered.length > 0 ? (
+      {(shell || live) && !liveLoading && filtered.length === 0 ? (
+        <p className="empty">
+          {tx("emptyShellCrm")} {shell ? <Link to="/quotations">{tx("navQuotations")}</Link> : null}
+        </p>
+      ) : null}
+
+      {showTable ? (
         <div className="table-shell">
           <table className="data-table">
             <thead>

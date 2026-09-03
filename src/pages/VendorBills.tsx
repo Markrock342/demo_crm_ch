@@ -131,6 +131,18 @@ export function VendorBillsPage() {
                         {tx("approveVendorBill")}
                       </button>
                     ) : null}
+                    {b.status === "APPROVED" || b.status === "PARTIAL" ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          support.payVendorBill(b.id);
+                          setMsg(tx("vendorBillPaid"));
+                        }}
+                      >
+                        {tx("payVendorBill")}
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}

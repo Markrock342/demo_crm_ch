@@ -10,6 +10,7 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 | **Handoff (ศึกษา/ทำงานต่อ)** | [handoff-client-shell.md](./handoff-client-shell.md) | Current — อ่านก่อน |
 | **LCS Phase A (Job 360)** | [lcs-phase-a.md](./lcs-phase-a.md) | **Closed** (shell A3 closeout + Deferred) |
 | **LCS Phase B** | [lcs-phase-b.md](./lcs-phase-b.md) | **Closed** (tracking · vendors · rates · notify · portal) |
+| **LCS Phase C** | [lcs-phase-c.md](./lcs-phase-c.md) | **Closed** (bridge · email sandbox · tracking mock · AI · C3a · automation) |
 | Client full shell | [client-full-shell.md](./client-full-shell.md) | Done (localStorage walkthrough) |
 | Basics UI shell (P0) | [basics-ui-p0.md](./basics-ui-p0.md) | Done (superseded by full shell) |
 | Foundation (DB, migrate, pool, auth) | [foundation.md](./foundation.md) | Ready (await Vercel DATABASE_URL) |
@@ -30,8 +31,9 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 
 ## Locked product scope (current sprint)
 
+- **LCS Phase C** — platform bridge · email sandbox · tracking mock · AI · C3a · automation — **Closed**; ดู [lcs-phase-c.md](./lcs-phase-c.md)
 - **LCS Phase B** — tracking §5 · vendors · rates→quote · notifications · customer portal — **Closed** บน shell; ดู [lcs-phase-b.md](./lcs-phase-b.md)
 - **LCS Phase A** — Job Detail 360 + A3 closeout — **Closed**; ดู [lcs-phase-a.md](./lcs-phase-a.md)
-- **Client full shell** — densify UI · Ops · Logistics · Quote→Job→Bill — **done**; ไม่ต่อ API/DB
-- Next: **Phase C** · stub → API · Vercel `DATABASE_URL`
+- **Client full shell** — densify UI · Ops · Logistics · Quote→Job→Bill — **done**
+- Next: Vercel `DATABASE_URL` / SMTP·carrier keys · หรือ polish ตาม Deferred
 - Prior: P0 basics shell · Vendor Bills / mail-docs — done on code; prod DB ยังรอ ops

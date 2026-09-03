@@ -1,5 +1,9 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { snapshotStatusToShell, trackingMock } from "../adapters/mock/tracking.mock.ts";
+import { AiError, aiBrief } from "../ai/client";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { jobApiAdapter } from "../adapters/api/job.adapter.ts";
+import { useAuth } from "../auth/AuthProvider";
 import { customerName, type Customer } from "../data";
 import { jobGrossProfit, jobMarginPct, jobTotalCost, type ShellJob } from "../ports/job.port.ts";
 import { SHELL_BOX_STATUSES, type ShellBoxStatus } from "../ports/ops.port.ts";
@@ -17,11 +21,40 @@ const DOC_TYPES: ShellDocType[] = ["BOOKING", "BL", "CI", "PL", "CO", "DO", "POD
 export function JobDetailPage() {
   const { id } = useParams();
   const shell = useIsShellMode();
+  const { mode, user } = useAuth();
+  const live = !shell && mode === "production" && Boolean(user);
   const { tx } = useStore();
   const jobs = useShellJobs();
-  const job = id ? jobs.getById(id) : undefined;
+  const shellJob = id && shell ? jobs.getById(id) : undefined;
+  const [liveJob, setLiveJob] = useState<ShellJob | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveErr, setLiveErr] = useState<string | null>(null);
 
-  if (!shell) {
+  useEffect(() => {
+    if (!live || !id) {
+      setLiveJob(null);
+      return;
+    }
+    let cancelled = false;
+    setLiveLoading(true);
+    setLiveErr(null);
+    void jobApiAdapter
+      .get(id)
+      .then((j) => {
+        if (!cancelled) setLiveJob(j);
+      })
+      .catch((e) => {
+        if (!cancelled) setLiveErr(e instanceof Error ? e.message : "load_failed");
+      })
+      .finally(() => {
+        if (!cancelled) setLiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, live]);
+
+  if (!shell && !live) {
     return (
       <div className="page page--workspace">
         <p className="meta">{tx("apiNotConfigured")}</p>
@@ -30,11 +63,72 @@ export function JobDetailPage() {
     );
   }
 
-  if (!job) {
+  if (live) {
+    if (liveLoading) {
+      return (
+        <div className="page page--workspace">
+          <p className="meta">{tx("loginBusy")}</p>
+        </div>
+      );
+    }
+    if (liveErr || !liveJob) {
+      return (
+        <div className="page page--workspace">
+          <p className="field-err">{liveErr ?? tx("emptyShellCrm")}</p>
+          <Link to="/jobs">{tx("navJobs")}</Link>
+        </div>
+      );
+    }
+    return <LiveJobDetailBody job={liveJob} />;
+  }
+
+  if (!shellJob) {
     return <Navigate to="/jobs" replace />;
   }
 
-  return <JobDetailBody job={job} />;
+  return <JobDetailBody job={shellJob} />;
+}
+
+function LiveJobDetailBody({ job }: { job: ShellJob }) {
+  const { tx } = useStore();
+  return (
+    <div className="page page--workspace">
+      <PageToolbar title={job.jobNumber} hint={tx("liveApiBadge")} actions={<Link className="btn btn-ghost" to="/jobs">{tx("navJobs")}</Link>} />
+      <p className="meta">{tx("liveJobDetailHint")}</p>
+      <dl className="kv-grid">
+        <div>
+          <dt>{tx("colStatus")}</dt>
+          <dd>
+            <span className="pill">{job.status}</span>
+          </dd>
+        </div>
+        <div>
+          <dt>Lane</dt>
+          <dd className="mono">
+            {job.pol}→{job.pod}
+          </dd>
+        </div>
+        <div>
+          <dt>{tx("colCarrier")}</dt>
+          <dd>{job.carrier || "—"}</dd>
+        </div>
+        <div>
+          <dt>{tx("calEtd")}</dt>
+          <dd className="mono">{job.etd}</dd>
+        </div>
+        <div>
+          <dt>{tx("calEta")}</dt>
+          <dd className="mono">{job.eta}</dd>
+        </div>
+        <div>
+          <dt>{tx("jobOwners")}</dt>
+          <dd>
+            {job.salesOwner || "—"} / {job.opsOwner || "—"}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
 }
 
 function JobDetailBody({ job }: { job: ShellJob }) {
@@ -49,6 +143,8 @@ function JobDetailBody({ job }: { job: ShellJob }) {
   const [noteBody, setNoteBody] = useState("");
   const [docForm, setDocForm] = useState({ name: "B/L", docType: "BL" as ShellDocType });
   const [boxForm, setBoxForm] = useState({ id: "", type: "40HC", teu: 2 });
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
 
   const customer = crm.customers.find((c) => c.id === job.customerId);
   const boxes = useMemo(
@@ -142,6 +238,43 @@ function JobDetailBody({ job }: { job: ShellJob }) {
     setMsg(tx("invoiceCreated"));
   }
 
+  async function runAiSummary() {
+    setAiBusy(true);
+    const local = `${job.jobNumber} is ${job.status}. Route ${job.pol}→${job.pod}. ETD ${job.etd} / ETA ${job.eta}. Carrier ${job.carrier || "—"}. Billing ${job.billingStatus}.${job.delayed ? " Delayed." : ""}`;
+    try {
+      const summary = await aiBrief(locale as "zh" | "th" | "en", {
+        jobNumber: job.jobNumber,
+        status: job.status,
+        pol: job.pol,
+        pod: job.pod,
+        etd: job.etd,
+        eta: job.eta,
+        carrier: job.carrier,
+        billing: job.billingStatus,
+        delayed: Boolean(job.delayed),
+        missingDocs: docs.filter((d) => d.status !== "ok").length,
+      });
+      setAiSummary(summary || local);
+    } catch (e) {
+      if (e instanceof AiError && e.code === "missing_key") setAiSummary(local);
+      else setAiSummary(local);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function refreshBoxTracking(boxId: string, bl: string, eta: string) {
+    const snap = await trackingMock.refresh({ containerNo: boxId, bl, currentEta: eta });
+    ops.applyTrackingSnapshot(boxId, {
+      status: snapshotStatusToShell(snap.status),
+      eta: snap.eta,
+      vessel: snap.vessel,
+      carrier: snap.carrier,
+      lastFreeDay: snap.lastFreeDay,
+    });
+    setMsg(tx("refreshTracking"));
+  }
+
   return (
     <div className="page page--workspace page--job-detail">
       <PageToolbar
@@ -159,6 +292,18 @@ function JobDetailBody({ job }: { job: ShellJob }) {
         }
       />
       {msg ? <p className="meta">{msg}</p> : null}
+
+      <section className="panel">
+        <h2>{tx("aiJobSummary")}</h2>
+        <button type="button" className="btn btn-ghost" disabled={aiBusy} onClick={() => void runAiSummary()}>
+          {aiBusy ? tx("runningGemini") : tx("runAiJobSummary")}
+        </button>
+        {aiSummary ? (
+          <p className="meta" style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
+            {aiSummary}
+          </p>
+        ) : null}
+      </section>
 
       <div className="job-detail-grid">
         <section className="panel">
@@ -372,6 +517,9 @@ function JobDetailBody({ job }: { job: ShellJob }) {
                       ))}
                     </select>
                   </label>
+                  <button type="button" className="btn btn-ghost" onClick={() => void refreshBoxTracking(b.id, b.bl, b.eta)}>
+                    {tx("refreshTracking")}
+                  </button>
                   <label>
                     Flags
                     <span className="meta">

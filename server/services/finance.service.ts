@@ -283,6 +283,15 @@ export async function approveVendorBill(db: Db, billId: string, approvedBy: stri
   return { status: "APPROVED" as const };
 }
 
+export async function payVendorBill(db: Db, billId: string, opts?: { partial?: boolean }) {
+  const [bill] = await db.select().from(vendorBills).where(eq(vendorBills.id, billId)).limit(1);
+  if (!bill) throw new Error("not_found");
+  if (bill.status !== "APPROVED" && bill.status !== "PARTIAL") throw new Error("invalid_status");
+  const status = opts?.partial ? "PARTIAL" : "PAID";
+  await db.update(vendorBills).set({ status, updatedAt: new Date() }).where(eq(vendorBills.id, billId));
+  return { status };
+}
+
 export async function listVendorBills(db: Db, opts?: { vendorId?: string; jobId?: string }) {
   const conditions = [];
   if (opts?.vendorId) conditions.push(eq(vendorBills.vendorId, opts.vendorId));

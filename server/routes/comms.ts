@@ -153,5 +153,86 @@ export function commsRoutes() {
     return c.json(await upsertCrmDoc(db, body), 201);
   });
 
+  r.post("/mails/:id/send", requireAuth(), requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const id = c.req.param("id");
+    const existing = await getMail(db, id);
+    if (!existing) return c.json({ error: "not_found" }, 404);
+    if (existing.state !== "open") return c.json({ error: "invalid_status" }, 409);
+    const body = z
+      .object({
+        to: z.string().optional(),
+        subject: z.string().optional(),
+        body: z.string().optional(),
+        jobId: z.string().optional(),
+        confirm: z.literal(true),
+      })
+      .parse(await c.req.json());
+    const { createMailTransport } = await import("../mail/transport.js");
+    const transport = createMailTransport();
+    const draftBody = body.body || existing.draftEn || existing.draftZh || existing.bodyEn;
+    const result = await transport.send({
+      to: body.to || existing.from || "sandbox@local",
+      subject: body.subject || existing.subjectEn || existing.subjectZh,
+      body: draftBody,
+      mailId: id,
+      customerId: existing.customerId,
+      jobId: body.jobId,
+    });
+    if (!mailTransitionAllowed(existing.state, "sent")) {
+      return c.json({ error: "invalid_status" }, 409);
+    }
+    const row = await updateMail(db, id, { state: "sent", unread: false });
+    return c.json({ mail: row, sandbox: result });
+  });
+
+  r.get("/mails/sandbox/outbox", requireAuth(), requirePermission("customer.view"), async (c) => {
+    const { getSandboxOutbox } = await import("../mail/transport.js");
+    return c.json({ items: getSandboxOutbox() });
+  });
+
+  /** Inbound paste/webhook — no session required; optional WEBHOOK_SECRET. */
+  r.post("/webhooks/inbound-mail", async (c) => {
+    const secret = process.env.WEBHOOK_SECRET?.trim();
+    if (secret) {
+      const hdr = c.req.header("x-webhook-secret") || "";
+      if (hdr !== secret) return c.json({ error: "forbidden" }, 403);
+    }
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const body = z
+      .object({
+        from: z.string().default("webhook"),
+        subject: z.string().default(""),
+        body: z.string().min(1),
+        customerId: z.string().optional(),
+        jobId: z.string().optional(),
+      })
+      .parse(await c.req.json());
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const subj = body.subject || body.body.slice(0, 60);
+    const row = await createMail(db, {
+      customerId: body.customerId ?? "",
+      from: body.from,
+      subjectZh: subj,
+      subjectTh: subj,
+      subjectEn: subj,
+      bodyZh: body.body,
+      bodyTh: body.body,
+      bodyEn: body.body,
+      draftZh: "",
+      draftTh: "",
+      draftEn: "",
+      time,
+      confidence: 0,
+      unread: true,
+      state: "open",
+      summary: body.jobId ? `jobId=${body.jobId}` : undefined,
+    });
+    return c.json(row, 201);
+  });
+
   return r;
 }

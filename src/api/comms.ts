@@ -52,3 +52,28 @@ export async function apiUpsertDoc(doc: CrmDoc): Promise<CrmDoc> {
     body: JSON.stringify(doc),
   })) as CrmDoc;
 }
+
+export async function apiConfirmSendMail(
+  id: string,
+  input: { to?: string; subject?: string; body?: string; jobId?: string },
+): Promise<{ mail: Mail; sandbox: { sandboxId: string; status: string; transport: string } }> {
+  return (await apiFetch(`/api/mails/${id}/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, confirm: true }),
+  })) as { mail: Mail; sandbox: { sandboxId: string; status: string; transport: string } };
+}
+
+export async function apiInboundWebhookMail(input: {
+  from: string;
+  subject: string;
+  body: string;
+  customerId?: string;
+  jobId?: string;
+}): Promise<Mail> {
+  return (await apiFetch("/api/webhooks/inbound-mail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })) as Mail;
+}

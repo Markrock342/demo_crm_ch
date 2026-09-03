@@ -46,7 +46,7 @@ import {
   apiUpdateOpportunityStage,
   type CrmBundle,
 } from "./api/crm";
-import { apiCreateMail, apiPatchDocStatus, apiPatchMail, apiUpsertDoc } from "./api/comms";
+import { apiConfirmSendMail, apiCreateMail, apiPatchDocStatus, apiPatchMail, apiUpsertDoc } from "./api/comms";
 
 const UI_KEY = "cangzhan-ui-v1";
 
@@ -315,8 +315,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const sendMail = useCallback(
     (id: string) => {
       if (apiEnabled) {
-        void apiPatchMail(id, { state: "sent", unread: false })
-          .then((row) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...row } : m))))
+        void apiConfirmSendMail(id, {})
+          .then(({ mail }) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...mail } : m))))
           .catch(() => flash("errorSave"));
       } else {
         setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "sent", unread: false } : m)));

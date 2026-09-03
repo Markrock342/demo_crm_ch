@@ -6,6 +6,7 @@ import { commercialRoutes, publicQuoteRoutes } from "./routes/commercial.js";
 import { commsRoutes } from "./routes/comms.js";
 import { crmRoutes } from "./routes/crm.js";
 import { systemRoutes } from "./routes/system.js";
+import { trackingRoutes } from "./routes/tracking.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
@@ -18,6 +19,7 @@ export function createApp() {
   app.route("/", crmRoutes());
   app.route("/", commercialRoutes());
   app.route("/", commsRoutes());
+  app.route("/", trackingRoutes());
   app.route("/public", publicQuoteRoutes());
 
   app.get("/ai/health", (c) => {

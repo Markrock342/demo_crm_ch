@@ -62,7 +62,7 @@ export type ShellVendorBill = {
   jobId?: string;
   amount: number;
   currency: string;
-  status: "DRAFT" | "APPROVED";
+  status: "DRAFT" | "APPROVED" | "PAID" | "PARTIAL";
   createdAt: string;
 };
 
@@ -106,6 +106,7 @@ type SupportValue = {
   }) => void;
   addVendorBill: (input: { vendorId: string; amount: number; currency: string; jobId?: string }) => void;
   approveVendorBill: (id: string) => void;
+  payVendorBill: (id: string, partial?: boolean) => void;
 };
 
 const SupportCtx = createContext<SupportValue | null>(null);
@@ -241,6 +242,17 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const payVendorBill = useCallback((id: string, partial?: boolean) => {
+    setState((s) => ({
+      ...s,
+      vendorBills: s.vendorBills.map((b) =>
+        b.id === id && (b.status === "APPROVED" || b.status === "PARTIAL")
+          ? { ...b, status: partial ? "PARTIAL" : "PAID" }
+          : b,
+      ),
+    }));
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
@@ -253,8 +265,9 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
       addDoc,
       addVendorBill,
       approveVendorBill,
+      payVendorBill,
     }),
-    [state, addVendor, addRate, addTask, toggleTask, setDocStatus, patchDoc, addDoc, addVendorBill, approveVendorBill],
+    [state, addVendor, addRate, addTask, toggleTask, setDocStatus, patchDoc, addDoc, addVendorBill, approveVendorBill, payVendorBill],
   );
 
   return <SupportCtx.Provider value={value}>{children}</SupportCtx.Provider>;
