@@ -1,0 +1,18 @@
+---
+description: UI ภาษาไทยต้องธรรมชาติ และ reuse UI ของเดิมก่อนสร้างใหม่
+globs: "**/*.{tsx,jsx,vue,dart,html}"
+alwaysApply: false
+---
+
+# Thai UI & Frontend Reuse
+
+## ภาษาไทย
+- ข้อความ UI ต้องเป็นภาษาไทยที่คนใช้จริง อ่านลื่น ไม่แปลตรงตัว
+- ปุ่มใช้คำสั้น เช่น `บันทึก` `ยืนยัน` `ยกเลิก`
+- Error บอกสาเหตุและทางแก้ ไม่ใช้แค่ "เกิดข้อผิดพลาด"
+- คำศัพท์ทั้งแอปต้องสม่ำเสมอ — ใช้ skill `thai-ui-localization`
+
+## UI reuse
+- ค้นหา component / design token / style ที่มีอยู่ก่อนสร้างใหม่
+- งาน UI ที่ไม่ trivial ให้ใช้ `frontend-design` + `setup` และคำนึง `better-accessibility`
+- ห้าม AI slop: purple gradient ลอยๆ, Inter/Roboto เป็นค่าเริ่มโดยไม่ตั้งใจ, layout กลางๆ ไม่มีลำดับชั้น

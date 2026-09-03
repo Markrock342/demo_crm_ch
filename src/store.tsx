@@ -46,6 +46,7 @@ import {
   apiUpdateOpportunityStage,
   type CrmBundle,
 } from "./api/crm";
+import { apiCreateMail, apiPatchDocStatus, apiPatchMail, apiUpsertDoc } from "./api/comms";
 
 const UI_KEY = "cangzhan-ui-v1";
 
@@ -141,6 +142,7 @@ type Store = Persist & {
   reset: () => void;
   flash: (key: string) => void;
   hydrateCrm: (bundle: CrmBundle) => void;
+  hydrateComms: (bundle: { mails: Mail[]; docs: CrmDoc[] }) => void;
   apiEnabled: boolean;
 };
 
@@ -199,6 +201,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLeads(bundle.leads);
     setDeals(bundle.deals);
     setApiEnabled(true);
+  }, []);
+
+  const hydrateComms = useCallback((bundle: { mails: Mail[]; docs: CrmDoc[] }) => {
+    setMails(bundle.mails);
+    setDocs(bundle.docs);
   }, []);
 
   const addCustomer = useCallback(
@@ -293,74 +300,119 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setDocStatus = useCallback(
     (id: string, status: DocStatus) => {
       const stamp = `${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
-      setDocs((list) => list.map((d) => (d.id === id ? { ...d, status, updated: stamp } : d)));
+      if (apiEnabled) {
+        void apiPatchDocStatus(id, status)
+          .then((row) => setDocs((list) => list.map((d) => (d.id === id ? { ...d, ...row } : d))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setDocs((list) => list.map((d) => (d.id === id ? { ...d, status, updated: stamp } : d)));
+      }
       flash("docUpdated");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
   const sendMail = useCallback(
     (id: string) => {
-      setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "sent", unread: false } : m)));
+      if (apiEnabled) {
+        void apiPatchMail(id, { state: "sent", unread: false })
+          .then((row) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...row } : m))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "sent", unread: false } : m)));
+      }
       flash("sentMail");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
   const saveDraft = useCallback(
     (id: string, body: string) => {
-      setMails((list) =>
-        list.map((m) => {
-          if (m.id !== id) return m;
-          if (locale === "th") return { ...m, draftTh: body };
-          if (locale === "en") return { ...m, draftEn: body };
-          return { ...m, draftZh: body };
-        }),
-      );
+      const patch =
+        locale === "th" ? { draftTh: body } : locale === "en" ? { draftEn: body } : { draftZh: body };
+      if (apiEnabled) {
+        void apiPatchMail(id, patch)
+          .then((row) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...row } : m))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setMails((list) =>
+          list.map((m) => {
+            if (m.id !== id) return m;
+            if (locale === "th") return { ...m, draftTh: body };
+            if (locale === "en") return { ...m, draftEn: body };
+            return { ...m, draftZh: body };
+          }),
+        );
+      }
       flash("draftSaved");
     },
-    [flash, locale],
+    [apiEnabled, flash, locale],
   );
 
   const rejectMail = useCallback(
     (id: string) => {
-      setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "rejected", unread: false } : m)));
+      if (apiEnabled) {
+        void apiPatchMail(id, { state: "rejected", unread: false })
+          .then((row) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...row } : m))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "rejected", unread: false } : m)));
+      }
       flash("rejectedMail");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
-  const markRead = useCallback((id: string) => {
-    setMails((list) => list.map((m) => (m.id === id ? { ...m, unread: false } : m)));
-  }, []);
+  const markRead = useCallback(
+    (id: string) => {
+      if (apiEnabled) {
+        void apiPatchMail(id, { unread: false })
+          .then((row) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...row } : m))))
+          .catch(() => undefined);
+      } else {
+        setMails((list) => list.map((m) => (m.id === id ? { ...m, unread: false } : m)));
+      }
+    },
+    [apiEnabled],
+  );
 
   const applyMailAnalysis = useCallback(
     (id: string, a: MailAnalysis) => {
-      setMails((list) =>
-        list.map((m) =>
-          m.id === id
-            ? {
-                ...m,
-                draftZh: a.draftZh,
-                draftTh: a.draftTh,
-                draftEn: a.draftEn,
-                confidence: a.confidence,
-                intent: a.intent,
-                summary: a.summary,
-                origin: a.origin,
-                dest: a.dest,
-                extractedBoxes: a.boxIds,
-                docsMissing: a.docsMissing,
-                suggestedStatus: a.suggestedStatus,
-                needsHuman: a.needsHuman,
-                customerId: a.customerId || m.customerId,
-              }
-            : m,
-        ),
-      );
+      const patch: Partial<Mail> = {
+        draftZh: a.draftZh,
+        draftTh: a.draftTh,
+        draftEn: a.draftEn,
+        confidence: a.confidence,
+        intent: a.intent,
+        summary: a.summary,
+        origin: a.origin,
+        dest: a.dest,
+        extractedBoxes: a.boxIds,
+        docsMissing: a.docsMissing,
+        suggestedStatus: a.suggestedStatus,
+        needsHuman: a.needsHuman,
+        customerId: a.customerId || undefined,
+      };
+      if (apiEnabled) {
+        void apiPatchMail(id, patch)
+          .then((row) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...row } : m))))
+          .catch(() => flash("errorSave"));
+      } else {
+        setMails((list) =>
+          list.map((m) =>
+            m.id === id
+              ? {
+                  ...m,
+                  ...patch,
+                  customerId: a.customerId || m.customerId,
+                }
+              : m,
+          ),
+        );
+      }
       flash("draftSaved");
     },
-    [flash],
+    [apiEnabled, flash],
   );
 
   const applyMailOpsFn = useCallback(
@@ -388,6 +440,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDocs(result.docs);
       setTasks(result.tasks);
       setCustomers((cs) => syncCustomerBoxCounts(cs, result.boxes));
+      if (apiEnabled) {
+        for (const d of result.docs) {
+          void apiUpsertDoc(d).catch(() => undefined);
+        }
+      }
       if (result.applied.length) {
         setActivities((list) => [
           {
@@ -403,7 +460,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       flash("opsApplied");
     },
-    [boxes, docs, flash, mails, tasks],
+    [apiEnabled, boxes, docs, flash, mails, tasks],
   );
 
   const addPastedMail = useCallback(
@@ -413,38 +470,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
       const customerId = a?.customerId || "";
-      setMails((list) => [
-        {
-          id,
-          customerId,
-          from: input.from.trim() || "paste",
-          subjectZh: input.subject.trim() || input.body.slice(0, 40),
-          subjectTh: input.subject.trim() || input.body.slice(0, 40),
-          subjectEn: input.subject.trim() || input.body.slice(0, 40),
-          bodyZh: input.body,
-          bodyTh: input.body,
-          bodyEn: input.body,
-          draftZh: a?.draftZh ?? "",
-          draftTh: a?.draftTh ?? "",
-          draftEn: a?.draftEn ?? "",
-          time,
-          confidence: a?.confidence ?? 0,
-          unread: false,
-          state: "open",
-          intent: a?.intent,
-          summary: a?.summary,
-          origin: a?.origin,
-          dest: a?.dest,
-          extractedBoxes: a?.boxIds,
-          docsMissing: a?.docsMissing,
-          suggestedStatus: a?.suggestedStatus,
-          needsHuman: a?.needsHuman ?? true,
-        },
-        ...list,
-      ]);
+      const row: Mail = {
+        id,
+        customerId,
+        from: input.from.trim() || "paste",
+        subjectZh: input.subject.trim() || input.body.slice(0, 40),
+        subjectTh: input.subject.trim() || input.body.slice(0, 40),
+        subjectEn: input.subject.trim() || input.body.slice(0, 40),
+        bodyZh: input.body,
+        bodyTh: input.body,
+        bodyEn: input.body,
+        draftZh: a?.draftZh ?? "",
+        draftTh: a?.draftTh ?? "",
+        draftEn: a?.draftEn ?? "",
+        time,
+        confidence: a?.confidence ?? 0,
+        unread: false,
+        state: "open",
+        intent: a?.intent,
+        summary: a?.summary,
+        origin: a?.origin,
+        dest: a?.dest,
+        extractedBoxes: a?.boxIds,
+        docsMissing: a?.docsMissing,
+        suggestedStatus: a?.suggestedStatus,
+        needsHuman: a?.needsHuman ?? true,
+      };
+      setMails((list) => [row, ...list]);
+      if (apiEnabled) {
+        void apiCreateMail(row).catch(() => flash("errorSave"));
+      }
       return id;
     },
-    [],
+    [apiEnabled, flash],
   );
 
   const addNote = useCallback(
@@ -699,6 +757,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     reset,
     flash,
     hydrateCrm,
+    hydrateComms,
     apiEnabled,
   };
 

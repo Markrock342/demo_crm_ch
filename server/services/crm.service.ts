@@ -1,6 +1,7 @@
-import { asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { contacts, customers, leads, opportunities } from "../db/schema/crm.js";
+import { containers } from "../db/schema/operations.js";
 
 export type CustomerDto = {
   id: string;
@@ -55,7 +56,7 @@ export type OpportunityDto = {
   owner: string;
 };
 
-function toCustomer(row: typeof customers.$inferSelect): CustomerDto {
+function toCustomer(row: typeof customers.$inferSelect, boxes = 0): CustomerDto {
   return {
     id: row.id,
     nameZh: row.nameZh,
@@ -67,11 +68,26 @@ function toCustomer(row: typeof customers.$inferSelect): CustomerDto {
     laneZh: row.laneZh,
     laneTh: row.laneTh,
     laneEn: row.laneEn,
-    boxes: row.boxes,
+    boxes,
     owner: row.owner,
     updated: row.updated,
     arDays: row.arDays,
   };
+}
+
+async function containerCountMap(db: Db, customerIds?: string[]): Promise<Map<string, number>> {
+  const rows =
+    customerIds && customerIds.length > 0
+      ? await db
+          .select({ customerId: containers.customerId, n: sql<number>`count(*)::int` })
+          .from(containers)
+          .where(inArray(containers.customerId, customerIds))
+          .groupBy(containers.customerId)
+      : await db
+          .select({ customerId: containers.customerId, n: sql<number>`count(*)::int` })
+          .from(containers)
+          .groupBy(containers.customerId);
+  return new Map(rows.map((r) => [r.customerId, Number(r.n)]));
 }
 
 function toContact(row: typeof contacts.$inferSelect): ContactDto {
@@ -142,17 +158,24 @@ export async function listCustomers(
     .limit(limit)
     .offset(offset);
 
+  const counts = await containerCountMap(
+    db,
+    rows.map((r) => r.id),
+  );
+
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(customers)
     .where(where);
 
-  return { items: rows.map(toCustomer), total: count, limit, offset };
+  return { items: rows.map((r) => toCustomer(r, counts.get(r.id) ?? 0)), total: count, limit, offset };
 }
 
 export async function getCustomer(db: Db, id: string) {
   const [row] = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
-  return row ? toCustomer(row) : null;
+  if (!row) return null;
+  const counts = await containerCountMap(db, [id]);
+  return toCustomer(row, counts.get(id) ?? 0);
 }
 
 export async function createCustomer(
@@ -186,26 +209,28 @@ export async function createCustomer(
       laneZh: input.laneZh,
       laneTh: input.laneTh || input.laneZh,
       laneEn: input.laneEn || input.laneZh,
-      boxes: 0,
       owner: input.owner,
       updated: stamp,
       arDays: 0,
     })
     .returning();
-  return toCustomer(row);
+  return toCustomer(row, 0);
 }
 
 export async function updateCustomer(db: Db, id: string, patch: Partial<CustomerDto>) {
+  const { boxes: _boxes, ...rest } = patch;
   const [row] = await db
     .update(customers)
     .set({
-      ...patch,
+      ...rest,
       updatedAt: new Date(),
       updated: patch.updated ?? formatStamp(new Date()),
     })
     .where(eq(customers.id, id))
     .returning();
-  return row ? toCustomer(row) : null;
+  if (!row) return null;
+  const counts = await containerCountMap(db, [id]);
+  return toCustomer(row, counts.get(id) ?? 0);
 }
 
 export async function listContacts(db: Db, customerId?: string) {
@@ -335,7 +360,6 @@ export async function seedCrmFromDemo(db: Db) {
       laneZh: c.laneZh,
       laneTh: c.laneTh,
       laneEn: c.laneEn,
-      boxes: c.boxes,
       owner: c.owner,
       updated: c.updated,
       arDays: c.arDays,

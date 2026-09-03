@@ -11,7 +11,6 @@ export const customers = pgTable("customers", {
   laneZh: text("lane_zh").notNull(),
   laneTh: text("lane_th").notNull(),
   laneEn: text("lane_en").notNull(),
-  boxes: integer("boxes").notNull().default(0),
   owner: text("owner").notNull(),
   updated: text("updated").notNull(),
   arDays: integer("ar_days").notNull().default(0),

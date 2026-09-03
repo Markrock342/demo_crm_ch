@@ -9,6 +9,27 @@ services:
       POSTGRES_DB: cangzhan
     volumes:
       - cangzhan_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cangzhan -d cangzhan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Local transaction-mode pooler (mirrors serverless pooled DATABASE_URL).
+  # App → localhost:6432 → postgres:5432
+  pgbouncer:
+    image: edoburu/pgbouncer:1.22.1-p0
+    ports:
+      - "6432:5432"
+    environment:
+      DATABASE_URL: postgres://cangzhan:cangzhan@postgres:5432/cangzhan
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   cangzhan_pg:

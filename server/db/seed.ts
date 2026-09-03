@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { getDb, closeDb } from "./index.js";
 import { seedAuth } from "../services/auth.service.js";
+import { seedCommsFromDemo } from "../services/comms.service.js";
 import { seedCrmFromDemo } from "../services/crm.service.js";
 import { seedCommercial } from "./seed-commercial.js";
 import { seedOperations } from "./seed-operations.js";
@@ -30,6 +31,7 @@ async function main() {
   const crm = await seedCrmFromDemo(db);
   const commercial = await seedCommercial(db);
   const operations = await seedOperations(db);
+  const comms = await seedCommsFromDemo(db);
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
   if (!crm.skipped) {
@@ -40,6 +42,9 @@ async function main() {
   }
   if (!operations.skipped) {
     console.log(`Operations seed: ${operations.jobs} jobs, ${operations.containers} containers`);
+  }
+  if (!comms.skipped) {
+    console.log(`Comms seed: ${comms.mails} mails, ${comms.docs} docs`);
   }
 }
 

@@ -85,6 +85,7 @@ export const shipmentCharges = pgTable("shipment_charges", {
   customerId: text("customer_id").references(() => customers.id),
   status: text("status").notNull().default("OPEN"),
   invoiced: boolean("invoiced").notNull().default(false),
+  billed: boolean("billed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

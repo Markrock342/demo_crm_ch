@@ -148,7 +148,61 @@ export async function fetchJobFinancials(jobId: string) {
 
 export async function fetchJobCharges(jobId: string) {
   const data = await apiFetch(`/api/jobs/${jobId}/charges`);
-  return (data.items as Array<{ id: string; chargeType: string; description: string; totalAmount: string; invoiced: boolean; currency: string }>) ?? [];
+  return (
+    (data.items as Array<{
+      id: string;
+      chargeType: string;
+      description: string;
+      totalAmount: string;
+      invoiced: boolean;
+      billed?: boolean;
+      vendorId?: string | null;
+      currency: string;
+    }>) ?? []
+  );
+}
+
+export type VendorBillRow = {
+  id: string;
+  vendorId: string;
+  jobId: string | null;
+  billNumber: string;
+  total: string;
+  currency: string;
+  status: string;
+  billDate: string;
+  dueDate: string;
+};
+
+export async function fetchVendorBills(opts?: { vendorId?: string; jobId?: string }) {
+  const q = new URLSearchParams();
+  if (opts?.vendorId) q.set("vendorId", opts.vendorId);
+  if (opts?.jobId) q.set("jobId", opts.jobId);
+  const suffix = q.toString() ? `?${q}` : "";
+  const data = await apiFetch(`/api/vendor-bills${suffix}`);
+  return (data.items as VendorBillRow[]) ?? [];
+}
+
+export async function createVendorBillFromJob(input: {
+  jobId: string;
+  vendorId: string;
+  chargeIds: string[];
+  paymentTermsDays?: number;
+}) {
+  return apiFetch("/api/vendor-bills/from-job", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function approveVendorBill(id: string) {
+  return apiFetch(`/api/vendor-bills/${id}/approve`, { method: "POST" });
+}
+
+export async function fetchVendors() {
+  const data = await apiFetch("/api/vendors");
+  return (data.items as Array<{ id: string; company: string; vendorType: string }>) ?? [];
 }
 
 export type InvoiceRow = {

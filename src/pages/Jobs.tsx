@@ -186,9 +186,14 @@ export function JobsPage() {
                   {tx("tabFinancial")}
                 </button>
                 {!isDemo ? (
-                  <Link to={`/invoices?jobId=${job.id}&customerId=${job.customerId}`} className="btn btn-primary">
-                    {tx("createInvoice")}
-                  </Link>
+                  <>
+                    <Link to={`/invoices?jobId=${job.id}&customerId=${job.customerId}`} className="btn btn-primary">
+                      {tx("createInvoice")}
+                    </Link>
+                    <Link to={`/vendor-bills?jobId=${job.id}`} className="btn btn-ghost">
+                      {tx("createVendorBill")}
+                    </Link>
+                  </>
                 ) : null}
               </div>
 

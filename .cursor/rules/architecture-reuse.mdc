@@ -1,0 +1,21 @@
+---
+description: ห้ามแก้ architecture โดยไม่สำรวจโค้ดเดิม และห้ามสร้าง component ซ้ำ
+alwaysApply: true
+---
+
+# Architecture & Reuse Safety
+
+## ก่อนเปลี่ยนโครงสร้าง
+- อ่านโค้ด/โมดูลที่เกี่ยวข้องก่อนเสมอ
+- ห้าม redesign หรือย้าย boundary โดยเดา
+- งานที่ไม่ trivial ให้ใช้ skill `architect` / `how` / `why` ก่อน implement
+
+## Component & module reuse
+- ค้นหา existing component / hook / service / util ก่อนสร้างใหม่
+- ห้ามสร้าง duplicate ที่ทำหน้าที่เดียวกันคนละชื่อ
+- ถ้าของเดิมใกล้เคียง ให้ extend หรือ refactor ของเดิมแทนการ copy
+
+## เมื่อต้องเปลี่ยน architecture
+- ระบุไฟล์/ชั้นที่กระทบ
+- อธิบายเหตุผลสั้นๆ ว่าทำไมของเดิมไม่พอ
+- อัปเดต docs โมดูลที่เกี่ยวข้องหลังเปลี่ยน

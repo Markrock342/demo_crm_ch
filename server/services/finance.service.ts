@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { shipmentCharges } from "../db/schema/operations.js";
-import { billingNoteItems, billingNotes, invoiceLines, invoices, paymentAllocations, payments } from "../db/schema/finance.js";
+import { billingNoteItems, billingNotes, invoiceLines, invoices, paymentAllocations, payments, vendorBillLines, vendorBills } from "../db/schema/finance.js";
 import { add, d, sub, toDb } from "../lib/money.js";
 import { nextDocNumber } from "./sequence.service.js";
 
@@ -214,4 +214,87 @@ export async function listPayments(db: Db, customerId?: string) {
     .select()
     .from(payments)
     .where(customerId ? eq(payments.customerId, customerId) : undefined);
+}
+
+export function selectBillableCostCharges<T extends { id: string; chargeType: string; billed: boolean }>(
+  charges: T[],
+  chargeIds: string[],
+): T[] {
+  return charges.filter((c) => c.chargeType === "COST" && chargeIds.includes(c.id) && !c.billed);
+}
+
+export async function createVendorBillFromJob(
+  db: Db,
+  input: { jobId: string; vendorId: string; chargeIds: string[]; paymentTermsDays?: number },
+) {
+  const charges = await db
+    .select()
+    .from(shipmentCharges)
+    .where(and(eq(shipmentCharges.jobId, input.jobId), eq(shipmentCharges.chargeType, "COST")));
+
+  const selected = selectBillableCostCharges(charges, input.chargeIds);
+  if (!selected.length) throw new Error("no_charges");
+
+  const subtotal = add(...selected.map((c) => c.actualAmount ?? c.totalAmount));
+  const tax = d(0);
+  const total = subtotal.plus(tax);
+  const billNumber = await nextDocNumber(db, "VB", "VB");
+  const id = `vb${Date.now()}`;
+  const billDate = new Date();
+  const dueDate = new Date(billDate.getTime() + (input.paymentTermsDays ?? 30) * 24 * 60 * 60 * 1000);
+
+  await db.insert(vendorBills).values({
+    id,
+    vendorId: input.vendorId,
+    jobId: input.jobId,
+    billNumber,
+    billDate,
+    dueDate,
+    currency: selected[0]?.currency ?? "THB",
+    subtotal: toDb(subtotal),
+    tax: toDb(tax),
+    total: toDb(total),
+    status: "DRAFT",
+  });
+
+  for (const [i, c] of selected.entries()) {
+    await db.insert(vendorBillLines).values({
+      id: `vbl${Date.now()}${i}`,
+      vendorBillId: id,
+      chargeId: c.id,
+      description: c.description,
+      amount: c.actualAmount ?? c.totalAmount,
+      currency: c.currency,
+    });
+    await db.update(shipmentCharges).set({ billed: true, updatedAt: new Date() }).where(eq(shipmentCharges.id, c.id));
+  }
+
+  return { id, billNumber, total: toDb(total), status: "DRAFT" as const };
+}
+
+export async function approveVendorBill(db: Db, billId: string, approvedBy: string) {
+  const [bill] = await db.select().from(vendorBills).where(eq(vendorBills.id, billId)).limit(1);
+  if (!bill) throw new Error("not_found");
+  if (bill.status !== "DRAFT") throw new Error("invalid_status");
+  await db
+    .update(vendorBills)
+    .set({ status: "APPROVED", approvedBy, approvedAt: new Date(), updatedAt: new Date() })
+    .where(eq(vendorBills.id, billId));
+  return { status: "APPROVED" as const };
+}
+
+export async function listVendorBills(db: Db, opts?: { vendorId?: string; jobId?: string }) {
+  const conditions = [];
+  if (opts?.vendorId) conditions.push(eq(vendorBills.vendorId, opts.vendorId));
+  if (opts?.jobId) conditions.push(eq(vendorBills.jobId, opts.jobId));
+  if (conditions.length === 0) return db.select().from(vendorBills);
+  if (conditions.length === 1) return db.select().from(vendorBills).where(conditions[0]);
+  return db.select().from(vendorBills).where(and(...conditions));
+}
+
+export async function getVendorBill(db: Db, id: string) {
+  const [bill] = await db.select().from(vendorBills).where(eq(vendorBills.id, id)).limit(1);
+  if (!bill) return null;
+  const lines = await db.select().from(vendorBillLines).where(eq(vendorBillLines.vendorBillId, id));
+  return { bill, lines };
 }

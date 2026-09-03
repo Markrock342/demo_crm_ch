@@ -1,0 +1,15 @@
+---
+description: บังคับ TypeScript ที่ไฟล์ .ts/.tsx และแนวทาง type-safe
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# TypeScript Standards
+
+- ใช้ TypeScript กับโค้ดใหม่เสมอ ห้ามเพิ่ม `.js`/`.jsx` ในพื้นที่ TS ของโปรเจกต์โดยไม่มีเหตุผล
+- หลีกเลี่ยง `any` — ใช้ type ที่แคบพอ หรือ `unknown` แล้ว narrow
+- ระบุ return type ของ public function / exported API เมื่อช่วยให้อ่านง่าย
+- ใช้ `import type` สำหรับ type-only imports ตาม convention ของโปรเจกต์
+- Error handling: ห้ามกลืน error เงียบๆ — log/แปลงเป็น typed error แล้วส่งต่อหรือแสดงผลให้ผู้ใช้รู้
+
+เมื่อแก้ `.ts`/`.tsx` ให้ใช้ skill `typescript-best-practices` ถ้างานซับซ้อนหรือมี type edge case

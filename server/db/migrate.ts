@@ -1,9 +1,23 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 
 const dir = dirname(fileURLToPath(import.meta.url));
+
+function loadDotEnv(path: string) {
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const i = t.indexOf("=");
+    if (i < 1) continue;
+    const k = t.slice(0, i).trim();
+    let v = t.slice(i + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    if (!(k in process.env)) process.env[k] = v;
+  }
+}
 
 async function ensureMigrationsTable(sql: postgres.Sql) {
   await sql`
@@ -20,6 +34,7 @@ async function appliedFiles(sql: postgres.Sql): Promise<Set<string>> {
 }
 
 async function main() {
+  loadDotEnv(".env");
   const url = process.env.DATABASE_URL?.trim();
   if (!url) {
     console.error("DATABASE_URL is required");
@@ -39,8 +54,10 @@ async function main() {
       continue;
     }
     const migration = readFileSync(join(dir, "migrations", file), "utf8");
-    await sql.unsafe(migration);
-    await sql`INSERT INTO schema_migrations (filename) VALUES (${file})`;
+    await sql.begin(async (tx) => {
+      await tx.unsafe(migration);
+      await tx`INSERT INTO schema_migrations (filename) VALUES (${file})`;
+    });
     console.log(`Migration ${file} applied`);
   }
 

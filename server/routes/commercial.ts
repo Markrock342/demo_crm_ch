@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
 import { authMiddleware, requireAuth, requirePermission, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
-import { createInvoiceFromJob, createBillingNote, getArSummary, getInvoice, issueInvoice, listBillingNotes, listInvoices, listPayments, recordPayment } from "../services/finance.service.js";
+import { createInvoiceFromJob, createBillingNote, createVendorBillFromJob, approveVendorBill, getArSummary, getInvoice, getVendorBill, issueInvoice, listBillingNotes, listInvoices, listPayments, listVendorBills, recordPayment } from "../services/finance.service.js";
 import { createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
 import { ensureJobMilestones, listMilestonesForJobs, setMilestoneComplete, summarizeMilestones } from "../services/milestone.service.js";
 import { getJob, listBookingsByQuotation, listJobCharges, listJobs, updateChargeActual } from "../services/operations.service.js";
@@ -39,7 +39,7 @@ export function commercialRoutes() {
   const r = new Hono<AuthEnv>();
   r.use("*", authMiddleware);
 
-  r.get("/vendors", requireAuth(), requirePermission("rate.view_sell"), async (c) => {
+  r.get("/vendors", requireAuth(), requirePermission("rate.view_sell", "vendor_bill.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     return c.json({ items: await listVendors(db) });
@@ -184,7 +184,7 @@ export function commercialRoutes() {
     return c.json(job);
   });
 
-  r.get("/jobs/:id/charges", requireAuth(), requirePermission("finance.revenue.view"), async (c) => {
+  r.get("/jobs/:id/charges", requireAuth(), requirePermission("finance.revenue.view", "finance.cost.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     return c.json({ items: await listJobCharges(db, c.req.param("id")) });
@@ -494,6 +494,76 @@ export function commercialRoutes() {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     return c.json(await getArSummary(db));
+  });
+
+  r.get("/vendor-bills", requireAuth(), requirePermission("vendor_bill.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const items = await listVendorBills(db, {
+      vendorId: c.req.query("vendorId"),
+      jobId: c.req.query("jobId"),
+    });
+    return c.json({ items });
+  });
+
+  r.get("/vendor-bills/:id", requireAuth(), requirePermission("vendor_bill.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const result = await getVendorBill(db, c.req.param("id"));
+    if (!result) return c.json({ error: "not_found" }, 404);
+    return c.json(result);
+  });
+
+  r.post("/vendor-bills/from-job", requireAuth(), requirePermission("vendor_bill.create"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const body = z
+      .object({
+        jobId: z.string(),
+        vendorId: z.string(),
+        chargeIds: z.array(z.string()).min(1),
+        paymentTermsDays: z.number().optional(),
+      })
+      .parse(await c.req.json());
+    try {
+      const result = await createVendorBillFromJob(db, body);
+      await writeAudit(db, {
+        userId: user.id,
+        action: "VENDOR_BILL_CREATED",
+        entityType: "vendor_bill",
+        entityId: result.id,
+        newValue: result,
+      });
+      return c.json(result, 201);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      if (msg === "no_charges") return c.json({ error: "no_charges" }, 400);
+      throw e;
+    }
+  });
+
+  r.post("/vendor-bills/:id/approve", requireAuth(), requirePermission("vendor_bill.approve"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const id = c.req.param("id");
+    try {
+      const result = await approveVendorBill(db, id, user.id);
+      await writeAudit(db, {
+        userId: user.id,
+        action: "VENDOR_BILL_APPROVED",
+        entityType: "vendor_bill",
+        entityId: id,
+        newValue: result,
+      });
+      return c.json(result);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      if (msg === "not_found") return c.json({ error: "not_found" }, 404);
+      if (msg === "invalid_status") return c.json({ error: "invalid_status" }, 409);
+      throw e;
+    }
   });
 
   return r;

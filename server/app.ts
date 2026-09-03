@@ -3,6 +3,7 @@ import { hasGeminiKey } from "./gemini.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { commercialRoutes, publicQuoteRoutes } from "./routes/commercial.js";
+import { commsRoutes } from "./routes/comms.js";
 import { crmRoutes } from "./routes/crm.js";
 import { systemRoutes } from "./routes/system.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
@@ -16,6 +17,7 @@ export function createApp() {
   app.route("/auth", authRoutes());
   app.route("/", crmRoutes());
   app.route("/", commercialRoutes());
+  app.route("/", commsRoutes());
   app.route("/public", publicQuoteRoutes());
 
   app.get("/ai/health", (c) => {

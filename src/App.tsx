@@ -37,6 +37,7 @@ import { CustomersPage } from "./pages/Customers";
 import { DocsPage } from "./pages/Docs";
 import { InboxPage } from "./pages/Inbox";
 import { InvoicesPage } from "./pages/Invoices";
+import { VendorBillsPage } from "./pages/VendorBills";
 import { JobsPage } from "./pages/Jobs";
 import { LeadsPage } from "./pages/Leads";
 import { OverviewPage } from "./pages/Overview";
@@ -75,6 +76,7 @@ const groups = [
     items: [
       { to: "/jobs", key: "navJobs", icon: Package },
       { to: "/invoices", key: "navInvoices", icon: Receipt },
+      { to: "/vendor-bills", key: "navVendorBills", icon: Receipt },
     ],
   },
   {
@@ -320,6 +322,7 @@ function AppShell() {
             <Route path="/quotations" element={<QuotationsPage />} />
             <Route path="/jobs" element={<JobsPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/vendor-bills" element={<VendorBillsPage />} />
             <Route path="/boxes" element={<BoxesPage />} />
             <Route path="/shipments" element={<ShipmentsPage />} />
             <Route path="/yard" element={<YardPage />} />

@@ -13,7 +13,11 @@
     "db:migrate": "tsx server/db/migrate.ts",
     "db:seed": "tsx server/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "test:money": "tsx --test server/lib/money.test.ts"
+    "test:money": "tsx --test server/lib/money.test.ts",
+    "test:db": "tsx --test server/db/migrate.test.ts",
+    "test:finance": "tsx --test server/services/finance.vendor-bills.test.ts",
+    "test:comms": "tsx --test server/services/comms.test.ts",
+    "test": "tsx --test server/lib/money.test.ts server/db/migrate.test.ts server/services/finance.vendor-bills.test.ts server/services/comms.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.20.0",

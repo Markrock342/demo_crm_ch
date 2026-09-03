@@ -40,9 +40,12 @@ export function AccountPage() {
   const [quotes, setQuotes] = useState<QuotationRow[]>([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [commercialLoading, setCommercialLoading] = useState(false);
+  const [commercialError, setCommercialError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
+    setCommercialError(null);
     if (isDemo) {
       setQuotes(demoQuotations.filter((q) => q.customerId === id));
       setJobs(demoJobs.filter((j) => j.customerId === id));
@@ -50,16 +53,22 @@ export function AccountPage() {
       return;
     }
     if (!user) return;
+    setCommercialLoading(true);
     void Promise.all([fetchQuotations(id), fetchJobs(id), fetchInvoices(id)])
       .then(([q, j, inv]) => {
         setQuotes(q);
         setJobs(j);
         setInvoices(inv);
+        setCommercialError(null);
       })
       .catch(() => {
-        /* keep empty — CRM tabs still work */
-      });
-  }, [id, isDemo, user]);
+        setQuotes([]);
+        setJobs([]);
+        setInvoices([]);
+        setCommercialError(tx("errorLoadCommercial"));
+      })
+      .finally(() => setCommercialLoading(false));
+  }, [id, isDemo, user, tx]);
 
   if (!customer) return <Navigate to="/customers" replace />;
 
@@ -140,6 +149,12 @@ export function AccountPage() {
           </>
         }
       />
+      {commercialLoading ? <p className="meta" role="status">{tx("loadingCommercial")}</p> : null}
+      {commercialError ? (
+        <p className="empty" role="alert">
+          {commercialError}
+        </p>
+      ) : null}
 
       {tab === "overview" ? (
         <div className="split">

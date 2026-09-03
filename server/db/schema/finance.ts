@@ -132,7 +132,7 @@ export const vendorBills = pgTable("vendor_bills", {
     .notNull()
     .references(() => vendors.id),
   jobId: text("job_id").references(() => jobs.id),
-  billNumber: text("bill_number").notNull(),
+  billNumber: text("bill_number").notNull().unique(),
   billDate: timestamp("bill_date", { withTimezone: true }).notNull(),
   dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
   currency: text("currency").notNull(),
@@ -140,6 +140,8 @@ export const vendorBills = pgTable("vendor_bills", {
   tax: numeric("tax", { precision: 18, scale: 4 }).notNull().default("0"),
   total: numeric("total", { precision: 18, scale: 4 }).notNull(),
   status: text("status").notNull().default("DRAFT"),
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
