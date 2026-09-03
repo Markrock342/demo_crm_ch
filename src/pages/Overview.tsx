@@ -1,244 +1,198 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { AiError, aiBrief } from "../ai/client";
-import { activityI18n, dealStageI18n, dealStages, money, priI18n } from "../crm";
-import { overdueInvoices } from "../logistics";
-import { customerName } from "../data";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { customerName, type Customer } from "../data";
+import { jobGrossProfit } from "../ports/job.port.ts";
+import { useShellBilling } from "../shell/billingStore.tsx";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useShellJobs } from "../shell/jobStore.tsx";
+import { useShellOps } from "../shell/opsStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
+import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
-import { AiBriefChat } from "../ui/AiBriefChat";
-import { BoxLedgerCards } from "../ui/BoxLedgerCards";
-import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
-import { useMedia } from "../ui/useMedia";
 
 export function OverviewPage() {
-  const { tx, locale, boxes, customers, mails, deals, tasks, docs, activities, invoices } = useStore();
-  const navigate = useNavigate();
-  const mobile = useMedia("(max-width: 1024px)");
-  const teu = boxes.filter((b) => b.status === "yard" || b.status === "empty" || b.status === "hold").reduce((n, b) => n + b.teu, 0);
-  const hold = boxes.filter((b) => b.status === "hold").length;
-  const openMail = mails.filter((m) => m.state === "open").length;
-  const openPipe = deals.filter((d) => d.stage !== "billed").reduce((n, d) => n + d.value, 0);
-  const wonTeu = deals.filter((d) => d.stage === "won" || d.stage === "book" || d.stage === "billed").reduce((n, d) => n + d.teu, 0);
-  const openTasks = tasks.filter((t) => !t.done);
-  const shortDocs = docs.filter((d) => d.status !== "ok");
-  const [brief, setBrief] = useState<string | null>(null);
-  const [briefing, setBriefing] = useState(false);
-  const [briefErr, setBriefErr] = useState<string | null>(null);
+  const shell = useIsShellMode();
+  const { tx, locale } = useStore();
+  const jobs = useShellJobs();
+  const ops = useShellOps();
+  const billing = useShellBilling();
+  const support = useShellSupport();
+  const crm = useShellCrm();
 
-  const exceptions = useMemo(() => {
-    const rows: { id: string; label: string; meta: string; to: string; kind: "hold" | "late" | "wait" }[] = [];
-    for (const b of boxes.filter((x) => x.status === "hold")) {
-      const c = customers.find((x) => x.id === b.customerId);
-      rows.push({
-        id: b.id,
-        label: b.id,
-        meta: c ? customerName(c, locale) : b.bl,
-        to: `/boxes?q=${b.id}`,
-        kind: "hold",
-      });
+  const activeJobs = jobs.jobs.filter((j) => j.status !== "CLOSED");
+  const delayed = jobs.jobs.filter((j) => j.delayed);
+  const missingDocs = support.docs.filter((d) => d.status === "late" || d.status === "wait");
+  const outstanding = billing.invoices.filter((i) => i.balanceDue > 0);
+  const teu = ops.boxes.reduce((n, b) => n + b.teu, 0);
+  const inTransitTeu = ops.boxes.filter((b) => b.status === "sail").reduce((n, b) => n + b.teu, 0);
+  const todayKey = "09-04";
+  const departing = jobs.jobs.filter((j) => j.etd === todayKey || j.etd.endsWith("-04")).length;
+  const arriving = jobs.jobs.filter((j) => j.eta === todayKey || j.eta.endsWith("-04")).length;
+  const gpMonth = jobs.jobs.reduce((n, j) => n + jobGrossProfit(j), 0);
+
+  const byCustomer = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const j of jobs.jobs) map.set(j.customerId, (map.get(j.customerId) ?? 0) + jobGrossProfit(j));
+    return [...map.entries()]
+      .map(([id, gp]) => ({ id, gp, c: crm.customers.find((x) => x.id === id) }))
+      .sort((a, b) => b.gp - a.gp)
+      .slice(0, 5);
+  }, [crm.customers, jobs.jobs]);
+
+  const byRoute = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const j of jobs.jobs) {
+      const key = `${j.pol}→${j.pod}`;
+      map.set(key, (map.get(key) ?? 0) + jobGrossProfit(j));
     }
-    for (const d of docs.filter((x) => x.status === "late" || x.status === "wait")) {
-      const c = customers.find((x) => x.id === d.customerId);
+    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [jobs.jobs]);
+
+  const bySales = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const j of jobs.jobs) {
+      const key = j.salesOwner || "—";
+      map.set(key, (map.get(key) ?? 0) + jobGrossProfit(j));
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [jobs.jobs]);
+
+  const exceptionPreview = useMemo(() => {
+    const rows: { id: string; label: string; meta: string; to: string }[] = [];
+    for (const j of delayed.slice(0, 3)) {
+      rows.push({ id: `d-${j.id}`, label: j.jobNumber, meta: "ETA delayed", to: `/jobs/${j.id}` });
+    }
+    for (const d of missingDocs.slice(0, 3)) {
       rows.push({
         id: d.id,
-        label: `${d.kind} · ${d.boxId}`,
-        meta: c ? customerName(c, locale) : d.name,
-        to: `/docs`,
-        kind: d.status === "late" ? "late" : "wait",
+        label: `${d.docType} · ${d.name}`,
+        meta: d.status,
+        to: d.jobId ? `/jobs/${d.jobId}` : "/docs?missing=1",
       });
     }
-    return rows.slice(0, 8);
-  }, [boxes, customers, docs, locale]);
+    return rows;
+  }, [delayed, missingDocs]);
 
-  const overdueAr = overdueInvoices(invoices).length;
-
-  async function runBrief() {
-    setBriefing(true);
-    setBriefErr(null);
-    try {
-      const text = await aiBrief(locale, {
-        openPipelineYuan: openPipe,
-        wonTeu,
-        openTasks: openTasks.length,
-        papersShort: shortDocs.length,
-        teuOnYard: teu,
-        holdPapers: hold,
-        openMail,
-        overdueInvoices: overdueAr,
-        exceptions: exceptions.length,
-        lane: "Thailand to China, Laem Chabang to Yantian and Ningbo",
-      });
-      setBrief(text);
-    } catch (e) {
-      setBriefErr(e instanceof AiError && e.code === "missing_key" ? tx("aiNoKey") : tx("aiError"));
-    } finally {
-      setBriefing(false);
-    }
+  if (!shell) {
+    return (
+      <div className="page page--workspace">
+        <PageToolbar title={tx("navOverview")} hint={tx("apiNotConfigured")} />
+        <p className="meta">{tx("apiNotConfigured")}</p>
+        <Link to="/login">{tx("loginPickDept")}</Link>
+      </div>
+    );
   }
 
   return (
     <div className="page page--workspace">
       <PageToolbar
         title={tx("navOverview")}
-        hint={tx("laneHint")}
+        hint={`${tx("shellDataBadge")} · LogisticsOS`}
         actions={
-          <Link className="btn btn-primary" to="/boxes?status=hold">
-            {tx("primaryDash")}
-          </Link>
+          <>
+            <Link className="btn btn-ghost" to="/exceptions">
+              {tx("navExceptions")}
+            </Link>
+            <Link className="btn btn-primary" to="/jobs">
+              {tx("navJobs")}
+            </Link>
+          </>
         }
       />
 
-      <AiBriefChat brief={brief} busy={briefing} error={briefErr} onRun={runBrief} />
-
       <section className="kpis" aria-label={tx("navOverview")}>
         <div className="kpi-lead">
-          <div className="num">{money(openPipe)}</div>
-          <div className="lbl">{tx("dashOpenDeals")}</div>
+          <div className="num">{activeJobs.length}</div>
+          <div className="lbl">{tx("dashActiveJobs")}</div>
         </div>
         <div className="kpi">
-          <div className="num">{wonTeu}</div>
-          <div className="lbl">{tx("dashWonTeu")}</div>
+          <div className="num">{departing}</div>
+          <div className="lbl">{tx("dashDeparting")}</div>
         </div>
         <div className="kpi">
-          <div className="num">{openTasks.length}</div>
-          <div className="lbl">{tx("dashTasks")}</div>
+          <div className="num">{arriving}</div>
+          <div className="lbl">{tx("dashArriving")}</div>
         </div>
         <div className="kpi">
-          <div className="num">{shortDocs.length}</div>
-          <div className="lbl">{tx("dashDocs")}</div>
+          <div className="num">{delayed.length}</div>
+          <div className="lbl">{tx("dashDelayed")}</div>
+        </div>
+        <div className="kpi">
+          <div className="num">{inTransitTeu}</div>
+          <div className="lbl">{tx("dashInTransitTeu")}</div>
+        </div>
+        <div className="kpi">
+          <div className="num">{missingDocs.length}</div>
+          <div className="lbl">{tx("dashMissingDocs")}</div>
+        </div>
+        <div className="kpi">
+          <div className="num">{outstanding.length}</div>
+          <div className="lbl">{tx("dashOutstandingAr")}</div>
+        </div>
+        <div className="kpi">
+          <div className="num">{teu}</div>
+          <div className="lbl">TEU</div>
+        </div>
+        <div className="kpi">
+          <div className="num">{gpMonth}</div>
+          <div className="lbl">{tx("dashGpMonth")}</div>
         </div>
       </section>
 
-      {exceptions.length > 0 ? (
-        <section className="block exceptions">
-          <div className="block-head">
-            <h2>{tx("exceptionsTitle")}</h2>
-            <Link to="/boxes?status=hold">{tx("viewAll")}</Link>
-          </div>
-          <p className="hint">{tx("exceptionsHint")}</p>
-          <ul className="exception-list">
-            {exceptions.map((ex) => (
-              <li key={ex.id + ex.kind}>
-                <Link to={ex.to}>
-                  <span className={`pill pill-${ex.kind === "hold" ? "hold" : ex.kind === "late" ? "hold" : "yard"}`}>
-                    {tx(ex.kind === "hold" ? "stHold" : ex.kind === "late" ? "docLate" : "docWait")}
-                  </span>
-                  <strong className="mono">{ex.label}</strong>
-                  <span className="meta">{ex.meta}</span>
-                </Link>
+      <section className="panel">
+        <h2>{tx("exceptionsTitle")}</h2>
+        <p className="meta">
+          <Link to="/exceptions">{tx("exceptionOpenCenter")}</Link>
+        </p>
+        {exceptionPreview.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="list-plain">
+            {exceptionPreview.map((e) => (
+              <li key={e.id}>
+                <Link to={e.to}>
+                  <strong>{e.label}</strong>
+                </Link>{" "}
+                <span className="meta">{e.meta}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <div className="job-detail-grid">
+        <section className="panel">
+          <h2>{tx("profitByCustomer")}</h2>
+          <ul className="list-plain">
+            {byCustomer.map((r) => (
+              <li key={r.id}>
+                {r.c ? customerName(r.c as Customer, locale) : r.id}: <strong>{r.gp}</strong>
               </li>
             ))}
           </ul>
         </section>
-      ) : null}
-
-      <div className="pipe-strip" aria-label={tx("navPipeline")}>
-        {dealStages.map((st) => {
-          const col = deals.filter((d) => d.stage === st);
-          return (
-            <button key={st} type="button" className="pipe-cell" onClick={() => navigate("/pipeline")}>
-              <span>{tx(dealStageI18n[st])}</span>
-              <strong className="num">{col.length}</strong>
-              <em className="num">{money(col.reduce((n, d) => n + d.value, 0))}</em>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="split">
-        <section className="block">
-          <div className="block-head">
-            <h2>{tx("todayTitle")}</h2>
-            <Link to="/tasks">{tx("viewAll")}</Link>
-          </div>
-          <p className="hint">{tx("todayHint")}</p>
-          <div className="tasks">
-            {openTasks.slice(0, 6).map((t) => (
-              <Link className="task" key={t.id} to={t.customerId ? `/customers/${t.customerId}` : "/tasks"}>
-                <span className="task-name">
-                  <span className={`dot pri-${t.priority}`} aria-hidden />
-                  {t.title}
-                </span>
-                <time>
-                  {tx(priI18n[t.priority])} · {t.due}
-                </time>
-              </Link>
+        <section className="panel">
+          <h2>{tx("profitByRoute")}</h2>
+          <ul className="list-plain">
+            {byRoute.map(([route, gp]) => (
+              <li key={route}>
+                {route}: <strong>{gp}</strong>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
-
-        <section className="block">
-          <div className="block-head">
-            <h2>{tx("tabTimeline")}</h2>
-            <Link to="/inbox">{tx("navInbox")}</Link>
-          </div>
-          <ol className="timeline">
-            {activities.slice(0, 6).map((a) => {
-              const c = a.customerId ? customers.find((x) => x.id === a.customerId) : undefined;
-              return (
-                <li key={a.id}>
-                  <time>{a.at}</time>
-                  <span className="pill">{tx(activityI18n[a.type])}</span>
-                  <p>{a.body}</p>
-                  <span className="meta">{c ? customerName(c, locale) : a.user}</span>
-                </li>
-              );
-            })}
-          </ol>
+        <section className="panel">
+          <h2>{tx("profitBySales")}</h2>
+          <ul className="list-plain">
+            {bySales.map(([name, gp]) => (
+              <li key={name}>
+                {name}: <strong>{gp}</strong>
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
-
-      <section className="block">
-        <div className="block-head">
-          <h2>{tx("recentBoxes")}</h2>
-          <Link to="/boxes">{tx("viewAll")}</Link>
-        </div>
-        {mobile ? (
-          <BoxLedgerCards
-            boxes={boxes.slice(0, 6)}
-            customers={customers}
-            locale={locale}
-            onOpen={(b) => navigate(`/boxes?q=${b.id}`)}
-          />
-        ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{tx("colBox")}</th>
-                  <th>{tx("colCustomer")}</th>
-                  <th>{tx("colType")}</th>
-                  <th>{tx("colDir")}</th>
-                  <th>{tx("colStatus")}</th>
-                  <th className="num">{tx("colEta")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {boxes.slice(0, 6).map((b) => {
-                  const c = customers.find((x) => x.id === b.customerId);
-                  return (
-                    <ClickableTableRow key={b.id} onActivate={() => navigate(`/boxes?q=${b.id}`)}>
-                      <td className="mono">{b.id}</td>
-                      <td>{c ? customerName(c, locale) : "—"}</td>
-                      <td>{b.type}</td>
-                      <td>{tx(b.dir === "in" ? "inboundShort" : "outboundShort")}</td>
-                      <td>
-                        <span className={`pill pill-${b.status}`}>{tx(`st${cap(b.status)}`)}</span>
-                      </td>
-                      <td className="num">{b.eta}</td>
-                    </ClickableTableRow>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
     </div>
   );
-}
-
-function cap(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

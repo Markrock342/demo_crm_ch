@@ -1,8 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { loadPersisted, savePersisted } from "./persist.ts";
+import { LCS_DOCS, LCS_RATES, LCS_TASKS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-support-v1";
-const VERSION = 1;
+const STORAGE_KEY = "cangzhan-shell-support-v3";
+const VERSION = 3;
+
+export type ShellDocType = "BOOKING" | "BL" | "CI" | "PL" | "CO" | "DO" | "POD" | "OTHER";
 
 export type ShellRate = {
   id: string;
@@ -24,12 +27,18 @@ export type ShellTask = {
   priority: "high" | "normal";
 };
 
+export type ShellDocApproval = "none" | "pending" | "approved";
+
 export type ShellDocItem = {
   id: string;
   name: string;
+  docType: ShellDocType;
+  jobId?: string;
   boxId?: string;
   shipmentId?: string;
   status: "ok" | "wait" | "late";
+  note?: string;
+  approval?: ShellDocApproval;
 };
 
 export type ShellVendorBill = {
@@ -51,37 +60,9 @@ type Snapshot = {
 
 function seed(): Snapshot {
   return {
-    rates: [
-      {
-        id: "sr1",
-        origin: "Shanghai",
-        destination: "Laem Chabang",
-        containerType: "40HC",
-        mode: "FCL",
-        sellAmount: 1250,
-        currency: "USD",
-        validUntil: "2026-10-31",
-      },
-      {
-        id: "sr2",
-        origin: "Ningbo",
-        destination: "Laem Chabang",
-        containerType: "20GP",
-        mode: "FCL",
-        sellAmount: 780,
-        currency: "USD",
-        validUntil: "2026-10-15",
-      },
-    ],
-    tasks: [
-      { id: "st1", title: "Confirm B/L draft Yuetai", customerId: "sc-seed-1", done: false, priority: "high" },
-      { id: "st2", title: "Yard slot check B2/B3", done: false, priority: "normal" },
-    ],
-    docs: [
-      { id: "sd1", name: "B/L", boxId: "TCLU1234567", shipmentId: "ssh1", status: "wait" },
-      { id: "sd2", name: "Packing list", boxId: "TCLU1234567", shipmentId: "ssh1", status: "ok" },
-      { id: "sd3", name: "Customs", boxId: "MSCU7654321", shipmentId: "ssh1", status: "late" },
-    ],
+    rates: LCS_RATES,
+    tasks: LCS_TASKS,
+    docs: LCS_DOCS,
     vendorBills: [],
   };
 }
@@ -95,7 +76,15 @@ type SupportValue = {
   addTask: (input: { title: string; customerId?: string; jobId?: string; priority?: "high" | "normal" }) => void;
   toggleTask: (id: string) => void;
   setDocStatus: (id: string, status: ShellDocItem["status"]) => void;
-  addDoc: (input: { name: string; boxId?: string; shipmentId?: string }) => void;
+  patchDoc: (id: string, patch: Partial<Pick<ShellDocItem, "status" | "note" | "approval">>) => void;
+  addDoc: (input: {
+    name: string;
+    docType?: ShellDocType;
+    jobId?: string;
+    boxId?: string;
+    shipmentId?: string;
+    note?: string;
+  }) => void;
   addVendorBill: (input: { vendorName: string; amount: number; currency: string }) => void;
   approveVendorBill: (id: string) => void;
 };
@@ -148,13 +137,43 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const addDoc = useCallback((input: { name: string; boxId?: string; shipmentId?: string }) => {
-    if (!input.name.trim()) return;
+  const patchDoc = useCallback((id: string, patch: Partial<Pick<ShellDocItem, "status" | "note" | "approval">>) => {
     setState((s) => ({
       ...s,
-      docs: [{ id: `sd${Date.now()}`, name: input.name.trim(), boxId: input.boxId, shipmentId: input.shipmentId, status: "wait" }, ...s.docs],
+      docs: s.docs.map((d) => (d.id === id ? { ...d, ...patch } : d)),
     }));
   }, []);
+
+  const addDoc = useCallback(
+    (input: {
+      name: string;
+      docType?: ShellDocType;
+      jobId?: string;
+      boxId?: string;
+      shipmentId?: string;
+      note?: string;
+    }) => {
+      if (!input.name.trim()) return;
+      setState((s) => ({
+        ...s,
+        docs: [
+          {
+            id: `sd${Date.now()}`,
+            name: input.name.trim(),
+            docType: input.docType ?? "OTHER",
+            jobId: input.jobId,
+            boxId: input.boxId,
+            shipmentId: input.shipmentId,
+            status: "wait",
+            note: input.note ?? "",
+            approval: "none",
+          },
+          ...s.docs,
+        ],
+      }));
+    },
+    [],
+  );
 
   const addVendorBill = useCallback((input: { vendorName: string; amount: number; currency: string }) => {
     if (!input.vendorName.trim()) return;
@@ -189,11 +208,12 @@ export function ShellSupportProvider({ children }: { children: ReactNode }) {
       addTask,
       toggleTask,
       setDocStatus,
+      patchDoc,
       addDoc,
       addVendorBill,
       approveVendorBill,
     }),
-    [state, addRate, addTask, toggleTask, setDocStatus, addDoc, addVendorBill, approveVendorBill],
+    [state, addRate, addTask, toggleTask, setDocStatus, patchDoc, addDoc, addVendorBill, approveVendorBill],
   );
 
   return <SupportCtx.Provider value={value}>{children}</SupportCtx.Provider>;

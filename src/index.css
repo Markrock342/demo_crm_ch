@@ -4351,3 +4351,55 @@ td .pill {
 .list-btn .milestone-badge {
   margin-top: 2px;
 }
+
+/* Job Detail 360 */
+.page--job-detail .job-detail-grid {
+  display: grid;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .page--job-detail .job-detail-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .page--job-detail .job-detail-grid > .panel:nth-child(n + 5) {
+    grid-column: 1 / -1;
+  }
+}
+
+.job-dl {
+  display: grid;
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.job-dl > div {
+  display: grid;
+  grid-template-columns: minmax(88px, 32%) 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.job-dl dt {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--caption);
+}
+
+.job-dl dd {
+  margin: 0;
+}
+
+.inline-input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font: inherit;
+}

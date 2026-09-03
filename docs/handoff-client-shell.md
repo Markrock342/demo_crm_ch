@@ -1,11 +1,11 @@
 # Handoff — สรุปงาน CANGZHAN (สำหรับทำงานต่อ)
 
-> อัปเดต: 3 กันยายน 2569  
+> อัปเดต: 4 กันยายน 2569 (Phase A **Closed** — A3 closeout)  
 > Repo: `Markrock342/demo_crm_ch` · Local: `c:\my_job\crm` · Deploy: `democrmch.vercel.app`  
 > Audience: เพื่อนร่วมทีมที่ต้องศึกษาและต่อยอดได้ทันที  
 > Local UI: `http://localhost:5173/` (`npm run dev`)
 
-เอกสารนี้สรุป **สิ่งที่ทำแล้ว / ยังไม่ทำ / ไม่ยุ่ง** จากสองรอบใหญ่ในแชท: (1) ปิด backlog DB/API เดิม (2) P0 + Client full shell บน client โดยยังไม่ต่อ API/DB
+เอกสารนี้สรุป **สิ่งที่ทำแล้ว / ยังไม่ทำ / ไม่ยุ่ง** จากรอบ DB/API เดิม → P0 + Client full shell → **LCS Phase A (Closed)**
 
 ---
 
@@ -13,10 +13,11 @@
 
 1. **เป้าหมายปัจจุบันของ UI walkthrough:** ใช้งานได้จริงบน **shell client** (in-memory + `localStorage`) ไม่ใช่แค่ปุ่มเผื่อ — แต่ **ยังไม่เชื่อม API / PostgreSQL / Vercel DB**
 2. **สถาปัตยกรรมที่ล็อก:** `UI → ports → adapters/stub` + `src/shell/*` stores · ขนานกับ auth/API เดิม · **ห้ามแก้** `server/**` และ `src/api/**` ในรอบ shell
-3. **โดเมน:** CRM 货代 จีน–ไทย · FCL ทะเลเป็นหลัก · มีลานตู้เอง (Yard เป็นงานหลักของ Ops)
+3. **โดเมน:** CRM 货代 จีน–ไทย · FCL ทะเลเป็นหลัก · มีลานตู้เอง (Yard อยู่ในเมนู Ops; **แกนงาน = Job**)
 4. **แผนก Login:** Sales | **Ops** | Finance | Admin — เมนูต่างกัน · ซ่อน/จำกัด logistics ตามมติ
-5. **ข้อมูล:** seed เล็ก + สร้างเพิ่มได้ · persist ใน `localStorage` · UI ติดป้าย shell data
-6. **รอบก่อนหน้า (โค้ด server):** migrate/pool/Vendor Bills/mail-docs ทำไว้แล้ว — แต่ prod Vercel ยังไม่มี `DATABASE_URL`
+5. **ข้อมูล:** seed §12 (`seedLcs.ts`) · persist keys **`*-v3`** · UI ติดป้าย shell data
+6. **LCS Phase A:** **Closed** — Job Detail 360 + A3 closeout + `/exceptions` — ดู [`docs/lcs-phase-a.md`](./lcs-phase-a.md) (มี Deferred list)
+7. **ถัดไป:** Phase B ตาม `LCS_LogisticsOS_PLAN.md`
 
 ---
 
@@ -49,7 +50,7 @@
 
 **Commit อ้างอิง:** `d0aec17` — Add P0 basics UI shell…
 
-### 2.3 รอบ Client full shell (ล่าสุด)
+### 2.3 รอบ Client full shell
 
 | Phase | งาน | สถานะ |
 |-------|-----|--------|
@@ -61,6 +62,15 @@
 | 4 | Rates / Tasks / Docs checklist / Vendor bills stub | ✅ |
 | Docs | `docs/client-full-shell.md` + อัปเดต index/plan | ✅ |
 
+### 2.4 รอบ LCS Phase A (Closed)
+
+| งาน | สถานะ |
+|-----|--------|
+| Job domain + seed LCS แกน + Job Detail 360 | ✅ |
+| A3 closeout: filters, seal/LFD, Account credit, quote EXPIRED, Missing docs | ✅ |
+| Seed §12 (~15/30/40/20/20) · persist `*-v3` | ✅ |
+| `/exceptions` + Overview widgets/profit strips | ✅ |
+| Docs Closed + Deferred list | ✅ |
 ---
 
 ## 3. อะไรที่เราไม่ได้ทำ (ยังค้าง / รอรอบถัดไป)
@@ -73,11 +83,11 @@
 | Reports เต็ม (aggregate จาก DB) | นอกสcope |
 | AP payment / allocation / credit notes | นอกสcope |
 | LCL / ขนบก / บิน | ล็อกแล้วว่าไม่ทำในรอบนี้ (FCL ทะเลเท่านั้น) |
+| Phase B/C (portal, tracking API, อีเมลจริง) | นอกสcope Phase A |
 | Architecture replan (ข้อ 8) | เลื่อน |
 | รีแบรนด์ UI ใหญ่ | ทำแค่ densify ภายใต้ ledger-house |
 | Persist ข้ามเครื่อง / sync ระหว่าง user | มีแค่ localStorage ต่อเบราว์เซอร์ |
 | Calendar โหมด shell เต็ม | ยังอยู่ใน nav แต่ไม่ใช่โฟกัสรอบนี้ |
-| Account 360 ผูก shell CRM เต็ม | หน้าเดิมอาจยังอิง demo/API path |
 
 ---
 
@@ -110,7 +120,7 @@
 | แผนก | Home | เมนูหลัก |
 |------|------|----------|
 | Sales | `/` | CRM, Rates, Quotations, Boxes/Shipments (อ่าน), Tasks, Calendar, Settings |
-| Ops | `/yard` | Yard, Boxes, Shipments, Jobs, Docs, Tasks, Calendar, Settings |
+| Ops | `/jobs` | Jobs, Yard, Boxes, Shipments, Docs, Tasks, Calendar, Settings |
 | Finance | `/invoices` | Invoices, Vendor bills, Reports, Settings |
 | Admin | `/` | เกือบทั้งหมดรวม Yard + Inbox + Reports |
 
@@ -124,46 +134,50 @@
 
 ### 5.2 CRM
 
-- Store: [`src/shell/crmStore.tsx`](../src/shell/crmStore.tsx) · key `cangzhan-shell-crm-v1`
-- Seed: ลูกค้า `sc-seed-1` (粤泰贸易), `sc-seed-2` (东海供应链) + contact ตัวอย่าง
+- Store: [`src/shell/crmStore.tsx`](../src/shell/crmStore.tsx) · key `cangzhan-shell-crm-v2`
+- Seed: [`seedLcs.ts`](../src/shell/seedLcs.ts) (~6 ลูกค้า + contacts)
 - หน้า: Customers, Contacts, Leads, Pipeline — สร้าง/เลื่อนสถานะในหน่วยความจำได้
+- **Account 360 (shell):** [`Account.tsx`](../src/pages/Account.tsx) — quotes/jobs/invoices/docs ลิงก์เข้าหน้าจริง
 
 ### 5.3 Logistics (FCL จีน–ไทย + Yard)
 
-- Store: [`src/shell/opsStore.tsx`](../src/shell/opsStore.tsx) · key `cangzhan-shell-ops-v1`
-- Seed: 2 shipments, 3 boxes วางช่องลาน (เช่น B2/B3/A1)
+- Store: [`src/shell/opsStore.tsx`](../src/shell/opsStore.tsx) · key `cangzhan-shell-ops-v2`
+- Seed: ~8 shipments, ~12 boxes (LCB ↔ Yantian/Ningbo/Shanghai ฯลฯ)
 - สถานะ Box: `yard | sail | clear | hold | empty`
 - สถานะ Shipment: `booking → gate_in → sail → arrived → delivered`
 - Yard slots: A1–C4 (Laem Chabang) — เลือกตู้แล้วย้ายช่องว่างได้
-- หน้า: [`Boxes.tsx`](../src/pages/Boxes.tsx), [`Shipments.tsx`](../src/pages/Shipments.tsx), [`Yard.tsx`](../src/pages/Yard.tsx)
+- หน้า: [`Boxes.tsx`](../src/pages/Boxes.tsx) (`?jobId=`), [`Shipments.tsx`](../src/pages/Shipments.tsx) (`?jobId=`), [`Yard.tsx`](../src/pages/Yard.tsx)
 
 ### 5.4 เสนอราคา (Quote)
 
-- Store: [`src/shell/quoteStore.tsx`](../src/shell/quoteStore.tsx) · key `cangzhan-shell-quotes-v1`
+- Store: [`src/shell/quoteStore.tsx`](../src/shell/quoteStore.tsx) · key `cangzhan-shell-quotes-v2`
 - สถานะ: `DRAFT | PENDING_APPROVAL | SENT | ACCEPTED | REJECTED`
 - Wizard หลาย charges: `/quotations/new`
 - Preview สาธารณะ shell: `/q/shell/:id` (รับ/ปฏิเสธ)
-- หลัง `ACCEPTED` → ปุ่มสร้าง Job
+- หลัง `ACCEPTED` → สร้าง Job → navigate `/jobs/:id`
 
-### 5.5 Jobs
+### 5.5 Jobs (แกน Phase A)
 
-- Store: [`src/shell/jobStore.tsx`](../src/shell/jobStore.tsx) · key `cangzhan-shell-jobs-v1`
-- สร้างจาก quote ที่รับแล้ว · milestones ติ๊กได้ · สร้าง/ผูก Shipment · ออก Invoice จาก job
-- หน้า: [`Jobs.tsx`](../src/pages/Jobs.tsx) (โหมด shell ไม่เรียก API)
+- Store: [`src/shell/jobStore.tsx`](../src/shell/jobStore.tsx) · key `cangzhan-shell-jobs-v2`
+- Domain: owners, ETD/ETA, costs, notes, billingStatus, delayed + helpers GP%
+- List: [`Jobs.tsx`](../src/pages/Jobs.tsx) — filter + `?selected=` → Detail
+- Detail: [`JobDetail.tsx`](../src/pages/JobDetail.tsx) ที่ `/jobs/:id` — 360 panels
+- สร้างจาก quote · milestones · ตู้/docs/cost · invoice จาก job
 
 ### 5.6 Billing
 
-- Store: [`src/shell/billingStore.tsx`](../src/shell/billingStore.tsx) · key `cangzhan-shell-billing-v1`
-- Invoice มี `jobId` ได้ · ออกใบ → วางบิล → รับชำระ
-- หน้า: [`Invoices.tsx`](../src/pages/Invoices.tsx)
+- Store: [`src/shell/billingStore.tsx`](../src/shell/billingStore.tsx) · key `cangzhan-shell-billing-v2`
+- Invoice มี `jobId` · ออกใบ → วางบิล → รับชำระ · sync `billingStatus` บน job
+- หน้า: [`Invoices.tsx`](../src/pages/Invoices.tsx) (`?jobId=`)
 
 ### 5.7 โมดูลรอง
 
-- Store รวม: [`src/shell/supportStore.tsx`](../src/shell/supportStore.tsx) · key `cangzhan-shell-support-v1`
+- Store รวม: [`src/shell/supportStore.tsx`](../src/shell/supportStore.tsx) · key `cangzhan-shell-support-v2`
 - **Rates:** seed FCL + เพิ่มเรทได้
 - **Tasks:** ผูก customer / job ได้
-- **Docs:** checklist ผูก box/shipment (`ok|wait|late`)
+- **Docs:** checklist มี `docType` + `jobId` (`ok|wait|late`) — filter `?jobId=`
 - **Vendor bills:** สร้างร่าง + อนุมัติใน memory (Finance)
+- **Overview:** KPI + exceptions จาก shell stores → `/jobs/:id`
 
 ### 5.8 UI density
 
@@ -185,11 +199,12 @@ src/
   shell/          # session, nav, stores, persist  ← หัวใจรอบนี้
   ports/          # auth, crm, quote, billing, ops, job
   adapters/stub/  # คืน [] หรือ NotConfiguredError
-  pages/          # Login, CRM, Quote*, Jobs, Boxes, Yard, Shipments, Invoices, ...
-  App.tsx         # routes + กรอง nav ตามแผนก
+  pages/          # Login, CRM, Quote*, Jobs, JobDetail, Boxes, Yard, Shipments, Invoices, Overview, Account, ...
+  App.tsx         # routes + กรอง nav ตามแผนก (+ `/jobs/:id`)
   main.tsx        # provider tree
 docs/
   index.md
+  lcs-phase-a.md
   basics-ui-p0.md
   client-full-shell.md
   handoff-client-shell.md   ← ไฟล์นี้
@@ -201,25 +216,24 @@ Ports มีไว้ให้รอบถัดไป **เสียบ adapter
 
 ---
 
-## 7. Flow ที่ควรลอง walkthrough (QA มือ)
+## 7. Flow ที่ควรลอง walkthrough (QA มือ) — DoD Phase A
 
-1. Login → **Ops** → เห็น Yard มีตู้ seed · ย้ายช่องได้  
-2. Boxes / Shipments → เปลี่ยนสถานะได้  
-3. Logout → Login **Sales** → มี Boxes/Shipments อ่านอย่างเดียว · ไม่มี Yard  
-4. Login **Admin** หรือ Sales → Customers (มี seed) → Quotations → New (หลายค่าใช้จ่าย) → ส่งอนุมัติ → Mark sent → เปิด `/q/shell/:id` → Accept  
-5. Create job → Jobs → tick milestones → สร้าง shipment → Invoice from job → Invoices ออกใบ/วางบิล/รับชำระ  
-6. Refresh หน้า → ข้อมูลยังอยู่ (localStorage)  
-7. Finance → Vendor bills สร้าง/อนุมัติ stub  
+1. Login → **Ops** → land ที่ `/jobs` · Overview มี KPI/exceptions  
+2. เปิด Job Detail จาก list → แก้ตู้/docs/cost → เห็น GP  
+3. Boxes / Shipments / Docs ด้วย `?jobId=` จาก Job Detail  
+4. Logout → Login **Sales** → Customers → Quotations → Accept → Create job → ไป `/jobs/:id`  
+5. Job → Invoice from job → Invoices ออกใบ/รับชำระ → billingStatus บน Job อัปเดต  
+6. Account ของลูกค้า → แท็บ jobs/invoices/docs ลิงก์ได้  
+7. Refresh หน้า → ข้อมูลยังอยู่ (localStorage `*-v2`)  
 
 ---
 
 ## 8. สิ่งที่ควรทำต่อ (แนะนำลำดับ)
 
-1. **เสียบ API:** เขียน adapter จริงใต้ `adapters/` ที่เรียก `src/api` / server — สลับเมื่อมี auth production (ต้องยกเลิกกฎห้ามเปิด API อย่างเป็นทางการ)
+1. **เสียบ API:** เขียน adapter จริงใต้ `adapters/` ที่เรียก `src/api` / server — สลับเมื่อมี auth production  
 2. **Vercel DB:** ตั้ง pooled `DATABASE_URL` + `DB_POOL_MAX=1` → migrate/seed → ตรวจ `/api/health` = production  
-3. **Inbox / Reports** ให้ครบระดับเดียวกับ shell modules  
-4. **Account 360** ให้ดึงจาก shell stores เมื่อ `useIsShellMode()`  
-5. **อย่า commit** `.env` / secrets  
+3. **Phase B** ตาม `LCS_LogisticsOS_PLAN.md` (notifications · tracking · vendors · rates · portal)  
+4. **อย่า commit** `.env` / secrets  
 
 ---
 
@@ -229,6 +243,7 @@ Ports มีไว้ให้รอบถัดไป **เสียบ adapter
 |------|---------|
 | [plan.md](../plan.md) | สรุปสถานะโปรเจกต์ฉบับสั้น |
 | [docs/index.md](./index.md) | Architecture map |
+| [docs/lcs-phase-a.md](./lcs-phase-a.md) | LCS Phase A Job-centric |
 | [docs/client-full-shell.md](./client-full-shell.md) | สถานะรอบ full shell (protocol) |
 | [docs/basics-ui-p0.md](./basics-ui-p0.md) | สถานะ P0 |
 | [docs/foundation.md](./foundation.md) | DB/migrate/pool |
@@ -245,8 +260,9 @@ Ports มีไว้ให้รอบถัดไป **เสียบ adapter
 | Shell | ชั้น UI+state บน client ไม่ต่อ DB |
 | Port | TypeScript interface ของ use-case |
 | Stub adapter | Implementation ว่าง / `not_configured` |
-| Seed | ข้อมูลตัวอย่างเริ่มต้นเล็กน้อย |
-| Yard | แผนที่ลานตู้ (core ของ Ops) |
+| Seed LCS | ข้อมูลตัวอย่างสมจริง Phase A (`seedLcs.ts`) |
+| Job Detail 360 | หน้า `/jobs/:id` เป็นแกน ops |
+| Yard | แผนที่ลานตู้ (อยู่ในเมนู Ops) |
 | FCL | Full Container Load ทะเลจีน–ไทย |
 
 ---

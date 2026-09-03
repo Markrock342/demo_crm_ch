@@ -12,6 +12,11 @@ export type ShellInvoice = {
   currency: string;
   status: ShellInvoiceStatus;
   createdAt: string;
+  dueDate?: string;
+  creditTermDays?: number;
+  overdue?: boolean;
+  vatAmount?: number;
+  whtAmount?: number;
 };
 
 export type ShellBillingNote = {

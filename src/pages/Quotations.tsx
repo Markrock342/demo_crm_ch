@@ -79,7 +79,10 @@ export function QuotationsPage() {
                 {detail.origin} → {detail.destination} · {detail.pol} → {detail.pod}
               </p>
               <p className="meta">
-                {detail.mode} · {detail.containerType} × {detail.quantity} · {detail.status}
+                {detail.mode} · {detail.containerType} × {detail.quantity} · {detail.status} · rev {detail.revision ?? 1}
+              </p>
+              <p className="meta">
+                {tx("quoteValidFrom")}: {detail.validFrom || "—"} · {tx("quoteValidUntil")}: {detail.validUntil || "—"}
               </p>
               <div className="kpi-row">
                 <div className="kpi">
@@ -121,6 +124,30 @@ export function QuotationsPage() {
                     {tx("quoteMarkSent")}
                   </button>
                 ) : null}
+                {detail.status === "SENT" || detail.status === "DRAFT" || detail.status === "PENDING_APPROVAL" ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      quoteStore.setStatus(detail.id, "EXPIRED");
+                      setMsg(tx("quoteExpired"));
+                    }}
+                  >
+                    {tx("quoteMarkExpired")}
+                  </button>
+                ) : null}
+                {detail.status !== "ACCEPTED" ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      quoteStore.bumpRevision(detail.id);
+                      setMsg(tx("quoteRevisionBumped"));
+                    }}
+                  >
+                    {tx("quoteBumpRevision")}
+                  </button>
+                ) : null}
                 {detail.status === "SENT" || detail.status === "ACCEPTED" || detail.status === "REJECTED" ? (
                   <Link className="btn btn-ghost" to={`/q/shell/${detail.id}`} target="_blank" rel="noopener noreferrer">
                     {tx("quoteOpenPreview")}
@@ -131,20 +158,21 @@ export function QuotationsPage() {
                     type="button"
                     className="btn btn-primary"
                     onClick={() => {
-                      const fail = jobs.createFromQuote(detail);
-                      if (fail) {
-                        setMsg(tx(fail));
+                      const r = jobs.createFromQuoteId(detail);
+                      if (r.error) {
+                        setMsg(tx(r.error));
                         return;
                       }
                       setMsg(tx("jobCreated"));
-                      navigate("/jobs");
+                      if (r.id) navigate(`/jobs/${r.id}`);
+                      else navigate("/jobs");
                     }}
                   >
                     {tx("createJobFromQuote")}
                   </button>
                 ) : null}
                 {hasJob ? (
-                  <Link className="btn btn-ghost" to="/jobs">
+                  <Link className="btn btn-ghost" to={`/jobs/${jobs.jobs.find((j) => j.quotationId === detail.id)?.id ?? ""}`}>
                     {tx("navJobs")}
                   </Link>
                 ) : null}

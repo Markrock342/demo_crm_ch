@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ShellContact, ShellCustomer, ShellDeal, ShellLead } from "../ports/crm.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
+import { LCS_CONTACTS, LCS_CUSTOMERS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-crm-v1";
-const VERSION = 1;
+const STORAGE_KEY = "cangzhan-shell-crm-v3";
+const VERSION = 3;
 
 function stamp() {
   const d = new Date();
@@ -19,48 +20,8 @@ type CrmSnapshot = {
 
 function seedCrm(): CrmSnapshot {
   return {
-    customers: [
-      {
-        id: "sc-seed-1",
-        nameZh: "粤泰贸易",
-        nameTh: "Yuetai Trading",
-        nameEn: "Yuetai Trading",
-        cityZh: "广州",
-        cityTh: "กว่างโจว",
-        cityEn: "Guangzhou",
-        laneZh: "黄埔→林查班",
-        laneTh: "Huangpu→LCB",
-        laneEn: "Huangpu→LCB",
-        owner: "seed",
-        updated: stamp(),
-      },
-      {
-        id: "sc-seed-2",
-        nameZh: "东海供应链",
-        nameTh: "Donghai Supply",
-        nameEn: "Donghai Supply",
-        cityZh: "宁波",
-        cityTh: "หนิงโป",
-        cityEn: "Ningbo",
-        laneZh: "宁波→林查班",
-        laneTh: "Ningbo→LCB",
-        laneEn: "Ningbo→LCB",
-        owner: "seed",
-        updated: stamp(),
-      },
-    ],
-    contacts: [
-      {
-        id: "sp-seed-1",
-        customerId: "sc-seed-1",
-        name: "陈经理",
-        title: "采购",
-        email: "chen@yuetai.example",
-        phone: "+86-20-0000",
-        wechat: "chen_yt",
-        primary: true,
-      },
-    ],
+    customers: LCS_CUSTOMERS,
+    contacts: LCS_CONTACTS,
     leads: [],
     deals: [],
   };

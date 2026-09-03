@@ -4,12 +4,14 @@ import type { Department } from "./types.ts";
 const allowedByDept: Record<Department, ReadonlySet<string>> = {
   sales: new Set([
     "/",
+    "/exceptions",
     "/pipeline",
     "/leads",
     "/customers",
     "/contacts",
     "/rates",
     "/quotations",
+    "/jobs",
     "/boxes",
     "/shipments",
     "/tasks",
@@ -17,6 +19,8 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/settings",
   ]),
   ops: new Set([
+    "/",
+    "/exceptions",
     "/yard",
     "/boxes",
     "/shipments",
@@ -26,9 +30,10 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/calendar",
     "/settings",
   ]),
-  finance: new Set(["/invoices", "/vendor-bills", "/reports", "/settings"]),
+  finance: new Set(["/", "/exceptions", "/invoices", "/vendor-bills", "/reports", "/jobs", "/settings"]),
   admin: new Set([
     "/",
+    "/exceptions",
     "/pipeline",
     "/leads",
     "/customers",
@@ -57,7 +62,7 @@ export function navPathAllowed(department: Department | null, path: string): boo
 
 export function homePathFor(department: Department): string {
   if (department === "finance") return "/invoices";
-  if (department === "ops") return "/yard";
+  if (department === "ops") return "/jobs";
   return "/";
 }
 

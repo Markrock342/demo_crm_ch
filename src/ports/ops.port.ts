@@ -1,6 +1,7 @@
 export type ShellBoxStatus = "yard" | "sail" | "clear" | "hold" | "empty";
 export type ShellBoxDir = "in" | "out";
 export type ShellShipmentStatus = "booking" | "gate_in" | "sail" | "arrived" | "delivered";
+export type ShellDemurrageRisk = "none" | "watch" | "risk";
 
 export type ShellBox = {
   id: string;
@@ -18,6 +19,10 @@ export type ShellBox = {
   vessel?: string;
   pol?: string;
   pod?: string;
+  seal?: string;
+  freeTimeDays?: number;
+  lastFreeDay?: string;
+  demurrageRisk?: ShellDemurrageRisk;
 };
 
 export type ShellShipment = {

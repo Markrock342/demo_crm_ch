@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { ShellBox, ShellBoxDir, ShellBoxStatus, ShellShipment, ShellShipmentStatus } from "../ports/ops.port.ts";
+import type { ShellBox, ShellBoxDir, ShellBoxStatus, ShellDemurrageRisk, ShellShipment, ShellShipmentStatus } from "../ports/ops.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
+import { LCS_BOXES, LCS_SHIPMENTS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-ops-v1";
-const VERSION = 1;
+const STORAGE_KEY = "cangzhan-shell-ops-v3";
+const VERSION = 3;
 
 export const YARD_SLOTS = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4"] as const;
 export type YardSlot = (typeof YARD_SLOTS)[number];
@@ -22,88 +23,7 @@ function yardLabel(slot: string) {
 }
 
 function seedOps(): OpsSnapshot {
-  const shipments: ShellShipment[] = [
-    {
-      id: "ssh1",
-      customerId: "sc-seed-1",
-      bookingNo: "NSA25090101",
-      bl: "NSA25090101",
-      vessel: "COSCO ARIES",
-      voyage: "043E",
-      carrier: "COSCO",
-      pol: "CNSHA",
-      pod: "THLCH",
-      etd: "09-08",
-      eta: "09-15",
-      teu: 4,
-      status: "gate_in",
-      mode: "FCL",
-    },
-    {
-      id: "ssh2",
-      customerId: "sc-seed-2",
-      bookingNo: "MSK25090202",
-      bl: "MSK25090202",
-      vessel: "MAERSK SEALAND",
-      voyage: "118W",
-      carrier: "MAERSK",
-      pol: "CNNGB",
-      pod: "THLCH",
-      etd: "09-12",
-      eta: "09-20",
-      teu: 2,
-      status: "booking",
-      mode: "FCL",
-    },
-  ];
-  const boxes: ShellBox[] = [
-    {
-      id: "TCLU1234567",
-      customerId: "sc-seed-1",
-      shipmentId: "ssh1",
-      type: "40HC",
-      dir: "in",
-      status: "yard",
-      ...yardLabel("B2"),
-      eta: "09-15",
-      teu: 2,
-      bl: "NSA25090101",
-      vessel: "COSCO ARIES",
-      pol: "CNSHA",
-      pod: "THLCH",
-    },
-    {
-      id: "MSCU7654321",
-      customerId: "sc-seed-1",
-      shipmentId: "ssh1",
-      type: "40HC",
-      dir: "in",
-      status: "yard",
-      ...yardLabel("B3"),
-      eta: "09-15",
-      teu: 2,
-      bl: "NSA25090101",
-      vessel: "COSCO ARIES",
-      pol: "CNSHA",
-      pod: "THLCH",
-    },
-    {
-      id: "TEMU9988776",
-      customerId: "sc-seed-2",
-      shipmentId: "ssh2",
-      type: "20GP",
-      dir: "out",
-      status: "empty",
-      ...yardLabel("A1"),
-      eta: "09-20",
-      teu: 1,
-      bl: "MSK25090202",
-      vessel: "MAERSK SEALAND",
-      pol: "CNNGB",
-      pod: "THLCH",
-    },
-  ];
-  return { boxes, shipments };
+  return { boxes: LCS_BOXES, shipments: LCS_SHIPMENTS };
 }
 
 function loadInitial(): OpsSnapshot {
@@ -125,6 +45,10 @@ type ShellOpsValue = {
     shipmentId?: string;
   }) => string | null;
   setBoxStatus: (id: string, status: ShellBoxStatus) => void;
+  patchBox: (
+    id: string,
+    patch: Partial<Pick<ShellBox, "seal" | "freeTimeDays" | "lastFreeDay" | "demurrageRisk" | "status">>,
+  ) => void;
   moveBox: (id: string, slot: YardSlot) => void;
   addShipment: (input: {
     customerId: string;
@@ -190,6 +114,10 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
           eta: "—",
           teu: input.teu || 1,
           bl: input.bl.trim() || "—",
+          seal: "",
+          freeTimeDays: 7,
+          lastFreeDay: "—",
+          demurrageRisk: "none" as ShellDemurrageRisk,
         },
         ...list,
       ]);
@@ -201,6 +129,13 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
   const setBoxStatus = useCallback((id: string, status: ShellBoxStatus) => {
     setBoxes((list) => list.map((b) => (b.id === id ? { ...b, status } : b)));
   }, []);
+
+  const patchBox = useCallback(
+    (id: string, patch: Partial<Pick<ShellBox, "seal" | "freeTimeDays" | "lastFreeDay" | "demurrageRisk" | "status">>) => {
+      setBoxes((list) => list.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    },
+    [],
+  );
 
   const moveBox = useCallback((id: string, slot: YardSlot) => {
     const labels = yardLabel(slot);
@@ -307,13 +242,14 @@ export function ShellOpsProvider({ children }: { children: ReactNode }) {
       shipments,
       addBox,
       setBoxStatus,
+      patchBox,
       moveBox,
       addShipment,
       setShipmentStatus,
       linkBoxToShipment,
       createShipmentFromJob,
     }),
-    [boxes, shipments, addBox, setBoxStatus, moveBox, addShipment, setShipmentStatus, linkBoxToShipment, createShipmentFromJob],
+    [boxes, shipments, addBox, setBoxStatus, patchBox, moveBox, addShipment, setShipmentStatus, linkBoxToShipment, createShipmentFromJob],
   );
 
   return <OpsCtx.Provider value={value}>{children}</OpsCtx.Provider>;

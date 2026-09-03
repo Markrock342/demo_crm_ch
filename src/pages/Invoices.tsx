@@ -1,9 +1,10 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { billingStub } from "../adapters/stub/billing.stub.ts";
 import { customerName, type Customer } from "../data";
 import { useShellBilling } from "../shell/billingStore.tsx";
 import { useShellCrm } from "../shell/crmStore.tsx";
+import { useShellJobs } from "../shell/jobStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
@@ -13,8 +14,12 @@ export function InvoicesPage() {
   const { tx, locale } = useStore();
   const crm = useShellCrm();
   const billing = useShellBilling();
+  const jobs = useShellJobs();
+  const [params] = useSearchParams();
+  const jobIdFilter = params.get("jobId") ?? "";
   const customers = crm.customers;
-  const invoices = shell ? billing.invoices : [];
+  const allInvoices = shell ? billing.invoices : [];
+  const invoices = jobIdFilter ? allInvoices.filter((i) => i.jobId === jobIdFilter) : allInvoices;
   const billingNotes = shell ? billing.billingNotes : [];
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [draft, setDraft] = useState({ customerId: "", total: 1000, currency: "USD" });
@@ -49,10 +54,16 @@ export function InvoicesPage() {
   }
 
   function pay() {
-    const err = billing.recordPayment({ invoiceId: payForm.invoiceId, amount: Number(payForm.amount) });
+    const invBefore = billing.invoices.find((i) => i.id === payForm.invoiceId);
+    const amount = Number(payForm.amount);
+    const err = billing.recordPayment({ invoiceId: payForm.invoiceId, amount });
     if (err) {
       setMsg(tx(err));
       return;
+    }
+    if (invBefore?.jobId) {
+      const bal = Math.max(0, (invBefore.balanceDue || 0) - amount);
+      jobs.setBillingStatus(invBefore.jobId, bal <= 0 ? "PAID" : "PARTIAL");
     }
     setMsg(tx("paymentRecorded"));
     setPayForm({ invoiceId: "", amount: "" });
@@ -63,14 +74,29 @@ export function InvoicesPage() {
       <PageToolbar
         title={tx("invoicesTitle")}
         count={invoices.length}
-        hint={shell ? `${tx("shellDataBadge")} · ${tx("billingShellHint")}` : tx("invoicesDemoPreviewHint")}
+        hint={
+          shell
+            ? `${tx("shellDataBadge")} · ${tx("billingShellHint")}${jobIdFilter ? ` · ${jobIdFilter}` : ""}`
+            : tx("invoicesDemoPreviewHint")
+        }
         actions={
           shell ? (
             <>
-              <Link className="btn btn-ghost" to="/jobs">
-                {tx("invoiceFromJob")}
-              </Link>
-              <button type="button" className="btn btn-primary" onClick={() => setOpenDraft((v) => !v)} disabled={customers.length === 0}>
+              {jobIdFilter ? (
+                <Link className="btn btn-ghost" to={`/jobs/${jobIdFilter}`}>
+                  {tx("navJobs")}
+                </Link>
+              ) : (
+                <Link className="btn btn-ghost" to="/jobs">
+                  {tx("invoiceFromJob")}
+                </Link>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setOpenDraft((v) => !v)}
+                disabled={customers.length === 0}
+              >
                 {tx("createDraftInvoice")}
               </button>
             </>
@@ -91,7 +117,10 @@ export function InvoicesPage() {
         <form className="form form-stack" onSubmit={createDraft}>
           <label>
             {tx("colCustomer")}
-            <select value={draft.customerId || customers[0]?.id || ""} onChange={(e) => setDraft({ ...draft, customerId: e.target.value })}>
+            <select
+              value={draft.customerId || customers[0]?.id || ""}
+              onChange={(e) => setDraft({ ...draft, customerId: e.target.value })}
+            >
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {customerName(c as Customer, locale)}
@@ -101,7 +130,12 @@ export function InvoicesPage() {
           </label>
           <label>
             {tx("colTotal")}
-            <input type="number" min={0} value={draft.total} onChange={(e) => setDraft({ ...draft, total: Number(e.target.value) })} />
+            <input
+              type="number"
+              min={0}
+              value={draft.total}
+              onChange={(e) => setDraft({ ...draft, total: Number(e.target.value) })}
+            />
           </label>
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
@@ -120,8 +154,12 @@ export function InvoicesPage() {
               <tr>
                 {shell ? <th /> : null}
                 <th>{tx("colInvoice")}</th>
+                <th>{tx("navJobs")}</th>
                 <th>{tx("colCustomer")}</th>
                 <th>{tx("colTotal")}</th>
+                <th>{tx("invoiceVat")}</th>
+                <th>{tx("invoiceWht")}</th>
+                <th>{tx("invoiceDueDate")}</th>
                 <th>{tx("colBalance")}</th>
                 <th>{tx("colStatus")}</th>
                 {shell ? <th /> : null}
@@ -137,15 +175,35 @@ export function InvoicesPage() {
                         checked={selectedInvoices.includes(inv.id)}
                         disabled={inv.status === "DRAFT"}
                         onChange={(e) =>
-                          setSelectedInvoices((s) => (e.target.checked ? [...s, inv.id] : s.filter((x) => x !== inv.id)))
+                          setSelectedInvoices((s) =>
+                            e.target.checked ? [...s, inv.id] : s.filter((x) => x !== inv.id),
+                          )
                         }
                       />
                     </td>
                   ) : null}
                   <td>{inv.invoiceNumber}</td>
-                  <td>{customerMap[inv.customerId] ? customerName(customerMap[inv.customerId] as Customer, locale) : inv.customerId}</td>
+                  <td>
+                    {inv.jobId ? (
+                      <Link to={`/jobs/${inv.jobId}`}>{jobs.getById(inv.jobId)?.jobNumber ?? inv.jobId}</Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {customerMap[inv.customerId]
+                      ? customerName(customerMap[inv.customerId] as Customer, locale)
+                      : inv.customerId}
+                  </td>
                   <td className="mono">
                     {inv.total} {inv.currency}
+                  </td>
+                  <td className="mono">{inv.vatAmount ?? "—"}</td>
+                  <td className="mono">{inv.whtAmount ?? "—"}</td>
+                  <td className="mono">
+                    {inv.dueDate ?? "—"}
+                    {inv.creditTermDays != null ? ` · ${inv.creditTermDays}d` : ""}
+                    {inv.overdue ? <span className="pill pill-warn">overdue</span> : null}
                   </td>
                   <td className="mono">{inv.balanceDue}</td>
                   <td>
@@ -159,6 +217,7 @@ export function InvoicesPage() {
                           className="btn btn-ghost"
                           onClick={() => {
                             billing.issueInvoice(inv.id);
+                            if (inv.jobId) jobs.setBillingStatus(inv.jobId, "INVOICED");
                             setMsg(tx("invoiceIssued"));
                           }}
                         >

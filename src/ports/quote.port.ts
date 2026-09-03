@@ -1,6 +1,12 @@
 import { NotConfiguredError } from "./auth.port.ts";
 
-export type ShellQuoteStatus = "DRAFT" | "PENDING_APPROVAL" | "SENT" | "ACCEPTED" | "REJECTED";
+export type ShellQuoteStatus =
+  | "DRAFT"
+  | "PENDING_APPROVAL"
+  | "SENT"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "EXPIRED";
 
 export type ShellQuoteCharge = {
   description: string;
@@ -23,7 +29,9 @@ export type ShellQuotation = {
   status: ShellQuoteStatus;
   charges: ShellQuoteCharge[];
   totalSell: number;
+  validFrom: string;
   validUntil: string;
+  revision: number;
   termsAndConditions: string;
   createdAt: string;
 };

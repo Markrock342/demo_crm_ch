@@ -2,9 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { ShellBillingNote, ShellInvoice, ShellPayment } from "../ports/billing.port.ts";
 import type { ShellJob } from "../ports/job.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
+import { LCS_INVOICES } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-billing-v1";
-const VERSION = 1;
+const STORAGE_KEY = "cangzhan-shell-billing-v3";
+const VERSION = 3;
 
 type Snapshot = {
   invoices: ShellInvoice[];
@@ -29,10 +30,10 @@ const BillingCtx = createContext<ShellBillingValue | null>(null);
 
 export function ShellBillingProvider({ children }: { children: ReactNode }) {
   const loaded = loadPersisted<Snapshot>(STORAGE_KEY, VERSION);
-  const [invoices, setInvoices] = useState<ShellInvoice[]>(loaded?.invoices ?? []);
+  const [invoices, setInvoices] = useState<ShellInvoice[]>(loaded?.invoices ?? LCS_INVOICES);
   const [billingNotes, setBillingNotes] = useState<ShellBillingNote[]>(loaded?.billingNotes ?? []);
   const [payments, setPayments] = useState<ShellPayment[]>(loaded?.payments ?? []);
-  const [invSeq, setInvSeq] = useState(loaded?.invSeq ?? 1);
+  const [invSeq, setInvSeq] = useState(loaded?.invSeq ?? 20);
   const [bnSeq, setBnSeq] = useState(loaded?.bnSeq ?? 1);
 
   useEffect(() => {
@@ -45,6 +46,11 @@ export function ShellBillingProvider({ children }: { children: ReactNode }) {
       const total = Number(input.total) || 0;
       const id = `si${Date.now()}`;
       const n = invSeq;
+      const createdAt = new Date().toISOString().slice(0, 10);
+      const due = new Date();
+      due.setDate(due.getDate() + 30);
+      const dueDate = due.toISOString().slice(0, 10);
+      const vatAmount = Math.round(total * 0.07 * 100) / 100;
       setInvSeq((x) => x + 1);
       setInvoices((list) => [
         {
@@ -56,7 +62,12 @@ export function ShellBillingProvider({ children }: { children: ReactNode }) {
           balanceDue: total,
           currency: input.currency.trim() || "USD",
           status: "DRAFT",
-          createdAt: new Date().toISOString().slice(0, 10),
+          createdAt,
+          dueDate,
+          creditTermDays: 30,
+          overdue: false,
+          vatAmount,
+          whtAmount: 0,
         },
         ...list,
       ]);

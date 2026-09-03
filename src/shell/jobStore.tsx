@@ -1,33 +1,34 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { ShellJob, ShellJobCharge, ShellJobMilestone } from "../ports/job.port.ts";
+import type { ShellBillingStatus, ShellJob, ShellJobCharge, ShellJobCost, ShellJobMilestone, ShellJobNote } from "../ports/job.port.ts";
+import { DEFAULT_MILESTONES } from "../ports/job.port.ts";
 import type { ShellQuotation } from "../ports/quote.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";
+import { LCS_JOBS } from "./seedLcs.ts";
 
-const STORAGE_KEY = "cangzhan-shell-jobs-v1";
-const VERSION = 1;
+const STORAGE_KEY = "cangzhan-shell-jobs-v3";
+const VERSION = 3;
 
-const DEFAULT_MILESTONES: ShellJobMilestone[] = [
-  { code: "BOOKING", label: "Booking confirmed", actualAt: null },
-  { code: "GATE_IN", label: "Gate in", actualAt: null },
-  { code: "SAILED", label: "Vessel sailed", actualAt: null },
-  { code: "ARRIVED", label: "Arrived POD", actualAt: null },
-  { code: "DELIVERED", label: "Delivered", actualAt: null },
-];
-
+export { DEFAULT_MILESTONES };
 type ShellJobValue = {
   jobs: ShellJob[];
   createFromQuote: (quote: ShellQuotation) => string | null;
+  /** Returns new job id on success, or error key */
+  createFromQuoteId: (quote: ShellQuotation) => { id?: string; error?: string };
   toggleMilestone: (jobId: string, code: string, complete: boolean) => void;
   attachShipment: (jobId: string, shipmentId: string) => void;
   getById: (id: string) => ShellJob | undefined;
+  addCost: (jobId: string, input: { description: string; vendor: string; amount: number; currency?: string }) => void;
+  addNote: (jobId: string, body: string, author?: string) => void;
+  setBillingStatus: (jobId: string, status: ShellBillingStatus) => void;
+  patchJob: (jobId: string, patch: Partial<Pick<ShellJob, "opsOwner" | "salesOwner" | "etd" | "eta" | "carrier" | "vessel" | "voyage" | "delayed">>) => void;
 };
 
 const JobCtx = createContext<ShellJobValue | null>(null);
 
-let seq = 1;
+let seq = 100;
 
 export function ShellJobProvider({ children }: { children: ReactNode }) {
-  const [jobs, setJobs] = useState<ShellJob[]>(() => loadPersisted<ShellJob[]>(STORAGE_KEY, VERSION) ?? []);
+  const [jobs, setJobs] = useState<ShellJob[]>(() => loadPersisted<ShellJob[]>(STORAGE_KEY, VERSION) ?? LCS_JOBS);
 
   useEffect(() => {
     savePersisted(STORAGE_KEY, VERSION, jobs);
@@ -35,9 +36,10 @@ export function ShellJobProvider({ children }: { children: ReactNode }) {
 
   const getById = useCallback((id: string) => jobs.find((j) => j.id === id), [jobs]);
 
-  const createFromQuote = useCallback((quote: ShellQuotation) => {
-    if (quote.status !== "ACCEPTED") return "errorSave";
-    if (jobs.some((j) => j.quotationId === quote.id)) return "errorSave";
+  const createFromQuoteId = useCallback((quote: ShellQuotation) => {
+    if (quote.status !== "ACCEPTED") return { error: "errorSave" };
+    const existing = jobs.find((j) => j.quotationId === quote.id);
+    if (existing) return { id: existing.id };
     const id = `sj${Date.now()}`;
     const n = seq++;
     const charges: ShellJobCharge[] = quote.charges.map((c) => ({
@@ -60,12 +62,35 @@ export function ShellJobProvider({ children }: { children: ReactNode }) {
       status: "OPEN",
       charges,
       totalSell: quote.totalSell,
+      costs: [],
+      notes: [],
       milestones: DEFAULT_MILESTONES.map((m) => ({ ...m })),
       createdAt: new Date().toISOString().slice(0, 10),
+      shipper: "—",
+      consignee: "—",
+      incoterm: "FOB",
+      carrier: "TBN",
+      vessel: "TBN",
+      voyage: "TBN",
+      etd: "—",
+      eta: "—",
+      salesOwner: "shell",
+      opsOwner: "shell",
+      serviceType: "FCL",
+      billingStatus: "UNBILLED",
+      delayed: false,
     };
     setJobs((list) => [row, ...list]);
-    return null;
+    return { id };
   }, [jobs]);
+
+  const createFromQuote = useCallback(
+    (quote: ShellQuotation) => {
+      const r = createFromQuoteId(quote);
+      return r.error ?? null;
+    },
+    [createFromQuoteId],
+  );
 
   const toggleMilestone = useCallback((jobId: string, code: string, complete: boolean) => {
     setJobs((list) =>
@@ -85,9 +110,54 @@ export function ShellJobProvider({ children }: { children: ReactNode }) {
     setJobs((list) => list.map((j) => (j.id === jobId ? { ...j, shipmentId } : j)));
   }, []);
 
+  const addCost = useCallback((jobId: string, input: { description: string; vendor: string; amount: number; currency?: string }) => {
+    if (!input.description.trim()) return;
+    const cost: ShellJobCost = {
+      id: `jc${Date.now()}`,
+      description: input.description.trim(),
+      vendor: input.vendor.trim() || "—",
+      amount: Number(input.amount) || 0,
+      currency: input.currency || "USD",
+    };
+    setJobs((list) => list.map((j) => (j.id === jobId ? { ...j, costs: [cost, ...j.costs] } : j)));
+  }, []);
+
+  const addNote = useCallback((jobId: string, body: string, author = "shell") => {
+    if (!body.trim()) return;
+    const note: ShellJobNote = {
+      id: `jn${Date.now()}`,
+      body: body.trim(),
+      author,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    setJobs((list) => list.map((j) => (j.id === jobId ? { ...j, notes: [note, ...j.notes] } : j)));
+  }, []);
+
+  const setBillingStatus = useCallback((jobId: string, status: ShellBillingStatus) => {
+    setJobs((list) => list.map((j) => (j.id === jobId ? { ...j, billingStatus: status } : j)));
+  }, []);
+
+  const patchJob = useCallback(
+    (jobId: string, patch: Partial<Pick<ShellJob, "opsOwner" | "salesOwner" | "etd" | "eta" | "carrier" | "vessel" | "voyage" | "delayed">>) => {
+      setJobs((list) => list.map((j) => (j.id === jobId ? { ...j, ...patch } : j)));
+    },
+    [],
+  );
+
   const value = useMemo(
-    () => ({ jobs, createFromQuote, toggleMilestone, attachShipment, getById }),
-    [jobs, createFromQuote, toggleMilestone, attachShipment, getById],
+    () => ({
+      jobs,
+      createFromQuote,
+      createFromQuoteId,
+      toggleMilestone,
+      attachShipment,
+      getById,
+      addCost,
+      addNote,
+      setBillingStatus,
+      patchJob,
+    }),
+    [jobs, createFromQuote, createFromQuoteId, toggleMilestone, attachShipment, getById, addCost, addNote, setBillingStatus, patchJob],
   );
 
   return <JobCtx.Provider value={value}>{children}</JobCtx.Provider>;

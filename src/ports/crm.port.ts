@@ -1,3 +1,11 @@
+export type ShellContactRole =
+  | "Purchasing"
+  | "ImportExport"
+  | "Accounting"
+  | "Warehouse"
+  | "Management"
+  | "Other";
+
 export type ShellCustomer = {
   id: string;
   nameZh: string;
@@ -11,6 +19,10 @@ export type ShellCustomer = {
   laneEn: string;
   owner: string;
   updated: string;
+  taxId?: string;
+  billingAddress?: string;
+  creditTerm?: string;
+  creditLimit?: number;
 };
 
 export type ShellContact = {
@@ -22,6 +34,7 @@ export type ShellContact = {
   phone: string;
   wechat: string;
   primary: boolean;
+  role?: ShellContactRole;
 };
 
 export type ShellLead = {

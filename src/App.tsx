@@ -35,10 +35,12 @@ import { CalendarPage } from "./pages/Calendar";
 import { ContactsPage } from "./pages/Contacts";
 import { CustomersPage } from "./pages/Customers";
 import { DocsPage } from "./pages/Docs";
+import { ExceptionsPage } from "./pages/Exceptions";
 import { InboxPage } from "./pages/Inbox";
 import { InvoicesPage } from "./pages/Invoices";
 import { VendorBillsPage } from "./pages/VendorBills";
 import { JobsPage } from "./pages/Jobs";
+import { JobDetailPage } from "./pages/JobDetail";
 import { LeadsPage } from "./pages/Leads";
 import { OverviewPage } from "./pages/Overview";
 import { PipelinePage } from "./pages/Pipeline";
@@ -62,6 +64,7 @@ const groups = [
     key: "navSales",
     items: [
       { to: "/", key: "navOverview", icon: House, end: true },
+      { to: "/exceptions", key: "navExceptions", icon: Bell },
       { to: "/pipeline", key: "navPipeline", icon: Funnel },
       { to: "/leads", key: "navLeads", icon: Tray },
       { to: "/customers", key: "navCustomers", icon: Users },
@@ -91,6 +94,7 @@ const groups = [
       { to: "/yard", key: "navYard", icon: SquaresFour },
       { to: "/inbox", key: "navInbox", icon: EnvelopeSimple },
       { to: "/docs", key: "navDocs", icon: FileText },
+      { to: "/exceptions", key: "navExceptions", icon: Bell },
     ],
   },
   {
@@ -337,6 +341,7 @@ function AppShell() {
         <main id="main" className="content canvas" key={loc.pathname}>
           <Routes>
             <Route path="/" element={<OverviewPage />} />
+            <Route path="/exceptions" element={<ExceptionsPage />} />
             <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/leads" element={<LeadsPage />} />
             <Route path="/customers" element={<CustomersPage />} />
@@ -346,6 +351,7 @@ function AppShell() {
             <Route path="/quotations" element={<QuotationsPage />} />
             <Route path="/quotations/new" element={<QuoteWizardPage />} />
             <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/jobs/:id" element={<JobDetailPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/vendor-bills" element={<VendorBillsPage />} />
             <Route path="/boxes" element={<BoxesPage />} />

@@ -8,6 +8,7 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 | Module | Doc | Status |
 |--------|-----|--------|
 | **Handoff (ศึกษา/ทำงานต่อ)** | [handoff-client-shell.md](./handoff-client-shell.md) | Current — อ่านก่อน |
+| **LCS Phase A (Job 360)** | [lcs-phase-a.md](./lcs-phase-a.md) | **Closed** (shell A3 closeout + Deferred) |
 | Client full shell | [client-full-shell.md](./client-full-shell.md) | Done (localStorage walkthrough) |
 | Basics UI shell (P0) | [basics-ui-p0.md](./basics-ui-p0.md) | Done (superseded by full shell) |
 | Foundation (DB, migrate, pool, auth) | [foundation.md](./foundation.md) | Ready (await Vercel DATABASE_URL) |
@@ -28,6 +29,7 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 
 ## Locked product scope (current sprint)
 
+- **LCS Phase A** — Job Detail 360 + A3 closeout (seed §12, `/exceptions`, filters) — **Closed** บน shell; ดู [lcs-phase-a.md](./lcs-phase-a.md)
 - **Client full shell** — densify UI · Ops · Logistics · Quote→Job→Bill · Rates/Tasks/Docs/VB stub — **done** on client; ไม่ต่อ API/DB
-- Next: stub → API adapters · Inbox/Reports · Vercel `DATABASE_URL` · architecture replan (ข้อ 8)
+- Next: **Phase B** (notifications, tracking, vendors, rates, portal) · stub → API · Vercel `DATABASE_URL`
 - Prior: P0 basics shell · Vendor Bills / mail-docs / boxes derive — done on code; prod DB ยังรอ ops

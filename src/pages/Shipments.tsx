@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { customerName, type Customer } from "../data";
 import { shipmentStatusI18n, type ShipmentStatus } from "../logistics";
 import { canEditLogistics } from "../shell/nav.ts";
@@ -18,6 +18,8 @@ export function ShipmentsPage() {
   const crm = useShellCrm();
   const ops = useShellOps();
   const { tx, locale, query } = store;
+  const [params] = useSearchParams();
+  const jobIdFilter = params.get("jobId") ?? "";
   const canEdit = shell ? canEditLogistics(shellUser?.department ?? null) : true;
   const customers = shell ? crm.customers : store.customers;
   const shipments = shell ? ops.shipments : store.shipments;
@@ -43,11 +45,12 @@ export function ShipmentsPage() {
     () =>
       shipments.filter((s) => {
         if (status !== "all" && s.status !== status) return false;
+        if (jobIdFilter && "jobId" in s && s.jobId !== jobIdFilter) return false;
         const c = customers.find((x) => x.id === s.customerId);
         const blob = `${s.bookingNo} ${s.bl} ${s.vessel} ${s.pol} ${s.pod} ${c ? customerName(c as Customer, locale) : ""}`.toLowerCase();
         return !q || blob.includes(q);
       }),
-    [customers, locale, q, shipments, status],
+    [customers, jobIdFilter, locale, q, shipments, status],
   );
 
   const boxCounts = useMemo(() => {
@@ -74,12 +77,25 @@ export function ShipmentsPage() {
       <PageToolbar
         title={tx("shipmentsTitle")}
         count={rows.length}
-        hint={shell ? `${tx("shellDataBadge")}${canEdit ? "" : ` · ${tx("shellReadOnly")}`}` : tx("shipmentsHintShort")}
+        hint={
+          shell
+            ? `${tx("shellDataBadge")}${canEdit ? "" : ` · ${tx("shellReadOnly")}`}${jobIdFilter ? ` · job ${jobIdFilter}` : ""}`
+            : tx("shipmentsHintShort")
+        }
         actions={
-          shell && canEdit ? (
-            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} disabled={customers.length === 0}>
-              {tx("createShellShipment")}
-            </button>
+          shell ? (
+            <>
+              {jobIdFilter ? (
+                <Link className="btn btn-ghost" to={`/jobs/${jobIdFilter}`}>
+                  {tx("navJobs")}
+                </Link>
+              ) : null}
+              {canEdit ? (
+                <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} disabled={customers.length === 0}>
+                  {tx("createShellShipment")}
+                </button>
+              ) : null}
+            </>
           ) : null
         }
         filters={

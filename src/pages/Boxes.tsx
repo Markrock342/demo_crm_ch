@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { customerName, type BoxStatus, type Customer, type Direction } from "../data";
 import { useContainers } from "../hooks/useContainers";
 import { canEditLogistics } from "../shell/nav.ts";
@@ -19,6 +19,9 @@ export function BoxesPage() {
   const ops = useShellOps();
   const containers = useContainers();
   const { tx, locale, query } = store;
+  const [params] = useSearchParams();
+  const jobIdFilter = params.get("jobId") ?? "";
+  const shipmentIdFilter = params.get("shipmentId") ?? "";
   const canEdit = shell ? canEditLogistics(shellUser?.department ?? null) : true;
   const customers = shell ? crm.customers : store.customers;
   const boxes = shell ? ops.boxes : containers.boxes;
@@ -36,14 +39,24 @@ export function BoxesPage() {
   });
   const q = query.trim().toLowerCase();
 
+  const shipmentIdsForJob = useMemo(() => {
+    if (!jobIdFilter || !shell) return new Set<string>();
+    return new Set(ops.shipments.filter((s) => s.jobId === jobIdFilter).map((s) => s.id));
+  }, [jobIdFilter, ops.shipments, shell]);
+
   const rows = useMemo(() => {
     return boxes.filter((b) => {
       if (status !== "all" && b.status !== status) return false;
+      if (shipmentIdFilter && b.shipmentId !== shipmentIdFilter) return false;
+      if (jobIdFilter) {
+        const ship = ops.shipments.find((s) => s.id === b.shipmentId);
+        if (!(shipmentIdsForJob.has(b.shipmentId ?? "") || ship?.jobId === jobIdFilter)) return false;
+      }
       const c = customers.find((x) => x.id === b.customerId);
       const blob = `${b.id} ${b.bl} ${b.yardZh} ${c ? customerName(c as Customer, locale) : ""}`.toLowerCase();
       return !q || blob.includes(q);
     });
-  }, [boxes, customers, locale, q, status]);
+  }, [boxes, customers, jobIdFilter, locale, ops.shipments, q, shipmentIdFilter, shipmentIdsForJob, status]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -62,12 +75,25 @@ export function BoxesPage() {
       <PageToolbar
         title={tx("boxesTitle")}
         count={rows.length}
-        hint={shell ? `${tx("shellDataBadge")}${canEdit ? "" : ` · ${tx("shellReadOnly")}`}` : tx("boxesHint")}
+        hint={
+          shell
+            ? `${tx("shellDataBadge")}${canEdit ? "" : ` · ${tx("shellReadOnly")}`}${jobIdFilter ? ` · job ${jobIdFilter}` : ""}${shipmentIdFilter ? ` · ${shipmentIdFilter}` : ""}`
+            : tx("boxesHint")
+        }
         actions={
-          shell && canEdit ? (
-            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} disabled={customers.length === 0}>
-              {tx("createShellBox")}
-            </button>
+          shell ? (
+            <>
+              {jobIdFilter ? (
+                <Link className="btn btn-ghost" to={`/jobs/${jobIdFilter}`}>
+                  {tx("navJobs")}
+                </Link>
+              ) : null}
+              {canEdit ? (
+                <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} disabled={customers.length === 0}>
+                  {tx("createShellBox")}
+                </button>
+              ) : null}
+            </>
           ) : null
         }
         filters={
