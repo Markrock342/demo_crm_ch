@@ -198,7 +198,7 @@ export function PipelinePage() {
                             id={`st-${d.id}`}
                             className="deal-select"
                             value={d.stage}
-                            onChange={(e) => moveDeal(d.id, e.target.value)}
+                            onChange={(e) => moveDeal(d.id, e.target.value as DealStage)}
                           >
                             {dealStages.map((s) => (
                               <option key={s} value={s}>

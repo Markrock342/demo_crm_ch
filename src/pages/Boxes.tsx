@@ -204,7 +204,7 @@ export function BoxesPage() {
                     <td>{c ? customerName(c as Customer, locale) : b.customerId}</td>
                     <td>
                       <span className="pill">{b.status}</span>
-                      {b.etaChanged ? <span className="pill pill-warn">ETA</span> : null}
+                      {"etaChanged" in b && b.etaChanged ? <span className="pill pill-warn">ETA</span> : null}
                     </td>
                     <td>{b.yardZh}</td>
                     <td className="mono">{b.bl}</td>

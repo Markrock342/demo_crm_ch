@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { ShellBillingStatus, ShellJob, ShellJobCharge, ShellJobCost, ShellJobMilestone, ShellJobNote } from "../ports/job.port.ts";
+import type { ShellBillingStatus, ShellJob, ShellJobCharge, ShellJobCost, ShellJobNote } from "../ports/job.port.ts";
 import { DEFAULT_MILESTONES } from "../ports/job.port.ts";
 import type { ShellQuotation } from "../ports/quote.port.ts";
 import { loadPersisted, savePersisted } from "./persist.ts";

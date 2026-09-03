@@ -40,12 +40,20 @@ export function YardPage() {
   const err = shell ? null : containers.err;
 
   const map = useMemo(() => {
-    const placed = new Map<string, (typeof boxes)[number]>();
-    const leftovers: typeof boxes = [];
+    type YardBox = { id: string; customerId: string; yardZh: string; teu: number; yardEn?: string };
+    const placed = new Map<string, YardBox>();
+    const leftovers: YardBox[] = [];
     for (const b of boxes) {
-      const slot = slotFromYard(b.yardZh) ?? slotFromYard(("yardEn" in b ? b.yardEn : "") as string);
-      if (slot && YARD_SLOTS.includes(slot as YardSlot) && !placed.has(slot)) placed.set(slot, b);
-      else leftovers.push(b);
+      const row: YardBox = {
+        id: b.id,
+        customerId: b.customerId,
+        yardZh: b.yardZh,
+        teu: b.teu,
+        yardEn: "yardEn" in b ? b.yardEn : undefined,
+      };
+      const slot = slotFromYard(row.yardZh) ?? slotFromYard(row.yardEn ?? "");
+      if (slot && YARD_SLOTS.includes(slot as YardSlot) && !placed.has(slot)) placed.set(slot, row);
+      else leftovers.push(row);
     }
     for (const slot of YARD_SLOTS) {
       if (placed.has(slot)) continue;

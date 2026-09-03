@@ -112,7 +112,7 @@ export function ShellAutomationProvider({ children }: { children: ReactNode }) {
     }
 
     if (enabled.has("invoice_overdue")) {
-      const overdue = billing.invoices.filter((i) => i.status === "OVERDUE" || (i.balanceDue > 0 && i.dueDate && i.dueDate < new Date().toISOString().slice(0, 10)));
+      const overdue = billing.invoices.filter((i) => i.balanceDue > 0 && !!i.dueDate && i.dueDate < new Date().toISOString().slice(0, 10));
       if (overdue.length) {
         fired++;
         audits.push({
