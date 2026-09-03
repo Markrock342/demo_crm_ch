@@ -43,6 +43,8 @@ import { LeadsPage } from "./pages/Leads";
 import { OverviewPage } from "./pages/Overview";
 import { PipelinePage } from "./pages/Pipeline";
 import { QuotePublicPage } from "./pages/QuotePublic";
+import { QuotePublicShellPage } from "./pages/QuotePublicShell";
+import { QuoteWizardPage } from "./pages/QuoteWizard";
 import { QuotationsPage } from "./pages/Quotations";
 import { RatesPage } from "./pages/Rates";
 import { ReportsPage } from "./pages/Reports";
@@ -51,6 +53,8 @@ import { ShipmentsPage } from "./pages/Shipments";
 import { TasksPage } from "./pages/Tasks";
 import { YardPage } from "./pages/Yard";
 import { LoginPage } from "./pages/Login";
+import { homePathFor, navPathAllowed } from "./shell/nav.ts";
+import { useShellSession } from "./shell/session.tsx";
 import { useStore } from "./store";
 
 const groups = [
@@ -101,9 +105,11 @@ const groups = [
 ] as const;
 
 export default function App() {
-  const { mode, user, loading } = useAuth();
+  const { user, loading } = useAuth();
+  const { shellUser } = useShellSession();
   const { tx } = useStore();
   const loc = useLocation();
+  const signedIn = Boolean(user || shellUser);
 
   if (loading) {
     return (
@@ -116,10 +122,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/q/:token" element={<QuotePublicPage />} />
+      <Route path="/q/shell/:id" element={<QuotePublicShellPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/*"
-        element={mode === "production" && !user && loc.pathname !== "/login" ? <Navigate to="/login" replace /> : <AppShell />}
+        element={!signedIn && loc.pathname !== "/login" ? <Navigate to="/login" replace /> : <AppShell />}
       />
     </Routes>
   );
@@ -129,8 +136,19 @@ function AppShell() {
   const s = useStore();
   const { tx, locale, setLocale, query, setQuery, mails, tasks, docs, toast, compact, motion } = s;
   const { user, mode, logout } = useAuth();
+  const { shellUser, leave } = useShellSession();
   const navigate = useNavigate();
   const loc = useLocation();
+  const dept = shellUser?.department ?? (user ? "admin" : null);
+  const displayName = shellUser?.nameZh ?? shellUser?.name ?? user?.nameZh ?? user?.name ?? tx("userName");
+  const displayRole = shellUser?.roles[0] ?? user?.roles[0] ?? tx("userRole");
+  const visibleGroups = groups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((l) => (dept ? navPathAllowed(dept, l.to) : false)),
+    }))
+    .filter((g) => g.items.length > 0);
+
   const unread = mails.filter((m) => m.unread && m.state === "open").length;
   const hot = tasks.filter((t) => !t.done && t.priority === "high").length + docs.filter((d) => d.status !== "ok").length;
   const openTasks = tasks.filter((t) => !t.done).length;
@@ -174,6 +192,12 @@ function AppShell() {
   function onSearch(e: FormEvent) {
     e.preventDefault();
     setCmd(true);
+  }
+
+  function onLeave() {
+    leave();
+    if (user) void logout();
+    navigate("/login", { replace: true });
   }
 
   return (
@@ -238,14 +262,14 @@ function AppShell() {
           </Link>
           <div className="bar-user">
             <span className="bar-avatar" aria-hidden>
-              {(user?.nameZh ?? user?.name ?? tx("userName")).slice(0, 1)}
+              {displayName.slice(0, 1)}
             </span>
             <span>
-              <strong>{user?.nameZh ?? user?.name ?? tx("userName")}</strong>
-              <em>{user?.roles[0] ?? (mode === "demo" ? tx("demoMode") : tx("userRole"))}</em>
+              <strong>{displayName}</strong>
+              <em>{displayRole}</em>
             </span>
-            {user ? (
-              <button type="button" className="btn btn-ghost btn-slim" onClick={() => void logout()}>
+            {user || shellUser ? (
+              <button type="button" className="btn btn-ghost btn-slim" onClick={onLeave}>
                 {tx("logout")}
               </button>
             ) : null}
@@ -288,7 +312,7 @@ function AppShell() {
               </button>
             </div>
           ) : null}
-          {groups.map((g) => (
+          {visibleGroups.map((g) => (
             <div key={g.key} className="nav-group">
               <p className="nav-label">{tx(g.key)}</p>
               <nav className="nav" aria-label={tx(g.key)}>
@@ -306,7 +330,7 @@ function AppShell() {
           <div className="side-foot">
             <p className="tenant">{tx("tenant")}</p>
             <p className={`gemini-dot ${gemini ? "on" : "off"}`}>{gemini ? tx("geminiOn") : tx("geminiOff")}</p>
-            {mode === "demo" ? <p className="meta">{tx("demoMode")}</p> : null}
+            {shellUser ? <p className="meta">{tx("shellMode")}</p> : mode === "demo" ? <p className="meta">{tx("demoMode")}</p> : null}
           </div>
         </aside>
 
@@ -320,6 +344,7 @@ function AppShell() {
             <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/rates" element={<RatesPage />} />
             <Route path="/quotations" element={<QuotationsPage />} />
+            <Route path="/quotations/new" element={<QuoteWizardPage />} />
             <Route path="/jobs" element={<JobsPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/vendor-bills" element={<VendorBillsPage />} />
@@ -332,7 +357,7 @@ function AppShell() {
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to={shellUser ? homePathFor(shellUser.department) : "/"} replace />} />
           </Routes>
         </main>
       </div>

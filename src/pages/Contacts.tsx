@@ -1,16 +1,24 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { customerName } from "../data";
+import { customerName, type Customer } from "../data";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
 
 export function ContactsPage() {
-  const { tx, locale, contacts, customers, query, addContact } = useStore();
+  const shell = useIsShellMode();
+  const store = useStore();
+  const crm = useShellCrm();
+  const { tx, locale, query } = store;
+  const contacts = shell ? crm.contacts : store.contacts;
+  const customers = shell ? crm.customers : store.customers;
+  const addContact = shell ? crm.addContact : store.addContact;
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
-    customerId: customers[0]?.id ?? "",
+    customerId: "",
     name: "",
     title: "",
     email: "",
@@ -32,8 +40,10 @@ export function ContactsPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    addContact(form);
-    setForm({ ...form, name: "", email: "", phone: "", wechat: "" });
+    const customerId = form.customerId || customers[0]?.id || "";
+    if (!customerId) return;
+    addContact({ ...form, customerId });
+    setForm({ customerId, name: "", title: "", email: "", phone: "", wechat: "" });
     setOpen(false);
   }
 
@@ -42,13 +52,21 @@ export function ContactsPage() {
       <PageToolbar
         title={tx("contactsTitle")}
         count={rows.length}
-        hint={tx("contactsHint")}
+        hint={shell ? tx("emptyShellCrm") : tx("contactsHint")}
         actions={
-          <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            {tx("addContact")}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            disabled={customers.length === 0}
+          >
+            {tx("shellCreateContact")}
           </button>
         }
       />
+
+      {customers.length === 0 ? <p className="meta">{tx("quoteNeedCustomer")}</p> : null}
 
       {open ? (
         <form
@@ -56,23 +74,19 @@ export function ContactsPage() {
           onSubmit={submit}
           onReset={(e) => {
             e.preventDefault();
-            setForm({
-              customerId: customers[0]?.id ?? "",
-              name: "",
-              title: "",
-              email: "",
-              phone: "",
-              wechat: "",
-            });
+            setForm({ customerId: customers[0]?.id ?? "", name: "", title: "", email: "", phone: "", wechat: "" });
             setOpen(false);
           }}
         >
           <label>
             {tx("colCustomer")}
-            <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
+            <select
+              value={form.customerId || customers[0]?.id || ""}
+              onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+            >
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {customerName(c, locale)}
+                  {customerName(c as Customer, locale)}
                 </option>
               ))}
             </select>
@@ -87,22 +101,11 @@ export function ContactsPage() {
           </label>
           <label>
             {tx("colEmail")}
-            <input
-              type="email"
-              autoComplete="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
+            <input type="email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </label>
           <label>
             {tx("colPhone")}
-            <input
-              type="tel"
-              autoComplete="tel"
-              inputMode="tel"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
+            <input type="tel" autoComplete="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </label>
           <label>
             {tx("colWechat")}
@@ -120,18 +123,18 @@ export function ContactsPage() {
       ) : null}
 
       {rows.length === 0 ? (
-        <p className="empty">{tx("emptyPeople")}</p>
+        <p className="empty">{tx("emptyShellCrm")}</p>
       ) : (
         <div className="table-shell">
           <table className="data-table">
             <thead>
               <tr>
-                <th>{tx("name")}</th>
-                <th>{tx("colTitle")}</th>
-                <th>{tx("colCustomer")}</th>
-                <th>{tx("colEmail")}</th>
-                <th>{tx("colPhone")}</th>
-                <th>{tx("colWechat")}</th>
+                <th scope="col">{tx("name")}</th>
+                <th scope="col">{tx("colTitle")}</th>
+                <th scope="col">{tx("colCustomer")}</th>
+                <th scope="col">{tx("colEmail")}</th>
+                <th scope="col">{tx("colPhone")}</th>
+                <th scope="col">{tx("colWechat")}</th>
               </tr>
             </thead>
             <tbody>
@@ -144,7 +147,7 @@ export function ContactsPage() {
                       {p.primary ? <span className="pill pill-hold">{tx("primaryContact")}</span> : null}
                     </td>
                     <td>{p.title}</td>
-                    <td>{c ? customerName(c, locale) : "—"}</td>
+                    <td>{c ? customerName(c as Customer, locale) : "—"}</td>
                     <td>{p.email}</td>
                     <td className="mono">{p.phone}</td>
                     <td className="mono">{p.wechat}</td>

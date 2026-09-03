@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { cityName, customerName, laneName } from "../data";
+import { cityName, customerName, laneName, type Customer } from "../data";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { CustomerLedgerCards } from "../ui/CustomerLedgerCards";
@@ -8,7 +10,12 @@ import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
 export function CustomersPage() {
-  const { tx, locale, customers, boxes, query, addCustomer, reset } = useStore();
+  const shell = useIsShellMode();
+  const store = useStore();
+  const crm = useShellCrm();
+  const { tx, locale, query } = store;
+  const customers = shell ? crm.customers : store.customers;
+  const addCustomer = shell ? crm.addCustomer : store.addCustomer;
   const navigate = useNavigate();
   const mobile = useMedia("(max-width: 1024px)");
   const [params] = useSearchParams();
@@ -28,11 +35,9 @@ export function CustomersPage() {
 
   const boxCounts = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const c of rows) {
-      map[c.id] = boxes.filter((b) => b.customerId === c.id).length;
-    }
+    for (const c of rows) map[c.id] = 0;
     return map;
-  }, [boxes, rows]);
+  }, [rows]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -51,26 +56,26 @@ export function CustomersPage() {
       <PageToolbar
         title={tx("customersTitle")}
         count={rows.length}
-        hint={tx("customersHint")}
+        hint={shell ? tx("emptyShellCrm") : tx("customersHint")}
         actions={
-          <>
-            <button type="button" className="btn btn-ghost" onClick={reset}>
-              {tx("resetDemo")}
-            </button>
-            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-              {tx("addCustomer")}
-            </button>
-          </>
+          <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {tx("shellCreateCustomer")}
+          </button>
         }
       />
 
       {open ? (
-        <form className="form form-stack" onSubmit={submit} noValidate onReset={(e) => {
-          e.preventDefault();
-          setForm({ nameZh: "", cityZh: "", laneZh: "", owner: "" });
-          setErr(null);
-          setOpen(false);
-        }}>
+        <form
+          className="form form-stack"
+          onSubmit={submit}
+          noValidate
+          onReset={(e) => {
+            e.preventDefault();
+            setForm({ nameZh: "", cityZh: "", laneZh: "", owner: "" });
+            setErr(null);
+            setOpen(false);
+          }}
+        >
           <label>
             {tx("name")}
             <input
@@ -110,33 +115,31 @@ export function CustomersPage() {
       ) : null}
 
       {rows.length === 0 ? (
-        <p className="empty">{tx("noMatch")}</p>
+        <p className="empty">{tx("emptyShellCrm")}</p>
       ) : mobile ? (
-        <CustomerLedgerCards customers={rows} boxCounts={boxCounts} locale={locale} />
+        <CustomerLedgerCards customers={rows as Customer[]} boxCounts={boxCounts} locale={locale} />
       ) : (
         <div className="table-shell">
           <table className="data-table">
             <caption className="sr-only">{tx("selectRow")}</caption>
             <thead>
               <tr>
-                <th>{tx("colCustomer")}</th>
-                <th>{tx("city")}</th>
-                <th>{tx("colLane")}</th>
-                <th className="num">{tx("colBoxes")}</th>
-                <th>{tx("colOwner")}</th>
-                <th className="num">{tx("colAr")}</th>
-                <th className="num">{tx("colUpdated")}</th>
+                <th scope="col">{tx("colCustomer")}</th>
+                <th scope="col">{tx("city")}</th>
+                <th scope="col">{tx("colLane")}</th>
+                <th scope="col">{tx("colOwner")}</th>
+                <th scope="col" className="num">
+                  {tx("colUpdated")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((c) => (
                 <ClickableTableRow key={c.id} onActivate={() => navigate(`/customers/${c.id}`)}>
-                  <td>{customerName(c, locale)}</td>
-                  <td>{cityName(c, locale)}</td>
-                  <td>{laneName(c, locale)}</td>
-                  <td className="num">{boxes.filter((b) => b.customerId === c.id).length}</td>
+                  <td>{customerName(c as Customer, locale)}</td>
+                  <td>{cityName(c as Customer, locale)}</td>
+                  <td>{laneName(c as Customer, locale)}</td>
                   <td>{c.owner}</td>
-                  <td className="num">{c.arDays}</td>
                   <td className="num">{c.updated}</td>
                 </ClickableTableRow>
               ))}

@@ -65,6 +65,34 @@ export function SettingsPage() {
         <section className="settings-card">
           <header className="settings-card-head">
             <Database size={20} weight="regular" aria-hidden />
+            <h2>{tx("settingsUsersRoles")}</h2>
+          </header>
+          <p className="settings-card-hint">{tx("settingsUsersHint")}</p>
+          <div className="table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">{tx("colUser")}</th>
+                  <th scope="col">{tx("colRole")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={2}>
+                    <p className="empty">{tx("emptyUsers")}</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <Button variant="ghost" disabled title={tx("apiNotConfigured")}>
+            {tx("addUser")} — {tx("apiNotConfigured")}
+          </Button>
+        </section>
+
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <Database size={20} weight="regular" aria-hidden />
             <h2>{tx("settingsLanguage")}</h2>
           </header>
           <p className="settings-card-hint">{tx("settingsLangHint")}</p>

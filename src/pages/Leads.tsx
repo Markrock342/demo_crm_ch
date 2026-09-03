@@ -1,5 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { leadStageI18n, leadStages, type LeadStage } from "../crm";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { LeadLedgerCards } from "../ui/LeadLedgerCards";
 import { PageToolbar } from "../ui/PageToolbar";
@@ -10,13 +12,20 @@ const leadFormInitial = {
   city: "",
   lane: "",
   contact: "",
-  source: "协会",
+  source: "shell",
   teu: 8,
-  owner: "林晓衡",
+  owner: "shell",
 };
 
 export function LeadsPage() {
-  const { tx, locale, leads, query, setLeadStage, convertLead, addLead } = useStore();
+  const shell = useIsShellMode();
+  const store = useStore();
+  const crm = useShellCrm();
+  const { tx, locale, query } = store;
+  const leads = shell ? crm.leads : store.leads;
+  const setLeadStage = shell ? crm.setLeadStage : store.setLeadStage;
+  const addLead = shell ? crm.addLead : store.addLead;
+  const convertLead = shell ? () => undefined : store.convertLead;
   const mobile = useMedia("(max-width: 1024px)");
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<LeadStage | "all">("all");
@@ -34,7 +43,9 @@ export function LeadsPage() {
 
   const counts = useMemo(() => {
     const map: Record<LeadStage | "all", number> = { all: leads.length, new: 0, working: 0, qualified: 0, lost: 0 };
-    for (const l of leads) map[l.stage] += 1;
+    for (const l of leads) {
+      if (l.stage in map) map[l.stage as LeadStage] += 1;
+    }
     return map;
   }, [leads]);
 
@@ -50,10 +61,10 @@ export function LeadsPage() {
       <PageToolbar
         title={tx("leadsTitle")}
         count={rows.length}
-        hint={tx("leadsHint")}
+        hint={shell ? tx("emptyShellCrm") : tx("leadsHint")}
         actions={
           <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            {tx("addLead")}
+            {tx("shellCreateLead")}
           </button>
         }
         filters={
@@ -131,9 +142,14 @@ export function LeadsPage() {
       ) : null}
 
       {rows.length === 0 ? (
-        <p className="empty">{tx("emptyLeads")}</p>
+        <p className="empty">{tx("emptyShellCrm")}</p>
       ) : mobile ? (
-        <LeadLedgerCards leads={rows} locale={locale} onStageChange={setLeadStage} onConvert={convertLead} />
+        <LeadLedgerCards
+          leads={rows as import("../crm").Lead[]}
+          locale={locale}
+          onStageChange={(id, s) => setLeadStage(id, s)}
+          onConvert={(id) => convertLead(id)}
+        />
       ) : (
         <div className="table-shell">
           <table className="data-table">
@@ -175,12 +191,12 @@ export function LeadsPage() {
                   <td className="num">{l.teu}</td>
                   <td>{l.owner}</td>
                   <td>
-                    {l.stage !== "lost" ? (
+                    {!shell && l.stage !== "lost" ? (
                       <button type="button" className="btn btn-ghost btn-slim" onClick={() => convertLead(l.id)}>
                         {tx("convertLead")}
                       </button>
                     ) : (
-                      <span className="pill pill-empty">{tx(leadStageI18n[l.stage])}</span>
+                      <span className="pill pill-empty">{tx(leadStageI18n[l.stage as LeadStage] ?? "leadNew")}</span>
                     )}
                   </td>
                 </tr>

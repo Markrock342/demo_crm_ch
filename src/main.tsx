@@ -4,6 +4,10 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthProvider.tsx";
 import App from "./App.tsx";
 import { CrmSync } from "./CrmSync.tsx";
+import { ShellBillingProvider } from "./shell/billingStore.tsx";
+import { ShellCrmProvider } from "./shell/crmStore.tsx";
+import { ShellQuoteProvider } from "./shell/quoteStore.tsx";
+import { ShellSessionProvider } from "./shell/session.tsx";
 import { StoreProvider } from "./store.tsx";
 import "./index.css";
 import "./ui/kit.css";
@@ -11,12 +15,20 @@ import "./ui/kit.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
-      <StoreProvider>
-        <CrmSync />
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </StoreProvider>
+      <ShellSessionProvider>
+        <ShellCrmProvider>
+          <ShellQuoteProvider>
+            <ShellBillingProvider>
+              <StoreProvider>
+                <CrmSync />
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </StoreProvider>
+            </ShellBillingProvider>
+          </ShellQuoteProvider>
+        </ShellCrmProvider>
+      </ShellSessionProvider>
     </AuthProvider>
   </StrictMode>,
 );

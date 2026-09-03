@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { dealStageI18n, dealStages, money, nextDealStage, type DealStage } from "../crm";
-import { customerName } from "../data";
+import { customerName, type Customer } from "../data";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
 import { PageToolbar } from "../ui/PageToolbar";
@@ -14,16 +16,29 @@ const dealFormInitial = (customerId: string) => ({
   value: 40000,
   teu: 4,
   close: "09-28",
-  owner: "林晓衡",
+  owner: "shell",
 });
 
 export function PipelinePage() {
-  const { tx, locale, deals, customers, moveDeal, addDeal } = useStore();
+  const shell = useIsShellMode();
+  const store = useStore();
+  const crm = useShellCrm();
+  const { tx, locale } = store;
+  const deals = shell ? crm.deals : store.deals;
+  const customers = shell ? crm.customers : store.customers;
+  const moveDeal = shell ? crm.moveDeal : store.moveDeal;
+  const addDeal = shell ? crm.addDeal : store.addDeal;
   const narrow = useMedia("(max-width: 640px)");
   const [open, setOpen] = useState(false);
   const [focus, setFocus] = useState<DealStage>(dealStages[0]);
   const boardRef = useRef<HTMLDivElement>(null);
-  const [form, setForm] = useState(dealFormInitial(customers[0]?.id ?? ""));
+  const [form, setForm] = useState(dealFormInitial(""));
+
+  useEffect(() => {
+    if (!form.customerId && customers[0]?.id) {
+      setForm((f) => ({ ...f, customerId: customers[0]!.id }));
+    }
+  }, [customers, form.customerId]);
 
   useEffect(() => {
     if (!narrow || !boardRef.current) return;
@@ -46,10 +61,10 @@ export function PipelinePage() {
       <PageToolbar
         title={tx("pipelineTitle")}
         count={deals.length}
-        hint={tx("pipelineHint")}
+        hint={shell ? tx("emptyShellCrm") : tx("pipelineHint")}
         actions={
-          <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            {tx("addDeal")}
+          <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open} disabled={customers.length === 0}>
+            {tx("shellCreateDeal")}
           </Button>
         }
         filters={
@@ -89,6 +104,8 @@ export function PipelinePage() {
         }
       />
 
+      {customers.length === 0 ? <p className="meta">{tx("quoteNeedCustomer")}</p> : null}
+
       <div className={`fold${open ? " is-open" : ""}`}>
         <div className="fold-inner">
           <form
@@ -106,7 +123,7 @@ export function PipelinePage() {
               <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {customerName(c, locale)}
+                    {customerName(c as Customer, locale)}
                   </option>
                 ))}
               </select>
@@ -121,11 +138,7 @@ export function PipelinePage() {
             </label>
             <label>
               {tx("colValue")}
-              <input
-                type="number"
-                value={form.value}
-                onChange={(e) => setForm({ ...form, value: Number(e.target.value) })}
-              />
+              <input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} />
             </label>
             <label>
               {tx("colTeu")}
@@ -160,12 +173,12 @@ export function PipelinePage() {
                   {col.length === 0 ? <p className="empty-col">{tx("emptyPipe")}</p> : null}
                   {col.map((d) => {
                     const c = customers.find((x) => x.id === d.customerId);
-                    const next = nextDealStage(d.stage);
+                    const next = nextDealStage(d.stage as DealStage);
                     return (
                       <article key={d.id} className="deal" role="listitem">
                         <Link className="deal-open" to={`/customers/${d.customerId}`}>
                           <strong>{d.title}</strong>
-                          <span>{c ? customerName(c, locale) : "—"}</span>
+                          <span>{c ? customerName(c as Customer, locale) : "—"}</span>
                         </Link>
                         <p className="deal-lane">{d.lane}</p>
                         <div className="deal-meta">
@@ -185,7 +198,7 @@ export function PipelinePage() {
                             id={`st-${d.id}`}
                             className="deal-select"
                             value={d.stage}
-                            onChange={(e) => moveDeal(d.id, e.target.value as DealStage)}
+                            onChange={(e) => moveDeal(d.id, e.target.value)}
                           >
                             {dealStages.map((s) => (
                               <option key={s} value={s}>

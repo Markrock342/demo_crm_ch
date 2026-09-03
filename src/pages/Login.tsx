@@ -1,32 +1,41 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { homePathFor } from "../shell/nav.ts";
+import { useShellSession } from "../shell/session.tsx";
+import type { Department } from "../shell/types.ts";
+import { DEPARTMENTS } from "../shell/types.ts";
 import { useStore } from "../store";
+
+const deptLabelKey: Record<Department, string> = {
+  sales: "deptSales",
+  finance: "deptFinance",
+  admin: "deptAdmin",
+};
 
 export function LoginPage() {
   const { tx } = useStore();
-  const { user, mode, loading, login } = useAuth();
+  const { user, loading } = useAuth();
+  const { shellUser, enterAs } = useShellSession();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@cangzhan.com");
-  const [password, setPassword] = useState("demo123");
+  const [busyDept, setBusyDept] = useState<Department | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  if (!loading && mode === "demo") return <Navigate to="/" replace />;
-  if (!loading && user) return <Navigate to="/" replace />;
+  if (!loading && (user || shellUser)) {
+    const dest = shellUser ? homePathFor(shellUser.department) : "/";
+    return <Navigate to={dest} replace />;
+  }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+  async function pickDept(department: Department) {
+    setBusyDept(department);
     setErr(null);
     try {
-      await login(email, password);
-      navigate("/", { replace: true });
-    } catch (ex) {
-      const code = ex instanceof Error ? ex.message : "login_failed";
-      setErr(tx(code === "invalid_credentials" ? "loginBadCreds" : "loginFailed"));
+      await enterAs(department);
+      navigate(homePathFor(department), { replace: true });
+    } catch {
+      setErr(tx("loginFailed"));
     } finally {
-      setBusy(false);
+      setBusyDept(null);
     }
   }
 
@@ -40,36 +49,39 @@ export function LoginPage() {
             </span>
             <div>
               <h1>{tx("brand")}</h1>
-              <p>{tx("loginHint")}</p>
+              <p>{tx("loginDeptHint")}</p>
             </div>
           </header>
 
-          <form className="form login-form" onSubmit={submit}>
-            <label>
-              {tx("loginEmail")}
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
-            </label>
-            <label>
-              {tx("loginPassword")}
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
-            </label>
-            {err ? (
-              <p className="field-err" role="alert">
-                {err}
-              </p>
-            ) : null}
-            <button type="submit" className="btn btn-primary login-submit" disabled={busy}>
-              {busy ? tx("loginBusy") : tx("loginSubmit")}
-            </button>
-          </form>
+          <div className="login-dept-grid" role="group" aria-label={tx("loginPickDept")}>
+            {DEPARTMENTS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className="btn btn-primary login-dept-btn"
+                disabled={busyDept !== null}
+                onClick={() => void pickDept(d)}
+              >
+                {busyDept === d ? tx("loginBusy") : tx(deptLabelKey[d])}
+              </button>
+            ))}
+          </div>
 
-          <p className="login-demo meta">{tx("loginDemoAccounts")}</p>
+          {err ? (
+            <p className="field-err" role="alert">
+              {err}
+            </p>
+          ) : null}
+
+          <section className="login-remote" aria-labelledby="login-remote-title">
+            <h2 id="login-remote-title" className="login-remote-title">
+              {tx("loginRemoteTitle")}
+            </h2>
+            <p className="meta">{tx("loginRemoteTodo")}</p>
+            <button type="button" className="btn btn-ghost login-submit" disabled title={tx("apiNotConfigured")}>
+              {tx("loginSubmit")} — {tx("apiNotConfigured")}
+            </button>
+          </section>
         </div>
       </div>
     </div>

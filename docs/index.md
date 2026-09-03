@@ -7,6 +7,7 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 
 | Module | Doc | Status |
 |--------|-----|--------|
+| Basics UI shell (P0) | [basics-ui-p0.md](./basics-ui-p0.md) | Done (in-memory walkthrough) |
 | Foundation (DB, migrate, pool, auth) | [foundation.md](./foundation.md) | Ready (await Vercel DATABASE_URL) |
 | Finance AP (Vendor Bills) | [finance-ap.md](./finance-ap.md) | from-job + approve done |
 | Mail & Docs persistence | [mail-docs.md](./mail-docs.md) | metadata+body done |
@@ -17,6 +18,7 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 | Area | Paths |
 |------|-------|
 | UI workspace | `src/pages/*`, `src/ui/*`, `src/index.css` |
+| P0 shell / ports | `src/shell/*`, `src/ports/*`, `src/adapters/stub/*` |
 | Client sync | `src/store.tsx`, `src/CrmSync.tsx`, `src/auth/*` |
 | API | `server/app.ts`, `server/routes/*`, `api/**` |
 | Domain | `server/services/*`, `server/domain/rbac.ts` |
@@ -24,9 +26,6 @@ Stack: Vite + React + Hono + PostgreSQL · Deploy: `democrmch.vercel.app`
 
 ## Locked product scope (current sprint)
 
-- Mode: API + `DATABASE_URL` primary (Demo branding only)
-- Vendor Bills: from-job + approve (no AP payment) — **done**
-- Customer 360: no field expansion — wire existing commercial APIs — **done**
-- Mail/docs: metadata + body in PostgreSQL — **done**
-- Post-sprint architecture replan deferred
-- **Ops:** set Vercel pooled `DATABASE_URL` + `DB_POOL_MAX=1`, then migrate/seed
+- **P0 Basics UI shell** — Login+dept → CRM → Quote → Billing (empty in-memory) — **done**; ไม่แตะ `server/**` / `src/api/**` / logistics pages
+- Next: **P1** stub remote เต็ม · **P2** logistics · **P3** ข้อ 8 architecture replan
+- Prior backlog (Vendor Bills / mail-docs / boxes derive) — **done** on code; Vercel `DATABASE_URL` ยังรอ ops

@@ -1,93 +1,61 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import {
-  billingNotePdfUrl,
-  createBillingNote,
-  createInvoiceFromJob,
-  fetchArSummary,
-  fetchBillingNotes,
-  fetchInvoices,
-  fetchJobCharges,
-  issueInvoice,
-  recordPayment,
-  type InvoiceRow,
-} from "../api/commercial.ts";
-import { demoAr, demoBillingNotes, demoInvoices } from "../demo/commercial-demo.ts";
-import { customerName } from "../data.ts";
-import { useAuth } from "../auth/AuthProvider.tsx";
-import { useStore } from "../store.tsx";
-import { DemoModuleBanner } from "../ui/DemoModuleBanner.tsx";
-import { PageToolbar } from "../ui/PageToolbar.tsx";
+import { useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { billingStub } from "../adapters/stub/billing.stub.ts";
+import { customerName, type Customer } from "../data";
+import { useShellBilling } from "../shell/billingStore.tsx";
+import { useShellCrm } from "../shell/crmStore.tsx";
+import { useIsShellMode } from "../shell/session.tsx";
+import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 export function InvoicesPage() {
-  const { tx, locale, customers } = useStore();
-  const { mode, user } = useAuth();
-  const isDemo = mode === "demo";
-  const [params] = useSearchParams();
-  const jobId = params.get("jobId");
-  const customerIdParam = params.get("customerId");
-
-  const [invoices, setInvoices] = useState<InvoiceRow[]>(isDemo ? demoInvoices : []);
-  const [billingNotes, setBillingNotes] = useState<Array<{ id: string; billingNumber: string; grandTotal: string; currency: string }>>(
-    isDemo ? demoBillingNotes : [],
-  );
-  const [ar, setAr] = useState<Record<string, string> | null>(isDemo ? demoAr : null);
-  const [charges, setCharges] = useState<Array<{ id: string; description: string; totalAmount: string; invoiced: boolean }>>([]);
+  const shell = useIsShellMode();
+  const { tx, locale } = useStore();
+  const crm = useShellCrm();
+  const billing = useShellBilling();
+  const customers = crm.customers;
+  const invoices = shell ? billing.invoices : [];
+  const billingNotes = shell ? billing.billingNotes : [];
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
-  const [payForm, setPayForm] = useState({ amount: "", invoiceId: "" });
+  const [draft, setDraft] = useState({ customerId: "", total: 1000, currency: "USD" });
+  const [payForm, setPayForm] = useState({ invoiceId: "", amount: "" });
   const [msg, setMsg] = useState<string | null>(null);
+  const [openDraft, setOpenDraft] = useState(false);
+
+  void billingStub;
 
   const customerMap = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c])), [customers]);
 
-  const load = useCallback(async () => {
-    if (isDemo) {
-      setInvoices(demoInvoices);
-      setBillingNotes(demoBillingNotes);
-      setAr(demoAr);
+  function createDraft(e: FormEvent) {
+    e.preventDefault();
+    const customerId = draft.customerId || customers[0]?.id || "";
+    const err = billing.createDraftInvoice({ customerId, total: draft.total, currency: draft.currency });
+    if (err) {
+      setMsg(tx(err));
       return;
     }
-    if (mode !== "production" || !user) return;
-    setInvoices(await fetchInvoices());
-    setBillingNotes(await fetchBillingNotes());
-    if (user.permissions.includes("report.finance.view")) {
-      setAr((await fetchArSummary()) as Record<string, string>);
-    }
-  }, [isDemo, mode, user]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!jobId || isDemo || mode !== "production") return;
-    void fetchJobCharges(jobId).then(setCharges);
-  }, [jobId, isDemo, mode]);
-
-  async function act(fn: () => Promise<unknown>, okKey: string) {
-    try {
-      await fn();
-      setMsg(tx(okKey));
-      await load();
-    } catch {
-      setMsg(tx("errorSave"));
-    }
+    setMsg(tx("invoiceCreated"));
+    setOpenDraft(false);
   }
 
-  async function createInvoice() {
-    if (!jobId || !customerIdParam) return;
-    const ids = charges.filter((c) => !c.invoiced).map((c) => c.id);
-    if (!ids.length) return;
-    await act(() => createInvoiceFromJob({ jobId, customerId: customerIdParam, chargeIds: ids }), "invoiceCreated");
-  }
-
-  async function createBn() {
-    if (!selectedInvoices.length) return;
-    const cust = invoices.find((i) => selectedInvoices.includes(i.id))?.customerId;
-    if (!cust) return;
-    const result = (await createBillingNote({ customerId: cust, invoiceIds: selectedInvoices })) as { id: string };
+  function createBn() {
+    const err = billing.createBillingNote(selectedInvoices);
+    if (err) {
+      setMsg(tx(err));
+      return;
+    }
     setMsg(tx("billingNoteCreated"));
-    window.open(billingNotePdfUrl(result.id), "_blank");
-    await load();
+    setSelectedInvoices([]);
+  }
+
+  function pay() {
+    const err = billing.recordPayment({ invoiceId: payForm.invoiceId, amount: Number(payForm.amount) });
+    if (err) {
+      setMsg(tx(err));
+      return;
+    }
+    setMsg(tx("paymentRecorded"));
+    setPayForm({ invoiceId: "", amount: "" });
   }
 
   return (
@@ -95,88 +63,120 @@ export function InvoicesPage() {
       <PageToolbar
         title={tx("invoicesTitle")}
         count={invoices.length}
-        hint={isDemo ? tx("invoicesDemoPreviewHint") : tx("invoicesHint")}
+        hint={shell ? tx("billingShellHint") : tx("invoicesDemoPreviewHint")}
+        actions={
+          shell ? (
+            <button type="button" className="btn btn-primary" onClick={() => setOpenDraft((v) => !v)} disabled={customers.length === 0}>
+              {tx("createDraftInvoice")}
+            </button>
+          ) : null
+        }
       />
-      {isDemo ? <DemoModuleBanner /> : null}
       {msg ? <p className="meta">{msg}</p> : null}
 
-      {ar ? (
-        <div className="kpi-row">
-          <div className="kpi"><span>{tx("arTotal")}</span><strong>{ar.total}</strong></div>
-          <div className="kpi"><span>1–30d</span><strong>{ar.d1_30}</strong></div>
-          <div className="kpi"><span>31–60d</span><strong>{ar.d31_60}</strong></div>
-          <div className="kpi"><span>90+d</span><strong>{ar.d90plus}</strong></div>
-        </div>
+      {!shell ? <p className="meta">{tx("apiNotConfigured")}</p> : null}
+
+      {shell && customers.length === 0 ? (
+        <p className="meta">
+          {tx("quoteNeedCustomer")} <Link to="/customers">{tx("shellCreateCustomer")}</Link>
+        </p>
       ) : null}
 
-      {isDemo ? <p className="meta">{tx("demoSampleData")}</p> : null}
-
-      {!isDemo && jobId && charges.length ? (
-        <div className="panel">
-          <h2>{tx("createInvoiceFromJob")}</h2>
-          <ul className="list-plain">
-            {charges.map((c) => (
-              <li key={c.id}>{c.description} — {c.totalAmount} {c.invoiced ? tx("invoiced") : ""}</li>
-            ))}
-          </ul>
-          <button type="button" className="btn btn-primary" onClick={() => void createInvoice()}>
-            {tx("createInvoice")}
-          </button>
-        </div>
+      {shell && openDraft ? (
+        <form className="form form-stack" onSubmit={createDraft}>
+          <label>
+            {tx("colCustomer")}
+            <select value={draft.customerId || customers[0]?.id || ""} onChange={(e) => setDraft({ ...draft, customerId: e.target.value })}>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {customerName(c as Customer, locale)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {tx("colTotal")}
+            <input type="number" min={0} value={draft.total} onChange={(e) => setDraft({ ...draft, total: Number(e.target.value) })} />
+          </label>
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary">
+              {tx("save")}
+            </button>
+          </div>
+        </form>
       ) : null}
 
-      <div className="table-shell">
-        <table className="data-table ledger">
-          <thead>
-            <tr>
-              {!isDemo ? <th /> : null}
-              <th>{tx("colInvoice")}</th>
-              <th>{tx("colCustomer")}</th>
-              <th>{tx("colTotal")}</th>
-              <th>{tx("colBalance")}</th>
-              <th>{tx("colStatus")}</th>
-              {!isDemo ? <th /> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.map((inv) => (
-              <tr key={inv.id}>
-                {!isDemo ? (
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selectedInvoices.includes(inv.id)}
-                      onChange={(e) =>
-                        setSelectedInvoices((s) => (e.target.checked ? [...s, inv.id] : s.filter((x) => x !== inv.id)))
-                      }
-                    />
-                  </td>
-                ) : null}
-                <td>{inv.invoiceNumber}</td>
-                <td>{customerMap[inv.customerId] ? customerName(customerMap[inv.customerId], locale) : inv.customerId}</td>
-                <td className="mono">{inv.total} {inv.currency}</td>
-                <td className="mono">{inv.balanceDue}</td>
-                <td><span className="pill">{inv.status}</span></td>
-                {!isDemo ? (
-                  <td>
-                    {inv.status === "DRAFT" ? (
-                      <button type="button" className="btn btn-ghost" onClick={() => void act(() => issueInvoice(inv.id), "invoiceIssued")}>
-                        {tx("issueInvoice")}
-                      </button>
-                    ) : null}
-                  </td>
-                ) : null}
+      {invoices.length === 0 ? (
+        <p className="empty">{tx("emptyInvoices")}</p>
+      ) : (
+        <div className="table-shell">
+          <table className="data-table ledger">
+            <thead>
+              <tr>
+                {shell ? <th /> : null}
+                <th>{tx("colInvoice")}</th>
+                <th>{tx("colCustomer")}</th>
+                <th>{tx("colTotal")}</th>
+                <th>{tx("colBalance")}</th>
+                <th>{tx("colStatus")}</th>
+                {shell ? <th /> : null}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {invoices.map((inv) => (
+                <tr key={inv.id}>
+                  {shell ? (
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedInvoices.includes(inv.id)}
+                        disabled={inv.status === "DRAFT"}
+                        onChange={(e) =>
+                          setSelectedInvoices((s) => (e.target.checked ? [...s, inv.id] : s.filter((x) => x !== inv.id)))
+                        }
+                      />
+                    </td>
+                  ) : null}
+                  <td>{inv.invoiceNumber}</td>
+                  <td>{customerMap[inv.customerId] ? customerName(customerMap[inv.customerId] as Customer, locale) : inv.customerId}</td>
+                  <td className="mono">
+                    {inv.total} {inv.currency}
+                  </td>
+                  <td className="mono">{inv.balanceDue}</td>
+                  <td>
+                    <span className="pill">{inv.status}</span>
+                  </td>
+                  {shell ? (
+                    <td>
+                      {inv.status === "DRAFT" ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            billing.issueInvoice(inv.id);
+                            setMsg(tx("invoiceIssued"));
+                          }}
+                        >
+                          {tx("issueShellInvoice")}
+                        </button>
+                      ) : null}
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {!isDemo ? (
+      {shell ? (
         <>
           <div className="toolbar">
-            <button type="button" className="btn btn-primary" disabled={!selectedInvoices.length} onClick={() => void createBn()}>
-              {tx("createBillingNote")}
+            <button type="button" className="btn btn-primary" disabled={!selectedInvoices.length} onClick={createBn}>
+              {tx("createShellBillingNote")}
+            </button>
+            <button type="button" className="btn btn-ghost" disabled title={tx("loginRemoteTodo")}>
+              {tx("billingConnectApi")}
             </button>
           </div>
 
@@ -187,9 +187,6 @@ export function InvoicesPage() {
                 {billingNotes.map((bn) => (
                   <li key={bn.id}>
                     {bn.billingNumber} — {bn.grandTotal} {bn.currency}
-                    <a className="btn btn-ghost" href={billingNotePdfUrl(bn.id)} target="_blank" rel="noopener noreferrer">
-                      PDF
-                    </a>
                   </li>
                 ))}
               </ul>
@@ -197,54 +194,31 @@ export function InvoicesPage() {
           ) : null}
 
           <div className="panel">
-            <h2>{tx("recordPayment")}</h2>
+            <h2>{tx("recordShellPayment")}</h2>
             <div className="form pipe-form">
               <label>
                 {tx("colInvoice")}
                 <select value={payForm.invoiceId} onChange={(e) => setPayForm({ ...payForm, invoiceId: e.target.value })}>
                   <option value="">—</option>
-                  {invoices.filter((i) => i.status === "ISSUED" || i.status === "PARTIALLY_PAID").map((i) => (
-                    <option key={i.id} value={i.id}>{i.invoiceNumber} ({i.balanceDue})</option>
-                  ))}
+                  {invoices
+                    .filter((i) => i.status === "ISSUED" || i.status === "PARTIALLY_PAID")
+                    .map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.invoiceNumber} ({i.balanceDue})
+                      </option>
+                    ))}
                 </select>
               </label>
               <label>
                 {tx("colAmount")}
                 <input value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} />
               </label>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() =>
-                  void act(async () => {
-                    const inv = invoices.find((i) => i.id === payForm.invoiceId);
-                    if (!inv) return;
-                    await recordPayment({
-                      customerId: inv.customerId,
-                      amount: payForm.amount,
-                      currency: inv.currency,
-                      method: "BANK_TRANSFER",
-                      allocations: [{ invoiceId: inv.id, amount: payForm.amount }],
-                    });
-                  }, "paymentRecorded")
-                }
-              >
-                {tx("recordPayment")}
+              <button type="button" className="btn btn-primary" onClick={pay}>
+                {tx("recordShellPayment")}
               </button>
             </div>
           </div>
         </>
-      ) : billingNotes.length ? (
-        <div className="panel">
-          <h2>{tx("billingNotes")}</h2>
-          <ul className="list-plain">
-            {billingNotes.map((bn) => (
-              <li key={bn.id}>
-                {bn.billingNumber} — {bn.grandTotal} {bn.currency}
-              </li>
-            ))}
-          </ul>
-        </div>
       ) : null}
     </div>
   );

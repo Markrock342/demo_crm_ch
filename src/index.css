@@ -4090,6 +4090,28 @@ td .pill {
   padding: 0;
 }
 
+.login-dept-grid {
+  display: grid;
+  gap: var(--space-sm);
+  margin-block: var(--space-md);
+}
+
+.login-dept-btn {
+  width: 100%;
+}
+
+.login-remote {
+  margin-block-start: var(--space-lg);
+  padding-block-start: var(--space-md);
+  border-block-start: 1px solid var(--line, #ddd);
+}
+
+.login-remote-title {
+  font-size: var(--body-sm);
+  font-weight: 600;
+  margin: 0 0 var(--space-xs);
+}
+
 .login-demo {
   margin: var(--space-md) 0 0;
   font-size: var(--caption);
