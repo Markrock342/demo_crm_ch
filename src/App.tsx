@@ -46,8 +46,7 @@ import { AppRoutes } from "./AppRoutes.tsx";
 import { V2AppShell } from "./v2/AppShell.tsx";
 
 import { useStore } from "./store";
-
-const uiV2 = import.meta.env.VITE_UI_V2 !== "false";
+import { uiV2 } from "./v2/config.ts";
 
 const groups = [
   {

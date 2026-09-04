@@ -7,7 +7,11 @@ import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
+import { uiV2 } from "../v2/config.ts";
+import { RatesPageV2 } from "../v2/pages/RatesPage.tsx";
+
 export function RatesPage() {
+  if (uiV2) return <RatesPageV2 />;
   const shell = useIsShellMode();
   const { tx } = useStore();
   const support = useShellSupport();

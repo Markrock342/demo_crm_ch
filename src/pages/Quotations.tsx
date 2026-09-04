@@ -9,7 +9,11 @@ import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
+import { uiV2 } from "../v2/config.ts";
+import { QuotationsPageV2 } from "../v2/pages/QuotationsPage.tsx";
+
 export function QuotationsPage() {
+  if (uiV2) return <QuotationsPageV2 />;
   const shell = useIsShellMode();
   const { tx, locale } = useStore();
   const crm = useShellCrm();

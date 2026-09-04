@@ -132,6 +132,8 @@ export type JobRow = {
   nextMilestonePlannedAt?: string | null;
   milestoneAtRisk?: boolean;
   milestonePendingCount?: number;
+  grossProfit?: string | null;
+  billingStatus?: string | null;
 };
 
 export async function fetchJobs(customerId?: string, milestoneFilter?: "all" | "at_risk" | "pending") {

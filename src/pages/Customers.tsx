@@ -9,7 +9,11 @@ import { CustomerLedgerCards } from "../ui/CustomerLedgerCards";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMedia } from "../ui/useMedia";
 
+import { uiV2 } from "../v2/config.ts";
+import { CustomersPageV2 } from "../v2/pages/CustomersPage.tsx";
+
 export function CustomersPage() {
+  if (uiV2) return <CustomersPageV2 />;
   const shell = useIsShellMode();
   const store = useStore();
   const crm = useShellCrm();

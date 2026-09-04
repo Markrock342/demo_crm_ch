@@ -75,6 +75,8 @@ export type ShellJob = {
   serviceType: "FCL";
   billingStatus: ShellBillingStatus;
   delayed?: boolean;
+  /** Populated from list API enrichment in production mode. */
+  listGrossProfit?: number | null;
 };
 
 export function jobTotalCost(job: ShellJob): number {

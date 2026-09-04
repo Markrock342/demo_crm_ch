@@ -13,7 +13,11 @@ import { PageToolbar } from "../ui/PageToolbar";
 
 const legacyStatuses: BoxStatus[] = ["yard", "sail", "clear", "hold", "empty"];
 
+import { uiV2 } from "../v2/config.ts";
+import { ContainersPageV2 } from "../v2/pages/ContainersPage.tsx";
+
 export function BoxesPage() {
+  if (uiV2) return <ContainersPageV2 />;
   const shell = useIsShellMode();
   const { shellUser } = useShellSession();
   const store = useStore();

@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageHeader.tsx";
 import { ErrorState, LoadingState } from "../components/states.tsx";
 import { StatusTag } from "../components/StatusTag.tsx";
 import { useJobCharges, useJobFinancials, useJobMilestones } from "../hooks/useJobs.ts";
+import { useCustomerDocs, useJobContainers, useLiveInvoices } from "../hooks/useCommercial.ts";
 
 type Props = {
   job: ShellJob;
@@ -22,6 +23,9 @@ export function JobDetailLiveV2({ job }: Props) {
   const financials = useJobFinancials(job.id);
   const charges = useJobCharges(job.id);
   const milestones = useJobMilestones(job.id);
+  const containers = useJobContainers(job.id);
+  const docs = useCustomerDocs(job.customerId);
+  const invoices = useLiveInvoices(job.customerId);
 
   const gp = financials.data?.grossProfit ? parseFloat(financials.data.grossProfit) : null;
   const revenue = financials.data?.totalRevenue ? parseFloat(financials.data.totalRevenue) : null;
@@ -118,6 +122,89 @@ export function JobDetailLiveV2({ job }: Props) {
             <Typography.Text type="secondary">—</Typography.Text>
           ) : (
             <Steps direction="vertical" size="small" items={msItems} />
+          )}
+        </Card>
+      ),
+    },
+    {
+      key: "containers",
+      label: tx("navBoxes"),
+      children: (
+        <Card size="small">
+          {containers.isLoading ? (
+            <LoadingState />
+          ) : (
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={(containers.data ?? []).map((c) => ({ ...c, key: c.id }))}
+              columns={[
+                { title: tx("colBox"), dataIndex: "containerNo" },
+                { title: tx("colType"), dataIndex: "type", width: 80 },
+                { title: tx("colStatus"), dataIndex: "status", render: (s) => <StatusTag status={s} /> },
+                { title: "Seal", dataIndex: "seal" },
+                { title: tx("colEta"), dataIndex: "eta" },
+              ]}
+            />
+          )}
+        </Card>
+      ),
+    },
+    {
+      key: "documents",
+      label: tx("navDocs"),
+      children: (
+        <Card size="small">
+          {docs.isLoading ? (
+            <LoadingState />
+          ) : (
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={(docs.data ?? []).map((d) => ({ ...d, key: d.id }))}
+              columns={[
+                { title: tx("colKind"), dataIndex: "kind" },
+                { title: tx("colFile"), dataIndex: "name" },
+                { title: tx("colStatus"), dataIndex: "status", render: (s) => <StatusTag status={s} /> },
+                { title: tx("colUpdated"), dataIndex: "updated" },
+              ]}
+            />
+          )}
+        </Card>
+      ),
+    },
+    {
+      key: "invoices",
+      label: tx("navInvoices"),
+      children: (
+        <Card size="small">
+          {invoices.isLoading ? (
+            <LoadingState />
+          ) : (
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={(invoices.data ?? [])
+                .filter((i) => i.jobId === job.id)
+                .map((i) => ({ ...i, key: i.id }))}
+              columns={[
+                { title: "Invoice", dataIndex: "invoiceNumber" },
+                { title: tx("colStatus"), dataIndex: "status", render: (s) => <StatusTag status={s} /> },
+                {
+                  title: "Total",
+                  dataIndex: "total",
+                  align: "right",
+                  render: (v, row) => <Money amount={parseFloat(v)} currency={row.currency} locale={localeTag} />,
+                },
+                {
+                  title: "Balance",
+                  dataIndex: "balanceDue",
+                  align: "right",
+                  render: (v, row) => <Money amount={parseFloat(v)} currency={row.currency} locale={localeTag} />,
+                },
+                { title: tx("invoiceDueDate"), dataIndex: "dueDate", render: (d) => String(d).slice(0, 10) },
+              ]}
+            />
           )}
         </Card>
       ),

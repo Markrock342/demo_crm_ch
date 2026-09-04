@@ -13,7 +13,11 @@ import { PageToolbar } from "../ui/PageToolbar";
 
 type Exc = { id: string; kind: string; label: string; meta: string; to: string };
 
+import { uiV2 } from "../v2/config.ts";
+import { ExceptionsPageV2 } from "../v2/pages/ExceptionsPage.tsx";
+
 export function ExceptionsPage() {
+  if (uiV2) return <ExceptionsPageV2 />;
   const shell = useIsShellMode();
   const { tx, locale } = useStore();
   const jobs = useShellJobs();

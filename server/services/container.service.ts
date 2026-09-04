@@ -44,10 +44,11 @@ function toDto(row: typeof containers.$inferSelect): ContainerDto {
 
 export async function listContainers(
   db: Db,
-  filters?: { status?: string; customerId?: string; statuses?: string[] },
+  filters?: { status?: string; customerId?: string; jobId?: string; statuses?: string[] },
 ) {
   const clauses = [];
   if (filters?.customerId) clauses.push(eq(containers.customerId, filters.customerId));
+  if (filters?.jobId) clauses.push(eq(containers.jobId, filters.jobId));
   if (filters?.status) clauses.push(eq(containers.status, filters.status));
   if (filters?.statuses?.length) clauses.push(inArray(containers.status, filters.statuses));
 

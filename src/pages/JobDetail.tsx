@@ -16,8 +16,7 @@ import { useShellSupport, type ShellDocType } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 import { JobDetailLiveV2Loader } from "../v2/pages/JobDetailLive.tsx";
-
-const uiV2 = import.meta.env.VITE_UI_V2 !== "false";
+import { uiV2 } from "../v2/config.ts";
 
 const DOC_TYPES: ShellDocType[] = ["BOOKING", "BL", "CI", "PL", "CO", "DO", "POD", "OTHER"];
 

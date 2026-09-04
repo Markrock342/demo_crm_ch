@@ -11,8 +11,7 @@ import { useStore } from "../store";
 import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
 import { JobsPageV2 } from "../v2/pages/JobsPage.tsx";
-
-const uiV2 = import.meta.env.VITE_UI_V2 !== "false";
+import { uiV2 } from "../v2/config.ts";
 
 type StatusFilter = "all" | "OPEN" | "IN_PROGRESS" | "CLOSED";
 type BillingFilter = "all" | "UNBILLED" | "INVOICED" | "PARTIAL" | "PAID";

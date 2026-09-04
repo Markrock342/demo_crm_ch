@@ -131,8 +131,8 @@ export function JobsProTable({ rows, customers, loading, error, onReload, extraT
       align: "right",
       search: false,
       render: (_, row) => {
-        const gp = jobGrossProfit(row);
-        if (!row.totalSell && !row.costs.length) return "—";
+        const gp = row.listGrossProfit ?? (row.totalSell || row.costs.length ? jobGrossProfit(row) : null);
+        if (gp == null) return "—";
         return (
           <>
             <Money amount={gp} currency={row.currency} locale={locale === "zh" ? "zh-CN" : locale === "th" ? "th-TH" : "en-US"} />{" "}

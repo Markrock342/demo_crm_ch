@@ -27,7 +27,11 @@ function arAgingBuckets(invoices: { balanceDue: number; dueDate?: string; status
   return buckets;
 }
 
+import { uiV2 } from "../v2/config.ts";
+import { OverviewPageV2 } from "../v2/pages/OverviewPage.tsx";
+
 export function OverviewPage() {
+  if (uiV2) return <OverviewPageV2 />;
   const shell = useIsShellMode();
   const { tx, locale } = useStore();
   const jobs = useShellJobs();

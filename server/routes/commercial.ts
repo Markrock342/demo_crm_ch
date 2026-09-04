@@ -7,6 +7,7 @@ import { createInvoiceFromJob, createBillingNote, createVendorBillFromJob, appro
 import { createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
 import { ensureJobMilestones, listMilestonesForJobs, setMilestoneComplete, summarizeMilestones } from "../services/milestone.service.js";
 import { getJob, listBookingsByQuotation, listJobCharges, listJobs, updateChargeActual } from "../services/operations.service.js";
+import { enrichJobsForList } from "../services/job-enrichment.service.js";
 import { generateBillingNotePdf, generateQuotationPdf } from "../services/pdf.service.js";
 import {
   createBookingFromQuotation,
@@ -146,14 +147,22 @@ export function commercialRoutes() {
     const customerId = c.req.query("customerId");
     const milestoneFilter = c.req.query("milestoneFilter") as "all" | "at_risk" | "pending" | undefined;
     const filter = milestoneFilter === "at_risk" || milestoneFilter === "pending" ? milestoneFilter : "all";
+    const limit = Math.min(Number(c.req.query("limit") || 200), 500);
+    const offset = Math.max(Number(c.req.query("offset") || 0), 0);
     const rows = await listJobs(db, customerId, filter);
+    const page = rows.slice(offset, offset + limit);
+    const enrichment = await enrichJobsForList(
+      db,
+      page.map((j) => j.id),
+    );
     const milestoneMap = await listMilestonesForJobs(
       db,
-      rows.map((j) => j.id),
+      page.map((j) => j.id),
     );
-    const items = rows.map((j) => {
+    const items = page.map((j) => {
       const ms = milestoneMap.get(j.id) ?? [];
       const summary = summarizeMilestones(ms);
+      const extra = enrichment.get(j.id);
       return {
         id: j.id,
         jobNumber: j.jobNumber,
@@ -181,9 +190,11 @@ export function commercialRoutes() {
         nextMilestonePlannedAt: summary.nextPlannedAt,
         milestoneAtRisk: summary.atRisk,
         milestonePendingCount: summary.pendingCount,
+        grossProfit: extra?.grossProfit ?? null,
+        billingStatus: extra?.billingStatus ?? "UNBILLED",
       };
     });
-    return c.json({ items });
+    return c.json({ items, total: rows.length, limit, offset });
   });
 
   r.get("/jobs/:id", requireAuth(), requirePermission("shipment.view"), async (c) => {
@@ -390,12 +401,14 @@ export function commercialRoutes() {
     if (typeof db !== "object" || !("select" in db)) return db;
     const status = c.req.query("status");
     const customerId = c.req.query("customerId");
+    const jobId = c.req.query("jobId");
     const yard = c.req.query("yard");
     const statuses = yard === "1" ? ["yard", "empty", "hold"] : undefined;
     return c.json({
       items: await listContainers(db, {
         status: statuses ? undefined : status,
         customerId,
+        jobId,
         statuses,
       }),
     });

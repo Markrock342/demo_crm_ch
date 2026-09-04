@@ -25,10 +25,11 @@ export type ContainerDto = {
   commodity: string | null;
 };
 
-export async function fetchContainers(params?: { status?: string; customerId?: string; yard?: boolean }) {
+export async function fetchContainers(params?: { status?: string; customerId?: string; jobId?: string; yard?: boolean }) {
   const q = new URLSearchParams();
   if (params?.status) q.set("status", params.status);
   if (params?.customerId) q.set("customerId", params.customerId);
+  if (params?.jobId) q.set("jobId", params.jobId);
   if (params?.yard) q.set("yard", "1");
   const qs = q.toString();
   const data = await apiFetch(`/api/containers${qs ? `?${qs}` : ""}`);
