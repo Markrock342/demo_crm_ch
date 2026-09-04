@@ -15,6 +15,9 @@ import { useIsShellMode } from "../shell/session.tsx";
 import { useShellSupport, type ShellDocType } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
+import { JobDetailLiveV2Loader } from "../v2/pages/JobDetailLive.tsx";
+
+const uiV2 = import.meta.env.VITE_UI_V2 !== "false";
 
 const DOC_TYPES: ShellDocType[] = ["BOOKING", "BL", "CI", "PL", "CO", "DO", "POD", "OTHER"];
 
@@ -65,21 +68,29 @@ export function JobDetailPage() {
 
   if (live) {
     if (liveLoading) {
-      return (
+      return uiV2 ? (
+        <JobDetailLiveV2Loader job={null} loading error={null} />
+      ) : (
         <div className="page page--workspace">
           <p className="meta">{tx("loginBusy")}</p>
         </div>
       );
     }
     if (liveErr || !liveJob) {
-      return (
+      return uiV2 ? (
+        <JobDetailLiveV2Loader job={null} loading={false} error={liveErr ?? tx("emptyShellCrm")} />
+      ) : (
         <div className="page page--workspace">
           <p className="field-err">{liveErr ?? tx("emptyShellCrm")}</p>
           <Link to="/jobs">{tx("navJobs")}</Link>
         </div>
       );
     }
-    return <LiveJobDetailBody job={liveJob} />;
+    return uiV2 ? (
+      <JobDetailLiveV2Loader job={liveJob} loading={false} error={null} />
+    ) : (
+      <LiveJobDetailBody job={liveJob} />
+    );
   }
 
   if (!shellJob) {

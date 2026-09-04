@@ -1,7 +1,7 @@
 # CANGZHAN LogisticsOS — Production V2 Status
 
 Branch: `feature/logisticsos-ui-v2`  
-Last updated: 2026-09-04
+Last updated: 2026-09-04 (P3 Jobs kickoff)
 
 ## Goal
 
@@ -16,9 +16,9 @@ Reference brief: `LOGISTICSOS_V2_BRIEF.md`
 | Phase | Scope | Status |
 |-------|--------|--------|
 | **P0** | DB hardening, dates, tenancy, auth foundation | **PARTIAL** |
-| **P1** | Ant Design V2 shell, theme, shared primitives | **IN PROGRESS** |
+| **P1** | Ant Design V2 shell, theme, shared primitives | **DONE** (foundation) |
 | P2 | Customers → Rates → Quotations | NOT STARTED |
-| P3 | Jobs → Job Detail → Shipments → Containers → Milestones | NOT STARTED |
+| **P3** | Jobs → Job Detail → Shipments → Containers → Milestones | **IN PROGRESS** |
 | P4 | Documents + storage + PDF Template Studio (pdfme) | NOT STARTED |
 | P5 | Invoices/AP/Payments + financial reports | NOT STARTED |
 | P6 | Inbox/email + tracking + notifications + automation | NOT STARTED |
@@ -59,16 +59,22 @@ Reference brief: `LOGISTICSOS_V2_BRIEF.md`
 - `src/v2/providers/AppProviders.tsx` — ConfigProvider + QueryClient
 - `src/AppRoutes.tsx` — shared route table (legacy + V2)
 - Legacy shell preserved as `LegacyAppShell` for rollback
+- **`JobsProTable`** — ProTable with column settings, density, client pagination
+- **`src/v2/pages/JobsPage.tsx`** — Jobs list on TanStack Query (production) + shell fallback
+- **`src/v2/pages/JobDetailLive.tsx`** — Live job detail tabs: Overview, Milestones, Charges (+ financials from API)
+- Query hooks: `src/v2/hooks/useJobs.ts`, `src/v2/queries/keys.ts`
 
 ### BLOCKED
-- Individual pages still use custom CSS / PageToolbar — not yet migrated to V2 primitives
-- ProTable wrapper, DrawerForm, ActionCenter component, DocumentPreview, FileUploader — not built
+- Individual pages (except Jobs) still use custom CSS / PageToolbar
+- DrawerForm, ActionCenter component, DocumentPreview, FileUploader — not built
 - FullCalendar not wired (Calendar.tsx still custom)
 - pdfme Designer page not built
+- Job list GP column shows `—` in live mode until list API includes financials (detail fetches `/financials`)
+- Server-side pagination / saved views / bulk assign — not on API yet
 
 ### NEXT
-- ProTable wrapper + migrate Jobs list first (production API)
-- Page-by-page V2 migration following P2→P3 order
+- ProTable + production API for Customers, Rates
+- Expand Job Detail live tabs: Containers, Documents, Invoices, Tasks
 - Wire TanStack Query to production endpoints; stop duplicating shell stores on live paths
 
 ---
@@ -77,7 +83,7 @@ Reference brief: `LOGISTICSOS_V2_BRIEF.md`
 
 | Area | Shell | Production API |
 |------|-------|----------------|
-| Job Detail | Full 360 panels | Thin `LiveJobDetailBody` |
+| Job Detail | Full 360 panels | Live V2 tabs (Overview/Milestones/Charges); Documents/Containers pending |
 | Quotations / Rates | Wizard + stores | Partial / stub |
 | Documents | Metadata | No object storage |
 | Portal | PIN demo | No real customer auth |

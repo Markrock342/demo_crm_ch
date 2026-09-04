@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 type Props = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   breadcrumbs?: { title: string; href?: string }[];
   extra?: ReactNode;
   children?: ReactNode;
@@ -23,7 +23,13 @@ export function PageHeader({ title, subtitle, breadcrumbs, extra, children }: Pr
           <Typography.Title level={4} style={{ margin: 0 }}>
             {title}
           </Typography.Title>
-          {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}
+          {subtitle ? (
+            typeof subtitle === "string" ? (
+              <Typography.Text type="secondary">{subtitle}</Typography.Text>
+            ) : (
+              subtitle
+            )
+          ) : null}
         </div>
         {extra}
       </Space>

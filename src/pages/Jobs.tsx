@@ -10,12 +10,16 @@ import { useIsShellMode } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { ClickableTableRow } from "../ui/ClickableTableRow";
 import { PageToolbar } from "../ui/PageToolbar";
+import { JobsPageV2 } from "../v2/pages/JobsPage.tsx";
+
+const uiV2 = import.meta.env.VITE_UI_V2 !== "false";
 
 type StatusFilter = "all" | "OPEN" | "IN_PROGRESS" | "CLOSED";
 type BillingFilter = "all" | "UNBILLED" | "INVOICED" | "PARTIAL" | "PAID";
 type DateFilter = "all" | "hasEtd" | "hasEta" | "missing";
 
 export function JobsPage() {
+  if (uiV2) return <JobsPageV2 />;
   const shell = useIsShellMode();
   const { mode, user } = useAuth();
   const live = !shell && mode === "production" && Boolean(user);
