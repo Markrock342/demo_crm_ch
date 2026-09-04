@@ -13,6 +13,7 @@ import {
 } from "../db/schema/commercial.js";
 import { approvalConfig } from "../db/schema/finance.js";
 import { bookings, jobs, shipmentCharges } from "../db/schema/operations.js";
+import { customers } from "../db/schema/crm.js";
 import { canViewBuyRate, canViewMargin, type RoleCode } from "../domain/rbac.js";
 import { add, d, grossProfit, marginPct, mul, sub, toDb } from "../lib/money.js";
 import { nextDocNumber } from "./sequence.service.js";
@@ -40,16 +41,22 @@ function hashSnapshot(payload: unknown) {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-export async function listQuotations(db: Db, customerId?: string) {
+export async function listQuotations(db: Db, organizationId: string, customerId?: string) {
+  const filters = [eq(quotations.organizationId, organizationId)];
+  if (customerId) filters.push(eq(quotations.customerId, customerId));
   return db
     .select()
     .from(quotations)
-    .where(customerId ? eq(quotations.customerId, customerId) : undefined)
+    .where(and(...filters))
     .orderBy(desc(quotations.updatedAt));
 }
 
-export async function getQuotationDetail(db: Db, id: string, roles: RoleCode[]) {
-  const [q] = await db.select().from(quotations).where(eq(quotations.id, id)).limit(1);
+export async function getQuotationDetail(db: Db, organizationId: string, id: string, roles: RoleCode[]) {
+  const [q] = await db
+    .select()
+    .from(quotations)
+    .where(and(eq(quotations.id, id), eq(quotations.organizationId, organizationId)))
+    .limit(1);
   if (!q) return null;
   const revisions = await db
     .select()
@@ -85,6 +92,7 @@ export async function getQuotationDetail(db: Db, id: string, roles: RoleCode[]) 
 
 export async function createQuotationFromRate(
   db: Db,
+  organizationId: string,
   input: {
     customerId: string;
     contactId?: string;
@@ -96,6 +104,13 @@ export async function createQuotationFromRate(
     createdBy: string;
   },
 ) {
+  const [cust] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(and(eq(customers.id, input.customerId), eq(customers.organizationId, organizationId)))
+    .limit(1);
+  if (!cust) throw new Error("customer_not_found");
+
   const [lane] = await db.select().from(rateLanes).where(eq(rateLanes.id, input.rateLaneId)).limit(1);
   if (!lane) throw new Error("rate_lane_not_found");
   const rateCh = await db.select().from(rateCharges).where(eq(rateCharges.rateLaneId, lane.id));
@@ -169,8 +184,16 @@ export async function createQuotation(
   const number = await nextDocNumber(db, "QT", "QT");
   const validUntil = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
+  const [cust] = await db
+    .select({ organizationId: customers.organizationId })
+    .from(customers)
+    .where(eq(customers.id, input.customerId))
+    .limit(1);
+  if (!cust) throw new Error("customer_not_found");
+
   await db.insert(quotations).values({
     id,
+    organizationId: cust.organizationId,
     quotationNumber: number,
     customerId: input.customerId,
     contactId: input.contactId ?? null,
@@ -263,8 +286,8 @@ async function getApprovalThresholds(db: Db) {
   };
 }
 
-export async function submitForApproval(db: Db, quotationId: string, userId: string) {
-  const detail = await getQuotationDetail(db, quotationId, ["SUPER_ADMIN"]);
+export async function submitForApproval(db: Db, organizationId: string, quotationId: string, userId: string) {
+  const detail = await getQuotationDetail(db, organizationId, quotationId, ["SUPER_ADMIN"]);
   if (!detail?.totals) throw new Error("not_found");
   const margin = d(detail.totals.marginPct ?? "0");
   const sell = d(detail.totals.totalSell ?? "0");
@@ -289,11 +312,19 @@ export async function submitForApproval(db: Db, quotationId: string, userId: str
 
 export async function decideApproval(
   db: Db,
+  organizationId: string,
   quotationId: string,
   approverId: string,
   decision: "APPROVED" | "REJECTED",
   comment?: string,
 ) {
+  const [q] = await db
+    .select({ id: quotations.id })
+    .from(quotations)
+    .where(and(eq(quotations.id, quotationId), eq(quotations.organizationId, organizationId)))
+    .limit(1);
+  if (!q) throw new Error("not_found");
+
   const [req] = await db
     .select()
     .from(approvalRequests)
@@ -315,8 +346,12 @@ export async function decideApproval(
   return { decision };
 }
 
-export async function sendQuotation(db: Db, quotationId: string, sentBy: string) {
-  const [q] = await db.select().from(quotations).where(eq(quotations.id, quotationId)).limit(1);
+export async function sendQuotation(db: Db, organizationId: string, quotationId: string, sentBy: string) {
+  const [q] = await db
+    .select()
+    .from(quotations)
+    .where(and(eq(quotations.id, quotationId), eq(quotations.organizationId, organizationId)))
+    .limit(1);
   if (!q) throw new Error("not_found");
   if (!["APPROVED", "DRAFT"].includes(q.status) && q.status !== "SENT") {
     throw new Error("invalid_status");
@@ -445,8 +480,12 @@ export async function signQuotation(
   return { eventId, decision: input.decision };
 }
 
-export async function createBookingFromQuotation(db: Db, quotationId: string) {
-  const [q] = await db.select().from(quotations).where(eq(quotations.id, quotationId)).limit(1);
+export async function createBookingFromQuotation(db: Db, organizationId: string, quotationId: string) {
+  const [q] = await db
+    .select()
+    .from(quotations)
+    .where(and(eq(quotations.id, quotationId), eq(quotations.organizationId, organizationId)))
+    .limit(1);
   if (!q || q.status !== "ACCEPTED") throw new Error("quotation_not_accepted");
 
   const [rev] = await db
@@ -477,14 +516,22 @@ export async function createBookingFromQuotation(db: Db, quotationId: string) {
   return { id, bookingNumber };
 }
 
-export async function createJobFromBooking(db: Db, bookingId: string) {
+export async function createJobFromBooking(db: Db, organizationId: string, bookingId: string) {
   const [b] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
   if (!b) throw new Error("booking_not_found");
+
+  const [cust] = await db
+    .select({ organizationId: customers.organizationId })
+    .from(customers)
+    .where(and(eq(customers.id, b.customerId), eq(customers.organizationId, organizationId)))
+    .limit(1);
+  if (!cust) throw new Error("booking_not_found");
 
   const jobNumber = await nextDocNumber(db, "JOB", "JOB");
   const id = `job${Date.now()}`;
   await db.insert(jobs).values({
     id,
+    organizationId: cust.organizationId,
     jobNumber,
     customerId: b.customerId,
     bookingId: b.id,
@@ -552,7 +599,11 @@ export async function createJobFromBooking(db: Db, bookingId: string) {
   return { id, jobNumber };
 }
 
-export async function getJobFinancials(db: Db, jobId: string, roles: RoleCode[]) {
+export async function getJobFinancials(db: Db, organizationId: string, jobId: string, roles: RoleCode[]) {
+  const { getJob } = await import("./operations.service.js");
+  const job = await getJob(db, organizationId, jobId);
+  if (!job) throw new Error("not_found");
+
   const charges = await db.select().from(shipmentCharges).where(eq(shipmentCharges.jobId, jobId));
   const showCost = canViewBuyRate(roles) || roles.includes("ACCOUNTING") || roles.includes("MANAGEMENT");
   const showMargin = canViewMargin(roles);

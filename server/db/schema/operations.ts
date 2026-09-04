@@ -1,6 +1,7 @@
-import { boolean, date, integer, numeric, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, date, integer, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./crm.js";
 import { quotations, quotationRevisions, vendors } from "./commercial.js";
+import { organizations } from "./tenancy.js";
 
 export const bookings = pgTable("bookings", {
   id: text("id").primaryKey(),
@@ -29,6 +30,9 @@ export const bookings = pgTable("bookings", {
 
 export const jobs = pgTable("jobs", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   jobNumber: text("job_number").notNull().unique(),
   customerId: text("customer_id")
     .notNull()
@@ -92,6 +96,9 @@ export const shipmentCharges = pgTable("shipment_charges", {
 
 export const containers = pgTable("containers", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
   customerId: text("customer_id")
     .notNull()

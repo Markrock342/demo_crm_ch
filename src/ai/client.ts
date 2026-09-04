@@ -58,15 +58,33 @@ export async function analyzeMail(input: LedgerContext): Promise<MailAnalysis> {
   return data as unknown as MailAnalysis;
 }
 
-export async function aiBrief(locale: Locale, facts: Record<string, string | number | boolean>) {
+export type AiBriefResult = {
+  situation: string;
+  risks: string[];
+  recommendations: string[];
+  actions: string[];
+  summary: string;
+};
+
+export async function aiBrief(
+  locale: Locale,
+  facts: Record<string, string | number | boolean>,
+  context?: string,
+): Promise<AiBriefResult> {
   const res = await fetch("/api/ai/brief", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ locale, facts }),
+    body: JSON.stringify({ locale, facts, context }),
   });
   const data = await readJson(res);
   if (!res.ok) {
     throw new AiError(String(data.error ?? "bad_request"), String(data.error ?? "bad_request"));
   }
-  return String(data.summary ?? "");
+  return {
+    situation: String(data.situation ?? ""),
+    risks: Array.isArray(data.risks) ? data.risks.map(String) : [],
+    recommendations: Array.isArray(data.recommendations) ? data.recommendations.map(String) : [],
+    actions: Array.isArray(data.actions) ? data.actions.map(String) : [],
+    summary: String(data.summary ?? ""),
+  };
 }

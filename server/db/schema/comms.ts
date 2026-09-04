@@ -1,8 +1,12 @@
-import { boolean, jsonb, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, jsonb, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./crm.js";
+import { organizations } from "./tenancy.js";
 
 export const mails = pgTable("mails", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
   fromAddr: text("from_addr").notNull().default(""),
   subjectZh: text("subject_zh").notNull().default(""),
@@ -32,6 +36,9 @@ export const mails = pgTable("mails", {
 
 export const crmDocs = pgTable("crm_docs", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   customerId: text("customer_id")
     .notNull()
     .references(() => customers.id, { onDelete: "cascade" }),
@@ -40,6 +47,10 @@ export const crmDocs = pgTable("crm_docs", {
   name: text("name").notNull(),
   status: text("status").notNull().default("wait"),
   updated: text("updated").notNull().default(""),
+  storageKey: text("storage_key"),
+  mimeType: text("mime_type"),
+  sizeBytes: numeric("size_bytes"),
+  finalizedAt: timestamp("finalized_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

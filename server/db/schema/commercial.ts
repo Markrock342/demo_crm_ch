@@ -1,8 +1,12 @@
-import { boolean, integer, numeric, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, numeric, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./crm.js";
+import { organizations } from "./tenancy.js";
 
 export const vendors = pgTable("vendors", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   company: text("company").notNull(),
   vendorType: text("vendor_type").notNull(),
   taxId: text("tax_id"),
@@ -85,6 +89,9 @@ export const approvalRequests = pgTable("approval_requests", {
 
 export const quotations = pgTable("quotations", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   quotationNumber: text("quotation_number").notNull().unique(),
   customerId: text("customer_id")
     .notNull()

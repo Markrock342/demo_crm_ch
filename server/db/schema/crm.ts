@@ -1,7 +1,11 @@
-import { integer, pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { organizations } from "./tenancy.js";
 
 export const customers = pgTable("customers", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   nameZh: text("name_zh").notNull(),
   nameTh: text("name_th").notNull(),
   nameEn: text("name_en").notNull(),
@@ -14,6 +18,7 @@ export const customers = pgTable("customers", {
   owner: text("owner").notNull(),
   updated: text("updated").notNull(),
   arDays: integer("ar_days").notNull().default(0),
+  portalPin: text("portal_pin").notNull().default("demo"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -35,6 +40,9 @@ export const contacts = pgTable("contacts", {
 
 export const leads = pgTable("leads", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   company: text("company").notNull(),
   city: text("city").notNull(),
   lane: text("lane").notNull(),

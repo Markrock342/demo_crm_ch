@@ -1,7 +1,8 @@
-import { integer, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./crm.js";
 import { jobs } from "./operations.js";
 import { vendors } from "./commercial.js";
+import { organizations } from "./tenancy.js";
 
 export const currencies = pgTable("currencies", {
   code: text("code").primaryKey(),
@@ -30,6 +31,9 @@ export const taxCodes = pgTable("tax_codes", {
 
 export const invoices = pgTable("invoices", {
   id: text("id").primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
   invoiceNumber: text("invoice_number").notNull().unique(),
   customerId: text("customer_id")
     .notNull()

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
-import { authMiddleware, requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { authMiddleware, requireAuth, requireTenant, type AuthEnv } from "../middleware/auth.js";
 import { clearSessionCookie, sessionCookie, signSession } from "../lib/jwt.js";
 import { loginUser } from "../services/auth.service.js";
 import { writeAudit } from "../services/audit.service.js";
@@ -31,11 +31,16 @@ export function authRoutes() {
     const user = await loginUser(db, body.email, body.password);
     if (!user) return c.json({ error: "invalid_credentials" }, 401);
 
+    const { resolvePrimaryOrganization } = await import("../services/tenancy.service.js");
+    const tenant = await resolvePrimaryOrganization(db, user.id);
+    if (!tenant) return c.json({ error: "no_organization" }, 403);
+
     const token = await signSession({
       sub: user.id,
       email: user.email,
       roles: user.roles,
       permissions: user.permissions,
+      orgId: tenant.organizationId,
     });
 
     await writeAudit(db, {
@@ -46,11 +51,18 @@ export function authRoutes() {
     });
 
     c.header("Set-Cookie", sessionCookie(token));
-    return c.json({ user });
+    return c.json({
+      user: {
+        ...user,
+        organizationId: tenant.organizationId,
+        organizationName: tenant.organizationName,
+      },
+      tenant,
+    });
   });
 
-  r.get("/me", requireAuth(), (c) => {
-    return c.json({ user: c.get("user") });
+  r.get("/me", requireAuth(), requireTenant(), (c) => {
+    return c.json({ user: c.get("user"), tenant: c.get("tenant") });
   });
 
   r.post("/logout", async (c) => {

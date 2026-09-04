@@ -2,6 +2,8 @@ import type { Db } from "../db/index.js";
 import { rateCharges, rateLanes, rateSheets, vendors } from "../db/schema/commercial.js";
 import { sql } from "drizzle-orm";
 
+import { DEMO_ORG_ID } from "../domain/tenancy.js";
+
 export async function seedCommercial(db: Db) {
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(vendors);
   if (count > 0) return { skipped: true };
@@ -9,6 +11,7 @@ export async function seedCommercial(db: Db) {
   await db.insert(vendors).values([
     {
       id: "v1",
+      organizationId: DEMO_ORG_ID,
       company: "COSCO Shipping Lines",
       vendorType: "SHIPPING_LINE",
       taxId: "TH-COSCO-001",
@@ -20,6 +23,7 @@ export async function seedCommercial(db: Db) {
     },
     {
       id: "v2",
+      organizationId: DEMO_ORG_ID,
       company: "MSC Mediterranean",
       vendorType: "SHIPPING_LINE",
       taxId: "TH-MSC-001",
@@ -31,6 +35,7 @@ export async function seedCommercial(db: Db) {
     },
     {
       id: "v3",
+      organizationId: DEMO_ORG_ID,
       company: "Laem Chabang Terminal",
       vendorType: "DEPOT",
       taxId: "TH-LCT-001",

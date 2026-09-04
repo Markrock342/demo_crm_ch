@@ -75,10 +75,30 @@ ${input.body}
 export async function summarizeFacts(raw: BriefRequest) {
   const input = briefRequestSchema.parse(raw);
   const lang = input.locale === "th" ? "Thai" : input.locale === "en" ? "English" : "Simplified Chinese";
-  const prompt = `Write a 2–3 sentence ops brief in ${lang} using ONLY these facts. Do not invent numbers or names.
+  const ctx = input.context?.trim() ? `Screen context: ${input.context}\n` : "";
+
+  const prompt = `You are a senior freight forwarder ops advisor for CANGZHAN (Thailand–China FCL/LCL lanes).
+${ctx}Write entirely in ${lang}. Use ONLY numbers and facts from the JSON below — never invent customers, job numbers, or amounts not present.
+
+Produce a detailed operational intelligence report for the ops manager:
+
+1. situation — 4–6 sentences: current state, what stands out, volume/billing/doc posture, trend vs normal week
+2. risks — 2–5 bullets: concrete risks or gaps implied by the facts (empty array only if truly none)
+3. recommendations — 3–5 bullets: strategic suggestions (prioritization, communication, commercial)
+4. actions — 5–7 bullets: specific tasks for TODAY, each starting with a strong verb (call, chase, confirm, issue invoice, update milestone…). Include who-ish role (ops/sales/finance) when obvious
+5. summary — same content formatted as readable markdown with ## section headers in ${lang}
+
 Facts JSON:
 ${JSON.stringify(input.facts)}
-Tone: port clerk, Thailand–China lane. No marketing.`;
+
+Tone: experienced port clerk + ops lead. Direct, no marketing fluff. Be specific with the numbers from facts.`;
+
   const parsed = briefResultSchema.parse(await generateJson(prompt, geminiBriefJsonSchema));
-  return { summary: parsed.summary.trim() };
+  return {
+    situation: parsed.situation.trim(),
+    risks: parsed.risks.map((s) => s.trim()).filter(Boolean),
+    recommendations: parsed.recommendations.map((s) => s.trim()).filter(Boolean),
+    actions: parsed.actions.map((s) => s.trim()).filter(Boolean),
+    summary: parsed.summary.trim(),
+  };
 }

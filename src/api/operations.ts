@@ -25,10 +25,11 @@ export type ContainerDto = {
   commodity: string | null;
 };
 
-export async function fetchContainers(params?: { status?: string; customerId?: string; yard?: boolean }) {
+export async function fetchContainers(params?: { status?: string; customerId?: string; jobId?: string; yard?: boolean }) {
   const q = new URLSearchParams();
   if (params?.status) q.set("status", params.status);
   if (params?.customerId) q.set("customerId", params.customerId);
+  if (params?.jobId) q.set("jobId", params.jobId);
   if (params?.yard) q.set("yard", "1");
   const qs = q.toString();
   const data = await apiFetch(`/api/containers${qs ? `?${qs}` : ""}`);
@@ -85,4 +86,44 @@ export async function patchJobMilestone(jobId: string, code: string, complete: b
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ complete }),
   }) as Promise<MilestoneDto>;
+}
+
+export type JobTaskDto = {
+  id: string;
+  jobId: string;
+  title: string;
+  dueAt: string | null;
+  owner: string;
+  priority: string;
+  done: boolean;
+};
+
+export async function fetchJobTasks(jobId: string) {
+  const data = await apiFetch(`/api/jobs/${jobId}/tasks`);
+  return (data.items as JobTaskDto[]) ?? [];
+}
+
+export async function createJobTaskApi(jobId: string, input: { title: string; owner?: string; priority?: string; dueAt?: string | null }) {
+  return apiFetch(`/api/jobs/${jobId}/tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<JobTaskDto>;
+}
+
+export async function patchJobTaskApi(jobId: string, taskId: string, patch: Partial<{ title: string; done: boolean; priority: string }>) {
+  return apiFetch(`/api/jobs/${jobId}/tasks/${taskId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  }) as Promise<JobTaskDto>;
+}
+
+export async function uploadDocFile(docId: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`/api/docs/${docId}/upload`, { method: "POST", credentials: "include", body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(String((data as { error?: string }).error ?? `upload_${res.status}`));
+  return data;
 }

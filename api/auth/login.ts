@@ -19,17 +19,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = await loginUser(db, email, password);
   if (!user) return res.status(401).json({ error: "invalid_credentials" });
 
+  const { resolvePrimaryOrganization } = await import("../../server/services/tenancy.service.js");
+  const tenant = await resolvePrimaryOrganization(db, user.id);
+  if (!tenant) return res.status(403).json({ error: "no_organization" });
+
   const token = await signSession({
     sub: user.id,
     email: user.email,
     roles: user.roles,
     permissions: user.permissions,
+    orgId: tenant.organizationId,
   });
 
   await writeAudit(db, { userId: user.id, action: "USER_LOGIN", entityType: "user", entityId: user.id });
 
   res.setHeader("Set-Cookie", sessionCookie(token));
-  return res.status(200).json({ user });
+  return res.status(200).json({
+    user: { ...user, organizationId: tenant.organizationId, organizationName: tenant.organizationName },
+    tenant,
+  });
 }
 
 export const config = { runtime: "nodejs" };

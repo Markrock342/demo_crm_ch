@@ -27,8 +27,8 @@ function drawHeader(
   page.drawText(sub, { x: 50, y: 692, size: 10, font });
 }
 
-export async function generateQuotationPdf(db: Db, quotationId: string): Promise<Uint8Array> {
-  const detail = await getQuotationDetail(db, quotationId, ["SUPER_ADMIN"]);
+export async function generateQuotationPdf(db: Db, organizationId: string, quotationId: string): Promise<Uint8Array> {
+  const detail = await getQuotationDetail(db, organizationId, quotationId, ["SUPER_ADMIN"]);
   if (!detail?.revision) throw new Error("not_found");
 
   const [cust] = await db.select().from(customers).where(eq(customers.id, detail.quotation.customerId)).limit(1);

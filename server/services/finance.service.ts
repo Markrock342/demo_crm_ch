@@ -1,14 +1,20 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.js";
-import { shipmentCharges } from "../db/schema/operations.js";
+import { shipmentCharges, jobs } from "../db/schema/operations.js";
 import { billingNoteItems, billingNotes, invoiceLines, invoices, paymentAllocations, payments, vendorBillLines, vendorBills } from "../db/schema/finance.js";
+import { customers } from "../db/schema/crm.js";
 import { add, d, sub, toDb } from "../lib/money.js";
 import { nextDocNumber } from "./sequence.service.js";
+import { getJob } from "./operations.service.js";
 
 export async function createInvoiceFromJob(
   db: Db,
+  organizationId: string,
   input: { jobId: string; customerId: string; chargeIds: string[]; createdBy: string; paymentTermsDays?: number },
 ) {
+  const job = await getJob(db, organizationId, input.jobId);
+  if (!job) throw new Error("job_not_found");
+
   const charges = await db
     .select()
     .from(shipmentCharges)
@@ -25,8 +31,16 @@ export async function createInvoiceFromJob(
   const issueDate = new Date();
   const dueDate = new Date(issueDate.getTime() + (input.paymentTermsDays ?? 30) * 24 * 60 * 60 * 1000);
 
+  const [jobRow] = await db
+    .select({ organizationId: jobs.organizationId })
+    .from(jobs)
+    .where(and(eq(jobs.id, input.jobId), eq(jobs.organizationId, organizationId)))
+    .limit(1);
+  if (!jobRow) throw new Error("job_not_found");
+
   await db.insert(invoices).values({
     id,
+    organizationId: jobRow.organizationId,
     invoiceNumber,
     customerId: input.customerId,
     jobId: input.jobId,
@@ -62,13 +76,13 @@ export async function createInvoiceFromJob(
   return { id, invoiceNumber, total: toDb(total) };
 }
 
-export async function issueInvoice(db: Db, invoiceId: string, issuedBy: string) {
-  const [inv] = await db.select().from(invoices).where(eq(invoices.id, invoiceId)).limit(1);
+export async function issueInvoice(db: Db, organizationId: string, invoiceId: string, issuedBy: string) {
+  const inv = await getInvoice(db, organizationId, invoiceId);
   if (!inv) throw new Error("not_found");
   await db
     .update(invoices)
     .set({ status: "ISSUED", issuedBy, issuedAt: new Date(), updatedAt: new Date() })
-    .where(eq(invoices.id, invoiceId));
+    .where(and(eq(invoices.id, invoiceId), eq(invoices.organizationId, organizationId)));
   return { status: "ISSUED" };
 }
 
@@ -125,9 +139,15 @@ export async function recordPayment(
   return { id, paymentNumber };
 }
 
-export async function getArSummary(db: Db) {
-  const rows = await db.select().from(invoices).where(eq(invoices.status, "ISSUED"));
-  const partial = await db.select().from(invoices).where(eq(invoices.status, "PARTIALLY_PAID"));
+export async function getArSummary(db: Db, organizationId: string) {
+  const rows = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.organizationId, organizationId), eq(invoices.status, "ISSUED")));
+  const partial = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.organizationId, organizationId), eq(invoices.status, "PARTIALLY_PAID")));
   const all = [...rows, ...partial];
   const now = new Date();
   const buckets = { notDue: d(0), d1_30: d(0), d31_60: d(0), d61_90: d(0), d90plus: d(0) };
@@ -150,25 +170,37 @@ export async function getArSummary(db: Db) {
   };
 }
 
-export async function listInvoices(db: Db, customerId?: string) {
+export async function listInvoices(db: Db, organizationId: string, customerId?: string) {
+  const filters = [eq(invoices.organizationId, organizationId)];
+  if (customerId) filters.push(eq(invoices.customerId, customerId));
   return db
     .select()
     .from(invoices)
-    .where(customerId ? eq(invoices.customerId, customerId) : undefined);
+    .where(and(...filters));
 }
 
-export async function getInvoice(db: Db, id: string) {
-  const [inv] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+export async function getInvoice(db: Db, organizationId: string, id: string) {
+  const [inv] = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, id), eq(invoices.organizationId, organizationId)))
+    .limit(1);
   if (!inv) return null;
   const lines = await db.select().from(invoiceLines).where(eq(invoiceLines.invoiceId, id));
   return { invoice: inv, lines };
 }
 
-export async function createBillingNote(db: Db, input: { customerId: string; invoiceIds: string[] }) {
+export async function createBillingNote(db: Db, organizationId: string, input: { customerId: string; invoiceIds: string[] }) {
   const invRows = await db
     .select()
     .from(invoices)
-    .where(and(eq(invoices.customerId, input.customerId), inArray(invoices.id, input.invoiceIds)));
+    .where(
+      and(
+        eq(invoices.customerId, input.customerId),
+        eq(invoices.organizationId, organizationId),
+        inArray(invoices.id, input.invoiceIds),
+      ),
+    );
 
   if (!invRows.length) throw new Error("no_invoices");
 
@@ -202,18 +234,26 @@ export async function createBillingNote(db: Db, input: { customerId: string; inv
   return { id, billingNumber, grandTotal: toDb(subtotal), currency };
 }
 
-export async function listBillingNotes(db: Db, customerId?: string) {
-  return db
-    .select()
+export async function listBillingNotes(db: Db, organizationId: string, customerId?: string) {
+  const clauses = [eq(customers.organizationId, organizationId)];
+  if (customerId) clauses.push(eq(billingNotes.customerId, customerId));
+  const rows = await db
+    .select({ note: billingNotes })
     .from(billingNotes)
-    .where(customerId ? eq(billingNotes.customerId, customerId) : undefined);
+    .innerJoin(customers, eq(billingNotes.customerId, customers.id))
+    .where(and(...clauses));
+  return rows.map((r) => r.note);
 }
 
-export async function listPayments(db: Db, customerId?: string) {
-  return db
-    .select()
+export async function listPayments(db: Db, organizationId: string, customerId?: string) {
+  const clauses = [eq(customers.organizationId, organizationId)];
+  if (customerId) clauses.push(eq(payments.customerId, customerId));
+  const rows = await db
+    .select({ payment: payments })
     .from(payments)
-    .where(customerId ? eq(payments.customerId, customerId) : undefined);
+    .innerJoin(customers, eq(payments.customerId, customers.id))
+    .where(and(...clauses));
+  return rows.map((r) => r.payment);
 }
 
 export function selectBillableCostCharges<T extends { id: string; chargeType: string; billed: boolean }>(
@@ -225,8 +265,12 @@ export function selectBillableCostCharges<T extends { id: string; chargeType: st
 
 export async function createVendorBillFromJob(
   db: Db,
+  organizationId: string,
   input: { jobId: string; vendorId: string; chargeIds: string[]; paymentTermsDays?: number },
 ) {
+  const job = await getJob(db, organizationId, input.jobId);
+  if (!job) throw new Error("job_not_found");
+
   const charges = await db
     .select()
     .from(shipmentCharges)
@@ -272,9 +316,10 @@ export async function createVendorBillFromJob(
   return { id, billNumber, total: toDb(total), status: "DRAFT" as const };
 }
 
-export async function approveVendorBill(db: Db, billId: string, approvedBy: string) {
-  const [bill] = await db.select().from(vendorBills).where(eq(vendorBills.id, billId)).limit(1);
-  if (!bill) throw new Error("not_found");
+export async function approveVendorBill(db: Db, organizationId: string, billId: string, approvedBy: string) {
+  const result = await getVendorBill(db, organizationId, billId);
+  if (!result) throw new Error("not_found");
+  const bill = result.bill;
   if (bill.status !== "DRAFT") throw new Error("invalid_status");
   await db
     .update(vendorBills)
@@ -283,27 +328,36 @@ export async function approveVendorBill(db: Db, billId: string, approvedBy: stri
   return { status: "APPROVED" as const };
 }
 
-export async function payVendorBill(db: Db, billId: string, opts?: { partial?: boolean }) {
-  const [bill] = await db.select().from(vendorBills).where(eq(vendorBills.id, billId)).limit(1);
-  if (!bill) throw new Error("not_found");
+export async function payVendorBill(db: Db, organizationId: string, billId: string, opts?: { partial?: boolean }) {
+  const result = await getVendorBill(db, organizationId, billId);
+  if (!result) throw new Error("not_found");
+  const bill = result.bill;
   if (bill.status !== "APPROVED" && bill.status !== "PARTIAL") throw new Error("invalid_status");
   const status = opts?.partial ? "PARTIAL" : "PAID";
   await db.update(vendorBills).set({ status, updatedAt: new Date() }).where(eq(vendorBills.id, billId));
   return { status };
 }
 
-export async function listVendorBills(db: Db, opts?: { vendorId?: string; jobId?: string }) {
-  const conditions = [];
-  if (opts?.vendorId) conditions.push(eq(vendorBills.vendorId, opts.vendorId));
-  if (opts?.jobId) conditions.push(eq(vendorBills.jobId, opts.jobId));
-  if (conditions.length === 0) return db.select().from(vendorBills);
-  if (conditions.length === 1) return db.select().from(vendorBills).where(conditions[0]);
-  return db.select().from(vendorBills).where(and(...conditions));
+export async function listVendorBills(db: Db, organizationId: string, opts?: { vendorId?: string; jobId?: string }) {
+  const clauses = [eq(jobs.organizationId, organizationId)];
+  if (opts?.vendorId) clauses.push(eq(vendorBills.vendorId, opts.vendorId));
+  if (opts?.jobId) clauses.push(eq(vendorBills.jobId, opts.jobId));
+  const rows = await db
+    .select({ bill: vendorBills })
+    .from(vendorBills)
+    .innerJoin(jobs, eq(vendorBills.jobId, jobs.id))
+    .where(and(...clauses));
+  return rows.map((r) => r.bill);
 }
 
-export async function getVendorBill(db: Db, id: string) {
-  const [bill] = await db.select().from(vendorBills).where(eq(vendorBills.id, id)).limit(1);
-  if (!bill) return null;
+export async function getVendorBill(db: Db, organizationId: string, id: string) {
+  const [row] = await db
+    .select({ bill: vendorBills })
+    .from(vendorBills)
+    .innerJoin(jobs, eq(vendorBills.jobId, jobs.id))
+    .where(and(eq(vendorBills.id, id), eq(jobs.organizationId, organizationId)))
+    .limit(1);
+  if (!row) return null;
   const lines = await db.select().from(vendorBillLines).where(eq(vendorBillLines.vendorBillId, id));
-  return { bill, lines };
+  return { bill: row.bill, lines };
 }

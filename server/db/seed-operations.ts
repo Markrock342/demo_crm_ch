@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { containers, jobMilestones, jobs } from "../db/schema/operations.js";
 import { DEFAULT_MILESTONES } from "../services/milestone.service.js";
+import { DEMO_ORG_ID } from "../domain/tenancy.js";
 
 const DEMO_CONTAINERS = [
   { containerNo: "MSCU4829103", customerId: "c1", jobId: "s3", type: "40HC", dir: "out", status: "sail", yardCode: "盐田三期", bl: "SHZ25090281", teu: 2, vessel: "MSC LONDON", pol: "CNYTN", pod: "THLCH", seal: "ML-CN882901", commodity: "家具" },
@@ -42,6 +43,7 @@ export async function seedOperations(db: Db) {
   for (const j of DEMO_JOBS) {
     await db.insert(jobs).values({
       id: j.id,
+      organizationId: DEMO_ORG_ID,
       jobNumber: j.jobNumber,
       customerId: j.customerId,
       origin: j.origin,
@@ -59,6 +61,7 @@ export async function seedOperations(db: Db) {
   for (const c of DEMO_CONTAINERS) {
     await db.insert(containers).values({
       id: `ctr-${c.containerNo}`,
+      organizationId: DEMO_ORG_ID,
       customerId: c.customerId,
       jobId: "jobId" in c ? (c as { jobId: string }).jobId : null,
       containerNo: c.containerNo,

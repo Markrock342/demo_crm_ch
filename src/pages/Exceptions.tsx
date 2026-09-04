@@ -8,11 +8,16 @@ import { useShellOps } from "../shell/opsStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
 import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
+import { isBeforeToday } from "../lib/dates.ts";
 import { PageToolbar } from "../ui/PageToolbar";
 
 type Exc = { id: string; kind: string; label: string; meta: string; to: string };
 
+import { uiV2 } from "../v2/config.ts";
+import { ExceptionsPageV2 } from "../v2/pages/ExceptionsPage.tsx";
+
 export function ExceptionsPage() {
+  if (uiV2) return <ExceptionsPageV2 />;
   const shell = useIsShellMode();
   const { tx, locale } = useStore();
   const jobs = useShellJobs();
@@ -43,7 +48,14 @@ export function ExceptionsPage() {
       }
     }
     for (const inv of billing.invoices) {
-      if (inv.overdue || (inv.balanceDue > 0 && inv.dueDate && inv.dueDate < "2026-09-04" && inv.status !== "PAID" && inv.status !== "DRAFT")) {
+      if (
+        inv.overdue ||
+        (inv.balanceDue > 0 &&
+          inv.dueDate &&
+          isBeforeToday(inv.dueDate) &&
+          inv.status !== "PAID" &&
+          inv.status !== "DRAFT")
+      ) {
         const c = crm.customers.find((x) => x.id === inv.customerId);
         list.push({
           id: `inv-${inv.id}`,

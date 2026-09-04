@@ -10,6 +10,7 @@ import { useShellOps } from "../shell/opsStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
 import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
+import { jobDateIsToday } from "../lib/dates.ts";
 import { PageToolbar } from "../ui/PageToolbar";
 
 function arAgingBuckets(invoices: { balanceDue: number; dueDate?: string; status: string }[]) {
@@ -26,7 +27,11 @@ function arAgingBuckets(invoices: { balanceDue: number; dueDate?: string; status
   return buckets;
 }
 
+import { uiV2 } from "../v2/config.ts";
+import { OverviewPageV2 } from "../v2/pages/OverviewPage.tsx";
+
 export function OverviewPage() {
+  if (uiV2) return <OverviewPageV2 />;
   const shell = useIsShellMode();
   const { tx, locale } = useStore();
   const jobs = useShellJobs();
@@ -43,9 +48,8 @@ export function OverviewPage() {
   const outstanding = billing.invoices.filter((i) => i.balanceDue > 0);
   const teu = ops.boxes.reduce((n, b) => n + b.teu, 0);
   const inTransitTeu = ops.boxes.filter((b) => b.status === "in_transit" || b.status === "loaded").reduce((n, b) => n + b.teu, 0);
-  const todayKey = "09-04";
-  const departing = jobs.jobs.filter((j) => j.etd === todayKey || j.etd.endsWith("-04")).length;
-  const arriving = jobs.jobs.filter((j) => j.eta === todayKey || j.eta.endsWith("-04")).length;
+  const departing = jobs.jobs.filter((j) => jobDateIsToday(j.etd)).length;
+  const arriving = jobs.jobs.filter((j) => jobDateIsToday(j.eta)).length;
   const gpMonth = jobs.jobs.reduce((n, j) => n + jobGrossProfit(j), 0);
   const aging = useMemo(() => arAgingBuckets(billing.invoices), [billing.invoices]);
 
@@ -98,7 +102,7 @@ export function OverviewPage() {
     setReportBusy(true);
     const local = `Ops: ${activeJobs.length} active jobs, ${delayed.length} delayed, ${inTransitTeu} TEU in transit. Docs missing/wait: ${missingDocs.length}. AR open: ${outstanding.length} (0–30: ${aging.b0}, 31–60: ${aging.b30}, 61+: ${aging.b60}).`;
     try {
-      const summary = await aiBrief(locale as "zh" | "th" | "en", {
+      const brief = await aiBrief(locale as "zh" | "th" | "en", {
         activeJobs: activeJobs.length,
         delayed: delayed.length,
         missingDocs: missingDocs.length,
@@ -107,8 +111,8 @@ export function OverviewPage() {
         ar0_30: aging.b0,
         ar31_60: aging.b30,
         ar61: aging.b60,
-      });
-      setMgmtReport(summary || local);
+      }, "overview");
+      setMgmtReport(brief.summary || local);
     } catch (e) {
       void e;
       setMgmtReport(local);

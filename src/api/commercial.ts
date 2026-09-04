@@ -96,6 +96,23 @@ export async function createJobFromBooking(bookingId: string) {
   return apiFetch(`/api/bookings/${bookingId}/job`, { method: "POST" });
 }
 
+export async function signPublicQuotation(
+  token: string,
+  input: {
+    signerName: string;
+    signerEmail: string;
+    signatureMethod: "TYPED" | "DRAWN";
+    acceptedTerms: boolean;
+    decision: "ACCEPTED" | "REJECTED";
+  },
+) {
+  return apiFetch(`/api/public/quotes/${token}/sign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
 export function quotationPdfUrl(id: string) {
   return `/api/quotations/${id}/pdf`;
 }
@@ -132,6 +149,8 @@ export type JobRow = {
   nextMilestonePlannedAt?: string | null;
   milestoneAtRisk?: boolean;
   milestonePendingCount?: number;
+  grossProfit?: string | null;
+  billingStatus?: string | null;
 };
 
 export async function fetchJobs(customerId?: string, milestoneFilter?: "all" | "at_risk" | "pending") {

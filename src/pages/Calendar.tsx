@@ -17,7 +17,11 @@ function weekWindow(from = new Date()) {
   return { days, today };
 }
 
+import { uiV2 } from "../v2/config.ts";
+import { CalendarPageV2 } from "../v2/pages/CalendarPage.tsx";
+
 export function CalendarPage() {
+  if (uiV2) return <CalendarPageV2 />;
   const { tx, locale, tasks, activities, customers, shipments } = useStore();
   const { days, today } = useMemo(() => weekWindow(), []);
 

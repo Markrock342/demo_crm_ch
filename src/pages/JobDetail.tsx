@@ -15,6 +15,8 @@ import { useIsShellMode } from "../shell/session.tsx";
 import { useShellSupport, type ShellDocType } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
+import { JobDetailLiveV2Loader } from "../v2/pages/JobDetailLive.tsx";
+import { uiV2 } from "../v2/config.ts";
 
 const DOC_TYPES: ShellDocType[] = ["BOOKING", "BL", "CI", "PL", "CO", "DO", "POD", "OTHER"];
 
@@ -65,25 +67,37 @@ export function JobDetailPage() {
 
   if (live) {
     if (liveLoading) {
-      return (
+      return uiV2 ? (
+        <JobDetailLiveV2Loader job={null} loading error={null} />
+      ) : (
         <div className="page page--workspace">
           <p className="meta">{tx("loginBusy")}</p>
         </div>
       );
     }
     if (liveErr || !liveJob) {
-      return (
+      return uiV2 ? (
+        <JobDetailLiveV2Loader job={null} loading={false} error={liveErr ?? tx("emptyShellCrm")} />
+      ) : (
         <div className="page page--workspace">
           <p className="field-err">{liveErr ?? tx("emptyShellCrm")}</p>
           <Link to="/jobs">{tx("navJobs")}</Link>
         </div>
       );
     }
-    return <LiveJobDetailBody job={liveJob} />;
+    return uiV2 ? (
+      <JobDetailLiveV2Loader job={liveJob} loading={false} error={null} />
+    ) : (
+      <LiveJobDetailBody job={liveJob} />
+    );
   }
 
   if (!shellJob) {
     return <Navigate to="/jobs" replace />;
+  }
+
+  if (uiV2) {
+    return <JobDetailLiveV2Loader job={shellJob} loading={false} error={null} />;
   }
 
   return <JobDetailBody job={shellJob} />;
@@ -242,7 +256,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
     setAiBusy(true);
     const local = `${job.jobNumber} is ${job.status}. Route ${job.pol}→${job.pod}. ETD ${job.etd} / ETA ${job.eta}. Carrier ${job.carrier || "—"}. Billing ${job.billingStatus}.${job.delayed ? " Delayed." : ""}`;
     try {
-      const summary = await aiBrief(locale as "zh" | "th" | "en", {
+      const brief = await aiBrief(locale as "zh" | "th" | "en", {
         jobNumber: job.jobNumber,
         status: job.status,
         pol: job.pol,
@@ -253,8 +267,8 @@ function JobDetailBody({ job }: { job: ShellJob }) {
         billing: job.billingStatus,
         delayed: Boolean(job.delayed),
         missingDocs: docs.filter((d) => d.status !== "ok").length,
-      });
-      setAiSummary(summary || local);
+      }, "job");
+      setAiSummary(brief.summary || local);
     } catch (e) {
       if (e instanceof AiError && e.code === "missing_key") setAiSummary(local);
       else setAiSummary(local);

@@ -92,6 +92,8 @@ export function mapJobRowToShell(row: JobRow & Partial<ApiJobDetail>): ShellJob 
     salesOwner: row.salesOwnerId ?? "",
     incoterm: row.incoterm || "FOB",
     delayed: Boolean(row.milestoneAtRisk),
+    billingStatus: (row.billingStatus as ShellBillingStatus) ?? "UNBILLED",
+    listGrossProfit: row.grossProfit != null ? parseFloat(row.grossProfit) : null,
   });
 }
 
