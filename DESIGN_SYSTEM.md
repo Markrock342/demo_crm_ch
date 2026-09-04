@@ -14,8 +14,8 @@
 - **Visual style:** ink-and-seal ledger + ops console density
 - **Mood & tone:** วัดได้ · กระชับ · ไม่ขายฝัน
 - **Design personality:** ledger-house, measured, ink-and-seal
-- **Design concept:** คอนโซลปฏิบัติการท่าเรือ — พื้นเทาอ่อน flat, ตารางแน่น sticky header, filter chip มีตัเลข, accent seal จุดเดียว (ไม่ใช่ทีล/กรมท่า+ทอง)
-- **Adversarial-review verdict:** ถ้าปิดชื่อยังอ่านเป็น ops CRM จีน–ไทย ไม่ใช่ template SaaS — จุดอ่อนที่แก้แล้ว: padding โล่ง + card-in-card; ยังต้องขยาย workspace ไปหน้า kanban/inbox ในรอบถัดไป
+- **Design concept:** คอนโซลปฏิบัติการท่าเรือ — พื้นเทาอ่อน flat (cool slate), ตารางแน่น sticky header, filter chip มีตัเลข, accent **teal seal** (`oklch` hue 210) จุดเดียว — ไม่ใช่ cinnabar / กรมท่า+ทอง / SaaS ม่วง
+- **Adversarial-review verdict:** ถ้าปิดชื่อยังอ่านเป็น ops CRM จีน–ไทย ไม่ใช่ template SaaS — จุดอ่อนที่แก้แล้ว: padding โล่ง + card-in-card + Overview dead classes; ขยาย workspace ไป Pipeline/Inbox ในรอบ UX polish
 - **Reference style:** Shopee Seller Center (density, filter chips, stat strip) · Linear table rhythm · Stripe restraint (CTA เดียวต่อจอ)
 - **Voice & UX copy:** สั้น · จีนมาก่อน · ปุ่มเป็นกริยา · ข้อมูลเดโมติดป้าย
 
@@ -42,9 +42,9 @@
 
 ## 5. Spacing & layout
 
-- สเกล: 4 / 8 / 12 / 16 / 20 / 32 px (`--space-*`)
+- สเกล: `--space-2xs` 4 · `--space-xs` 8 · `--space-sm`/`--space-md` 12 · `--space-lg` 16 · `--space-xl` 20 · `--space-2xl` 32
 - Sidebar: **196px** · App bar: **52px**
-- Content padding: **8px** (`--space-sm`)
+- Content inset: **8px** (`--space-xs`) · workspace section margin ใช้ `--space-md` (12px)
 - **Workspace page:** `.page.page--workspace` — toolbar บน + เนื้อเต็มความกว้าง + `table-shell` sticky header
 - Split detail: `.page--split` → 220–260px list + panel ขวา
 
@@ -56,7 +56,9 @@
 | Filter chip | `.filter-chip` | pill + ตัเลข `<em>`, state `.is-on` |
 | Stat strip | `.stat-strip` / `.stat-chip` | KPI แถวบาง (TEU, ตู้, รายการ) |
 | Data table | `.table-shell` + `.data-table` | sticky thead, zebra, max-height scroll |
-| Buttons | `.btn`, `.btn-primary`, `.btn-ghost` | min-height 34px, radius 6px |
+| Buttons | `.btn`, `.btn-primary`, `.btn-ghost` | min-height **32px** (workspace `--control-h`), radius 6px (`--radius-sm`) |
+| Dense list | `.dense-list` | รายการลิงก์บางๆ แทน `.list-plain` ที่ไม่มี CSS |
+| Rank grid | `.rank-grid` | 3 คอลัมน์ ranking บน Overview (ไม่ยืม `.job-detail-grid`) |
 | Demo banner | `.demo-banner` | โหมดสาธิต + CTA login |
 | Forms | `.form` | label บนช่อง, min-height 48px (ยังใช้ในฟอร์มเพิ่มข้อมูล) |
 

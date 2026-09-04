@@ -55,7 +55,7 @@ export function QuotationsPage() {
           {rows.length === 0 ? (
             <p className="empty">{tx("emptyQuotations")}</p>
           ) : (
-            <ul className="list-plain">
+            <ul className="pick-list">
               {rows.map((q) => (
                 <li key={q.id}>
                   <button type="button" className={`list-btn${activeId === q.id ? " is-active" : ""}`} onClick={() => pick(q.id)}>
@@ -79,23 +79,27 @@ export function QuotationsPage() {
                 {detail.origin} → {detail.destination} · {detail.pol} → {detail.pod}
               </p>
               <p className="meta">
-                {detail.mode} · {detail.containerType} × {detail.quantity} · {detail.status} · rev {detail.revision ?? 1}
+                {detail.mode} · {detail.containerType} × {detail.quantity} · {detail.status} · {tx("quoteRev")}{" "}
+                {detail.revision ?? 1}
               </p>
               <p className="meta">
                 {tx("quoteValidFrom")}: {detail.validFrom || "—"} · {tx("quoteValidUntil")}: {detail.validUntil || "—"}
               </p>
-              <div className="kpi-row">
-                <div className="kpi">
-                  <span>{tx("colSell")}</span>
-                  <strong>
+              <div className="stat-strip">
+                <span className="stat-chip stat-chip--metric">
+                  <strong className="num">
                     {detail.totalSell} {detail.currency}
                   </strong>
-                </div>
+                  <span>{tx("colSell")}</span>
+                </span>
               </div>
-              <ul className="list-plain">
+              <ul className="dense-list">
                 {detail.charges.map((c, i) => (
                   <li key={i}>
-                    {c.description} — {c.sellAmount} {c.currency}
+                    <span>{c.description}</span>
+                    <strong className="num">
+                      {c.sellAmount} {c.currency}
+                    </strong>
                   </li>
                 ))}
               </ul>

@@ -35,10 +35,13 @@ export function QuotePublicShellPage() {
           <p>
             <span className="pill">{quote.status}</span>
           </p>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {quote.charges.map((c, i) => (
               <li key={i}>
-                {c.description} — {c.sellAmount} {c.currency}
+                <span>{c.description}</span>
+                <strong className="num">
+                  {c.sellAmount} {c.currency}
+                </strong>
               </li>
             ))}
           </ul>

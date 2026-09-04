@@ -8,30 +8,35 @@ import { usePortalSession } from "../shell/portalSession.tsx";
 import { useShellOps } from "../shell/opsStore.tsx";
 import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
+import { PageToolbar } from "../ui/PageToolbar";
 
 function PortalChrome({ children }: { children: React.ReactNode }) {
-  const { tx } = useStore();
+  const { tx, locale } = useStore();
   const portal = usePortalSession();
   const crm = useShellCrm();
   const customer = crm.customers.find((c) => c.id === portal.session?.customerId);
   return (
-    <div className="page page--workspace" style={{ maxWidth: 960, margin: "0 auto", padding: 16 }}>
-      <header className="toolbar" style={{ marginBottom: 16 }}>
-        <strong>{tx("portalTitle")}</strong>
-        {customer ? <span className="meta">{customerName(customer as Customer, "en")}</span> : null}
-        <Link className="btn btn-ghost" to="/portal/home">
-          {tx("portalHome")}
-        </Link>
-        <Link className="btn btn-ghost" to="/portal/docs">
-          {tx("navDocs")}
-        </Link>
-        <Link className="btn btn-ghost" to="/portal/invoices">
-          {tx("navInvoices")}
-        </Link>
-        <button type="button" className="btn btn-ghost" onClick={() => portal.leave()}>
-          {tx("portalLeave")}
-        </button>
-      </header>
+    <div className="page page--workspace page--portal">
+      <PageToolbar
+        title={tx("portalTitle")}
+        hint={customer ? customerName(customer as Customer, locale) : undefined}
+        actions={
+          <>
+            <Link className="btn btn-ghost" to="/portal/home">
+              {tx("portalHome")}
+            </Link>
+            <Link className="btn btn-ghost" to="/portal/docs">
+              {tx("navDocs")}
+            </Link>
+            <Link className="btn btn-ghost" to="/portal/invoices">
+              {tx("navInvoices")}
+            </Link>
+            <button type="button" className="btn btn-ghost" onClick={() => portal.leave()}>
+              {tx("portalLeave")}
+            </button>
+          </>
+        }
+      />
       {children}
     </div>
   );
@@ -62,9 +67,8 @@ export function PortalEnterPage() {
   }
 
   return (
-    <div className="page page--workspace" style={{ maxWidth: 480, margin: "40px auto", padding: 16 }}>
-      <h1>{tx("portalTitle")}</h1>
-      <p className="meta">{tx("portalEnterHint")}</p>
+    <div className="page page--workspace page--portal-enter">
+      <PageToolbar title={tx("portalTitle")} hint={tx("portalEnterHint")} />
       <form className="form form-stack" onSubmit={submit}>
         <label>
           {tx("colCustomer")}
@@ -85,7 +89,7 @@ export function PortalEnterPage() {
           {tx("portalEnter")}
         </button>
       </form>
-      <p className="meta">
+      <p className="meta page-foot">
         <Link to="/login">{tx("loginPickDept")}</Link>
       </p>
     </div>
@@ -105,14 +109,27 @@ export function PortalHomePage() {
   const rows = jobs.jobs.filter((j) => j.customerId === portal.session?.customerId);
   return (
     <RequirePortal>
-      <h2>{tx("portalMyJobs")}</h2>
-      <ul className="list-plain">
-        {rows.map((j) => (
-          <li key={j.id}>
-            <Link to={`/portal/jobs/${j.id}`}>{j.jobNumber}</Link> · {j.pol}→{j.pod} · {j.status} · ETD {j.etd} / ETA {j.eta}
-          </li>
-        ))}
-      </ul>
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("portalMyJobs")}</h2>
+        </div>
+        {rows.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="dense-list">
+            {rows.map((j) => (
+              <li key={j.id}>
+                <Link to={`/portal/jobs/${j.id}`}>
+                  <strong>{j.jobNumber}</strong>
+                  <span className="meta">
+                    {j.pol}→{j.pod} · {j.status} · ETD {j.etd} / ETA {j.eta}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </RequirePortal>
   );
 }
@@ -127,7 +144,7 @@ export function PortalJobPage() {
   if (!job || job.customerId !== portal.session?.customerId) {
     return (
       <RequirePortal>
-        <p className="meta">{tx("errorLoad")}</p>
+        <p className="empty">{tx("errorLoad")}</p>
       </RequirePortal>
     );
   }
@@ -137,21 +154,30 @@ export function PortalJobPage() {
   });
   return (
     <RequirePortal>
-      <h2>{job.jobNumber}</h2>
-      <p>
-        {job.origin} → {job.destination} · {job.carrier} · {job.vessel}/{job.voyage}
-      </p>
-      <p className="meta">
-        ETD {job.etd} · ETA {job.eta} · {job.status} · {job.billingStatus}
-      </p>
-      <h3>{tx("jobSectionContainers")}</h3>
-      <ul className="list-plain">
-        {boxes.map((b) => (
-          <li key={b.id}>
-            {b.id} · {b.type} · {b.status}
-          </li>
-        ))}
-      </ul>
+      <section className="block">
+        <div className="block-head">
+          <h2>{job.jobNumber}</h2>
+        </div>
+        <p>
+          {job.origin} → {job.destination} · {job.carrier} · {job.vessel}/{job.voyage}
+        </p>
+        <p className="meta">
+          ETD {job.etd} · ETA {job.eta} · {job.status} · {job.billingStatus}
+        </p>
+        <div className="block-head">
+          <h2>{tx("jobSectionContainers")}</h2>
+        </div>
+        <ul className="dense-list">
+          {boxes.map((b) => (
+            <li key={b.id}>
+              <span className="mono">{b.id}</span>
+              <span className="meta">
+                {b.type} · {b.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
     </RequirePortal>
   );
 }
@@ -168,20 +194,38 @@ export function PortalDocsPage() {
   const docs = support.docs.filter((d) => d.jobId && jobIds.has(d.jobId));
   return (
     <RequirePortal>
-      <h2>{tx("navDocs")}</h2>
-      <ul className="list-plain">
-        {docs.map((d) => (
-          <li key={d.id}>
-            {d.docType} {d.name} · {d.status}
-            {d.jobId ? (
-              <>
-                {" "}
-                · <Link to={`/portal/jobs/${d.jobId}`}>{jobs.getById(d.jobId)?.jobNumber}</Link>
-              </>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("navDocs")}</h2>
+        </div>
+        {docs.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="dense-list">
+            {docs.map((d) => (
+              <li key={d.id}>
+                {d.jobId ? (
+                  <Link to={`/portal/jobs/${d.jobId}`}>
+                    <strong>
+                      {d.docType} {d.name}
+                    </strong>
+                    <span className="meta">
+                      {d.status} · {jobs.getById(d.jobId)?.jobNumber}
+                    </span>
+                  </Link>
+                ) : (
+                  <>
+                    <strong>
+                      {d.docType} {d.name}
+                    </strong>
+                    <span className="meta">{d.status}</span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </RequirePortal>
   );
 }
@@ -194,21 +238,39 @@ export function PortalInvoicesPage() {
   const rows = billing.invoices.filter((i) => i.customerId === portal.session?.customerId);
   return (
     <RequirePortal>
-      <h2>{tx("navInvoices")}</h2>
-      <ul className="list-plain">
-        {rows.map((i) => (
-          <li key={i.id}>
-            {i.invoiceNumber} · {i.status} · {i.total} {i.currency} · bal {i.balanceDue}
-            {i.overdue ? <span className="pill pill-warn">overdue</span> : null}
-            {i.jobId ? (
-              <>
-                {" "}
-                · <Link to={`/portal/jobs/${i.jobId}`}>{jobs.getById(i.jobId)?.jobNumber}</Link>
-              </>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("navInvoices")}</h2>
+        </div>
+        {rows.length === 0 ? (
+          <p className="empty">{tx("emptyInvoices")}</p>
+        ) : (
+          <ul className="dense-list">
+            {rows.map((i) => (
+              <li key={i.id}>
+                {i.jobId ? (
+                  <Link to={`/portal/jobs/${i.jobId}`}>
+                    <strong>{i.invoiceNumber}</strong>
+                    <span className="meta">
+                      {i.status} · {i.total} {i.currency} · {tx("colBalance")} {i.balanceDue}
+                      {i.overdue ? ` · ${tx("invoiceOverdue")}` : ""}
+                      {` · ${jobs.getById(i.jobId)?.jobNumber ?? ""}`}
+                    </span>
+                  </Link>
+                ) : (
+                  <>
+                    <strong>{i.invoiceNumber}</strong>
+                    <span className="meta">
+                      {i.status} · {i.total} {i.currency} · {tx("colBalance")} {i.balanceDue}
+                      {i.overdue ? ` · ${tx("invoiceOverdue")}` : ""}
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </RequirePortal>
   );
 }

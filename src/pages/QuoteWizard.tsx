@@ -95,11 +95,11 @@ export function QuoteWizardPage() {
             </select>
           </label>
           <label>
-            Origin
+            {tx("colOrigin")}
             <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} required />
           </label>
           <label>
-            Destination
+            {tx("colDestination")}
             <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} required />
           </label>
           <label>
@@ -111,14 +111,16 @@ export function QuoteWizardPage() {
             <input value={form.pod} onChange={(e) => setForm({ ...form, pod: e.target.value })} />
           </label>
           <label>
-            Qty
+            {tx("colQty")}
             <input type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} />
           </label>
 
-          <div className="panel" style={{ gridColumn: "1 / -1" }}>
-            <h2>{tx("colSell")}</h2>
+          <div className="block" style={{ gridColumn: "1 / -1" }}>
+            <div className="block-head">
+              <h2>{tx("colSell")}</h2>
+            </div>
             {charges.map((c, i) => (
-              <div key={i} className="form" style={{ marginInline: 0 }}>
+              <div key={i} className="form pipe-form">
                 <label>
                   {tx("colTitle")}
                   <input
@@ -146,7 +148,7 @@ export function QuoteWizardPage() {
                 </label>
                 {charges.length > 1 ? (
                   <button type="button" className="btn btn-ghost" onClick={() => setCharges(charges.filter((_, j) => j !== i))}>
-                    {tx("cancel")}
+                    {tx("removeRow")}
                   </button>
                 ) : null}
               </div>

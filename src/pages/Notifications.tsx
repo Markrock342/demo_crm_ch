@@ -12,7 +12,8 @@ export function NotificationsPage() {
   if (!shell) {
     return (
       <div className="page page--workspace">
-        <PageToolbar title={tx("navNotifications")} hint={tx("apiNotConfigured")} />
+        <PageToolbar title={tx("navNotifications")} />
+        <p className="empty">{tx("apiNotConfigured")}</p>
       </div>
     );
   }
@@ -22,7 +23,7 @@ export function NotificationsPage() {
       <PageToolbar
         title={tx("navNotifications")}
         count={note.notifications.length}
-        hint={`${tx("shellDataBadge")} · ${note.unreadCount} unread`}
+        hint={`${tx("shellDataBadge")} · ${note.unreadCount} ${tx("notifyUnreadHint")}`}
         actions={
           <>
             <button type="button" className="btn btn-ghost" onClick={() => note.refreshFromShell()}>
@@ -38,25 +39,23 @@ export function NotificationsPage() {
         }
       />
       {note.notifications.length === 0 ? (
-        <p className="empty">{tx("emptyShellCrm")}</p>
+        <p className="empty">{tx("emptyNotifications")}</p>
       ) : (
-        <ul className="list-plain">
+        <ul className="dense-list">
           {note.notifications.map((n) => (
             <li key={n.id}>
-              <Link
-                to={n.href}
-                onClick={() => note.markRead(n.id)}
-                className={!n.read ? "cell-strong" : "meta"}
-              >
-                [{n.kind}] {n.title}
-              </Link>{" "}
-              <span className="meta">{n.body}</span>
-              {!n.read ? <span className="pill pill-warn">new</span> : null}
+              <Link to={n.href} onClick={() => note.markRead(n.id)} className={!n.read ? "cell-strong" : "meta"}>
+                <strong>
+                  [{n.kind}] {n.title}
+                </strong>
+                <span className="meta">{n.body}</span>
+              </Link>
+              {!n.read ? <span className="pill pill-warn">{tx("unread")}</span> : null}
             </li>
           ))}
         </ul>
       )}
-      <p className="meta">{tx("notifyEmailDeferred")}</p>
+      <p className="meta page-foot">{tx("notifyEmailDeferred")}</p>
     </div>
   );
 }

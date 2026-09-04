@@ -82,35 +82,51 @@ export function RatesPage() {
   }
 
   return (
-    <div className="page page--workspace">
+    <div className="page page--workspace page--rates">
       <PageToolbar
         title={tx("ratesTitle")}
         count={rows.length}
         hint={shell ? `${tx("shellDataBadge")} · FCL` : tx("apiNotConfigured")}
         actions={
           shell ? (
-            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)}>
-              {tx("save")}
+            <button type="button" className="btn btn-primary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+              {open ? tx("cancel") : tx("save")}
             </button>
+          ) : null
+        }
+        filters={
+          shell ? (
+            <div className="filter-fields">
+              <label className="filter-field">
+                <span className="filter-field-label">{tx("colOrigin")}</span>
+                <input
+                  value={q.origin}
+                  onChange={(e) => setQ({ ...q, origin: e.target.value })}
+                  placeholder={tx("colOrigin")}
+                />
+              </label>
+              <label className="filter-field">
+                <span className="filter-field-label">{tx("colDestination")}</span>
+                <input
+                  value={q.destination}
+                  onChange={(e) => setQ({ ...q, destination: e.target.value })}
+                  placeholder={tx("colDestination")}
+                />
+              </label>
+            </div>
           ) : null
         }
       />
       {msg ? <p className="meta">{msg}</p> : null}
-      {shell ? (
-        <div className="filter-row">
-          <input placeholder="Origin" value={q.origin} onChange={(e) => setQ({ ...q, origin: e.target.value })} />
-          <input placeholder="Destination" value={q.destination} onChange={(e) => setQ({ ...q, destination: e.target.value })} />
-        </div>
-      ) : null}
 
       {open && shell ? (
         <form className="form form-stack" onSubmit={submit}>
           <label>
-            Origin
+            {tx("colOrigin")}
             <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} />
           </label>
           <label>
-            Destination
+            {tx("colDestination")}
             <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
           </label>
           <label>
@@ -118,7 +134,7 @@ export function RatesPage() {
             <input value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })} />
           </label>
           <label>
-            Buy
+            {tx("colBuy")}
             <input type="number" value={form.buyAmount} onChange={(e) => setForm({ ...form, buyAmount: Number(e.target.value) })} />
           </label>
           <label>
@@ -133,28 +149,38 @@ export function RatesPage() {
             {tx("quoteValidUntil")}
             <input value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} />
           </label>
-          <button type="submit" className="btn btn-primary">
-            {tx("save")}
-          </button>
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary">
+              {tx("save")}
+            </button>
+          </div>
         </form>
       ) : null}
 
-      {!shell ? <p className="meta">{tx("apiNotConfigured")}</p> : null}
+      {!shell ? <p className="empty">{tx("apiNotConfigured")}</p> : null}
 
       {shell && rows.length === 0 ? <p className="empty">{tx("emptyShellCrm")}</p> : null}
 
       {shell && rows.length > 0 ? (
         <div className="table-shell">
-          <table className="data-table">
+          <table className="data-table rates-table">
             <thead>
               <tr>
-                <th>Lane</th>
-                <th>{tx("colCarrier")}</th>
-                <th>Buy</th>
-                <th>{tx("colSell")}</th>
-                <th>{tx("colMargin")}</th>
-                <th>Valid</th>
-                <th />
+                <th scope="col">{tx("colLane")}</th>
+                <th scope="col">{tx("colCarrier")}</th>
+                <th scope="col" className="num">
+                  {tx("colBuy")}
+                </th>
+                <th scope="col" className="num">
+                  {tx("colSell")}
+                </th>
+                <th scope="col" className="num">
+                  {tx("colMargin")}
+                </th>
+                <th scope="col">{tx("quoteValidUntil")}</th>
+                <th scope="col" className="col-actions">
+                  <span className="sr-only">{tx("colActions")}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -163,21 +189,24 @@ export function RatesPage() {
                 return (
                   <tr key={r.id}>
                     <td>
-                      {r.origin} → {r.destination} · {r.containerType}
+                      <span className="cell-strong">
+                        {r.origin} → {r.destination}
+                      </span>
+                      <span className="meta"> · {r.containerType}</span>
                     </td>
                     <td>{r.carrier}</td>
-                    <td className="mono">
+                    <td className="num mono">
                       {r.buyAmount} {r.currency}
                     </td>
-                    <td className="mono">
+                    <td className="num mono">
                       {r.sellAmount} {r.currency}
                     </td>
                     <td className="num">{margin}%</td>
-                    <td className="mono">
-                      {r.validFrom}–{r.validUntil}
+                    <td className="mono meta">
+                      {r.validFrom} – {r.validUntil}
                     </td>
-                    <td>
-                      <button type="button" className="btn btn-ghost" onClick={() => createQuote(r.id)}>
+                    <td className="col-actions">
+                      <button type="button" className="btn btn-ghost btn-slim" onClick={() => createQuote(r.id)}>
                         {tx("rateCreateQuote")}
                       </button>
                     </td>

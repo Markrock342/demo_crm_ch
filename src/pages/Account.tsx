@@ -14,6 +14,15 @@ import { PageToolbar } from "../ui/PageToolbar";
 const tabs = ["overview", "people", "quotes", "jobs", "invoices", "docs"] as const;
 type Tab = (typeof tabs)[number];
 
+const tabLabelKey: Record<Tab, string> = {
+  overview: "tabOverview",
+  people: "accountTabPeople",
+  quotes: "tabQuotes",
+  jobs: "tabJobsCommercial",
+  invoices: "tabInvoicesCommercial",
+  docs: "navDocs",
+};
+
 /** Shell-mode Customer 360 — no src/api. */
 export function AccountPage() {
   const shell = useIsShellMode();
@@ -29,8 +38,11 @@ export function AccountPage() {
   if (!shell) {
     return (
       <div className="page page--workspace">
-        <p className="meta">{tx("apiNotConfigured")}</p>
-        <Link to="/customers">{tx("navCustomers")}</Link>
+        <PageToolbar title={tx("navCustomers")} />
+        <p className="empty">{tx("apiNotConfigured")}</p>
+        <p className="page-foot">
+          <Link to="/customers">{tx("navCustomers")}</Link>
+        </p>
       </div>
     );
   }
@@ -49,7 +61,7 @@ export function AccountPage() {
   const gpSum = jRows.reduce((n, j) => n + jobGrossProfit(j), 0);
 
   return (
-    <div className="page page--workspace">
+    <div className="page page--workspace page--account">
       <PageToolbar
         title={customerName(customer as Customer, locale)}
         hint={`${tx("shellDataBadge")} · ${customer.laneZh}`}
@@ -65,16 +77,23 @@ export function AccountPage() {
         }
       />
 
-      <div className="filter-row" role="tablist">
+      <div className="filter-row account-tabs account-tabs--commercial" role="tablist">
         {tabs.map((t) => (
-          <button key={t} type="button" role="tab" className={`filter-chip${tab === t ? " is-on" : ""}`} onClick={() => setTab(t)}>
-            {t}
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            className={`filter-chip${tab === t ? " is-on" : ""}`}
+            onClick={() => setTab(t)}
+          >
+            {tx(tabLabelKey[t])}
           </button>
         ))}
       </div>
 
       {tab === "overview" ? (
-        <>
+        <section className="block">
           <dl className="job-dl">
             <div>
               <dt>{tx("customerTaxId")}</dt>
@@ -97,89 +116,132 @@ export function AccountPage() {
               <dd>{customer.owner}</dd>
             </div>
           </dl>
-          <div className="kpi-row">
-            <div className="kpi">
+          <div className="stat-strip commercial-summary" aria-label={tx("tabOverview")}>
+            <span className="stat-chip stat-chip--metric">
+              <strong className="num">{activeJobs.length}</strong>
               <span>{tx("customerActiveJobs")}</span>
-              <strong>{activeJobs.length}</strong>
-            </div>
-            <div className="kpi">
+            </span>
+            <span className="stat-chip">
+              <strong className="num">{closedJobs.length}</strong>
               <span>{tx("customerClosedJobs")}</span>
-              <strong>{closedJobs.length}</strong>
-            </div>
-            <div className="kpi">
-              <span>AR</span>
-              <strong>{openAr.length}</strong>
-            </div>
-            <div className="kpi">
+            </span>
+            <span className="stat-chip">
+              <strong className="num">{openAr.length}</strong>
+              <span>{tx("dashOutstandingAr")}</span>
+            </span>
+            <span className="stat-chip">
+              <strong className="num">{gpSum}</strong>
               <span>{tx("jobGrossProfit")}</span>
-              <strong>{gpSum}</strong>
-            </div>
+            </span>
           </div>
-        </>
+        </section>
       ) : null}
 
       {tab === "people" ? (
-        <ul className="list-plain">
-          {people.map((p) => (
-            <li key={p.id}>
-              {p.name} · {p.role || p.title} · {p.email}
-            </li>
-          ))}
-        </ul>
+        people.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="dense-list">
+            {people.map((p) => (
+              <li key={p.id}>
+                <span>
+                  <strong>{p.name}</strong>
+                  <span className="meta">
+                    {" "}
+                    · {p.role || p.title} · {p.email}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
 
       {tab === "quotes" ? (
-        <ul className="list-plain">
-          {qRows.map((q) => (
-            <li key={q.id}>
-              <Link to={`/quotations?id=${q.id}`}>{q.quotationNumber}</Link> · {q.status} · rev {q.revision} · {q.totalSell}{" "}
-              {q.currency}
-            </li>
-          ))}
-        </ul>
+        qRows.length === 0 ? (
+          <p className="empty">{tx("emptyQuotations")}</p>
+        ) : (
+          <ul className="dense-list">
+            {qRows.map((q) => (
+              <li key={q.id}>
+                <Link to={`/quotations?id=${q.id}`}>
+                  <strong>{q.quotationNumber}</strong>
+                  <span className="meta">
+                    {q.status} · {tx("quoteRev")} {q.revision} · {q.totalSell} {q.currency}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
 
       {tab === "jobs" ? (
-        <ul className="list-plain">
-          {jRows.map((j) => (
-            <li key={j.id}>
-              <Link to={`/jobs/${j.id}`}>{j.jobNumber}</Link> · {j.status} · {j.billingStatus} · GP {jobGrossProfit(j)}
-            </li>
-          ))}
-        </ul>
+        jRows.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="dense-list">
+            {jRows.map((j) => (
+              <li key={j.id}>
+                <Link to={`/jobs/${j.id}`}>
+                  <strong>{j.jobNumber}</strong>
+                  <span className="meta">
+                    {j.status} · {j.billingStatus} · {tx("jobGrossProfit")} {jobGrossProfit(j)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
 
       {tab === "invoices" ? (
-        <ul className="list-plain">
-          {invRows.map((i) => (
-            <li key={i.id}>
-              <Link to={`/invoices?jobId=${i.jobId ?? ""}`}>{i.invoiceNumber}</Link> · {i.status} · bal {i.balanceDue}
-              {i.overdue ? <span className="pill pill-warn">overdue</span> : null}
-              {i.jobId ? (
-                <>
-                  {" "}
-                  · <Link to={`/jobs/${i.jobId}`}>{tx("navJobs")}</Link>
-                </>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        invRows.length === 0 ? (
+          <p className="empty">{tx("emptyInvoices")}</p>
+        ) : (
+          <ul className="dense-list">
+            {invRows.map((i) => (
+              <li key={i.id}>
+                <Link to={`/invoices?jobId=${i.jobId ?? ""}`}>
+                  <strong>{i.invoiceNumber}</strong>
+                  <span className="meta">
+                    {i.status} · {tx("colBalance")} {i.balanceDue}
+                    {i.overdue ? ` · ${tx("invoiceOverdue")}` : ""}
+                    {i.jobId ? ` · ${tx("navJobs")}` : ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
 
       {tab === "docs" ? (
-        <ul className="list-plain">
-          {docRows.map((d) => (
-            <li key={d.id}>
-              {d.docType} {d.name} · {d.status}
-              {d.jobId ? (
-                <>
-                  {" "}
-                  · <Link to={`/jobs/${d.jobId}`}>{d.jobId}</Link>
-                </>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        docRows.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="dense-list">
+            {docRows.map((d) => (
+              <li key={d.id}>
+                {d.jobId ? (
+                  <Link to={`/jobs/${d.jobId}`}>
+                    <strong>
+                      {d.docType} {d.name}
+                    </strong>
+                    <span className="meta">{d.status}</span>
+                  </Link>
+                ) : (
+                  <>
+                    <strong>
+                      {d.docType} {d.name}
+                    </strong>
+                    <span className="meta">{d.status}</span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
     </div>
   );

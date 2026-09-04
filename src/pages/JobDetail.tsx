@@ -293,20 +293,22 @@ function JobDetailBody({ job }: { job: ShellJob }) {
       />
       {msg ? <p className="meta">{msg}</p> : null}
 
-      <section className="panel">
-        <h2>{tx("aiJobSummary")}</h2>
-        <button type="button" className="btn btn-ghost" disabled={aiBusy} onClick={() => void runAiSummary()}>
-          {aiBusy ? tx("runningGemini") : tx("runAiJobSummary")}
-        </button>
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("aiJobSummary")}</h2>
+          <button type="button" className="btn btn-ghost btn-slim" disabled={aiBusy} onClick={() => void runAiSummary()}>
+            {aiBusy ? tx("runningGemini") : tx("runAiJobSummary")}
+          </button>
+        </div>
         {aiSummary ? (
-          <p className="meta" style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
+          <p className="meta overview-report" style={{ whiteSpace: "pre-wrap" }}>
             {aiSummary}
           </p>
         ) : null}
       </section>
 
       <div className="job-detail-grid">
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionGeneral")}</h2>
           <dl className="job-dl">
             <div>
@@ -365,30 +367,30 @@ function JobDetailBody({ job }: { job: ShellJob }) {
           </dl>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionFinancial")}</h2>
-          <div className="kpi-row">
-            <div className="kpi">
-              <span>{tx("colSell")}</span>
-              <strong>
+          <div className="stat-strip">
+            <span className="stat-chip stat-chip--metric">
+              <strong className="num">
                 {job.totalSell} {job.currency}
               </strong>
-            </div>
-            <div className="kpi">
-              <span>{tx("jobTotalCost")}</span>
-              <strong>
+              <span>{tx("colSell")}</span>
+            </span>
+            <span className="stat-chip">
+              <strong className="num">
                 {totalCost} {job.currency}
               </strong>
-            </div>
-            <div className="kpi">
-              <span>{tx("jobGrossProfit")}</span>
-              <strong>
+              <span>{tx("jobTotalCost")}</span>
+            </span>
+            <span className="stat-chip">
+              <strong className="num">
                 {gp} {job.currency} ({margin}%)
               </strong>
-            </div>
+              <span>{tx("jobGrossProfit")}</span>
+            </span>
           </div>
           <h3>{tx("colSell")}</h3>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {job.charges.map((c, i) => (
               <li key={i}>
                 {c.description} — {c.amount} {c.currency}
@@ -396,7 +398,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
             ))}
           </ul>
           <h3>{tx("jobCosts")}</h3>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {job.costs.map((c) => (
               <li key={c.id}>
                 {c.description} ({c.vendor}) — {c.amount} {c.currency}
@@ -429,7 +431,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
           </form>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionContainers")}</h2>
           <div className="toolbar">
             <Link className="btn btn-ghost" to={`/boxes?jobId=${job.id}`}>
@@ -456,7 +458,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
             )}
           </div>
           {boxes.length === 0 ? <p className="empty">{tx("emptyShellCrm")}</p> : null}
-          <ul className="list-plain">
+          <ul className="dense-list">
             {boxes.map((b) => (
               <li key={b.id}>
                 <div>
@@ -564,12 +566,12 @@ function JobDetailBody({ job }: { job: ShellJob }) {
           </form>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionDocuments")}</h2>
           <Link className="btn btn-ghost" to={`/docs?jobId=${job.id}`}>
             {tx("navDocs")}
           </Link>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {docs.map((d) => (
               <li key={d.id}>
                 <strong>{d.docType}</strong> {d.name}{" "}
@@ -623,9 +625,9 @@ function JobDetailBody({ job }: { job: ShellJob }) {
           </form>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionTimeline")}</h2>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {job.milestones.map((m) => (
               <li key={m.code}>
                 <label className="check">
@@ -658,14 +660,14 @@ function JobDetailBody({ job }: { job: ShellJob }) {
           </ul>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionEmail")}</h2>
           <p className="meta">{tx("jobEmailDeferred")}</p>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionNotes")}</h2>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {job.notes.map((n) => (
               <li key={n.id}>
                 <strong>{n.author}</strong> · {n.createdAt}
@@ -685,12 +687,12 @@ function JobDetailBody({ job }: { job: ShellJob }) {
           </form>
         </section>
 
-        <section className="panel">
+        <section className="block">
           <h2>{tx("jobSectionBilling")}</h2>
           <p>
             {tx("colStatus")}: <span className="pill">{job.billingStatus}</span>
           </p>
-          <ul className="list-plain">
+          <ul className="dense-list">
             {invoices.map((inv) => (
               <li key={inv.id}>
                 <Link to={`/invoices?jobId=${job.id}`}>{inv.invoiceNumber}</Link> — {inv.total} {inv.currency} · {inv.status} · bal{" "}

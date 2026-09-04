@@ -61,7 +61,7 @@ export function PipelinePage() {
       <PageToolbar
         title={tx("pipelineTitle")}
         count={deals.length}
-        hint={shell ? tx("emptyShellCrm") : tx("pipelineHint")}
+        hint={tx("pipelineHint")}
         actions={
           <Button variant="primary" onClick={() => setOpen((v) => !v)} aria-expanded={open} disabled={customers.length === 0}>
             {tx("shellCreateDeal")}

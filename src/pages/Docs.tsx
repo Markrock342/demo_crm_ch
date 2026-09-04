@@ -119,12 +119,19 @@ export function DocsPage() {
       />
 
       {shell && status === "missing" && missingByJob.length > 0 ? (
-        <section className="panel">
-          <h2>{tx("docsMissingByJob")}</h2>
-          <ul className="list-plain">
+        <section className="block">
+          <div className="block-head">
+            <h2>{tx("docsMissingByJob")}</h2>
+          </div>
+          <ul className="dense-list">
             {missingByJob.map((row) => (
               <li key={row.jobId}>
-                <Link to={`/jobs/${row.jobId}`}>{row.job?.jobNumber ?? row.jobId}</Link> — {row.count} {tx("docsMissingCount")}
+                <Link to={`/jobs/${row.jobId}`}>
+                  <strong>{row.job?.jobNumber ?? row.jobId}</strong>
+                  <span className="meta">
+                    {row.count} {tx("docsMissingCount")}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
