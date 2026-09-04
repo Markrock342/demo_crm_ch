@@ -67,44 +67,60 @@ export function LoginPage() {
             <span className="bar-mark login-mark" aria-hidden>
               栈
             </span>
-            <div>
+            <div className="login-head-copy">
               <h1>{tx("brand")}</h1>
+              <p className="login-brand-roman">{tx("brandRoman")}</p>
               <p>{tx("loginDeptHint")}</p>
             </div>
           </header>
 
-          <div className="login-dept-grid" role="group" aria-label={tx("loginPickDept")}>
-            {DEPARTMENTS.map((d) => (
-              <button
-                key={d}
-                type="button"
-                className="btn btn-primary login-dept-btn"
-                disabled={busyDept !== null}
-                onClick={() => void pickDept(d)}
-              >
-                {busyDept === d ? tx("loginBusy") : tx(deptLabelKey[d])}
-              </button>
-            ))}
-          </div>
+          <section className="login-section" aria-labelledby="login-shell-title">
+            <h2 id="login-shell-title" className="login-section-title">
+              {tx("loginShellTitle")}
+            </h2>
+            <div className="login-dept-grid" role="group" aria-label={tx("loginPickDept")}>
+              {DEPARTMENTS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className="login-dept-btn"
+                  disabled={busyDept !== null}
+                  onClick={() => void pickDept(d)}
+                >
+                  {busyDept === d ? tx("loginBusy") : tx(deptLabelKey[d])}
+                </button>
+              ))}
+            </div>
+          </section>
 
           {err ? (
-            <p className="field-err" role="alert">
+            <p className="field-err login-err" role="alert">
               {err}
             </p>
           ) : null}
 
-          <section className="login-remote" aria-labelledby="login-remote-title">
-            <h2 id="login-remote-title" className="login-remote-title">
+          <div className="login-divider" role="separator" aria-label={tx("loginOr")}>
+            <span>{tx("loginOr")}</span>
+          </div>
+
+          <section className="login-section login-remote" aria-labelledby="login-remote-title">
+            <h2 id="login-remote-title" className="login-section-title">
               {tx("loginRemoteTitle")}
             </h2>
             {production ? (
-              <form className="form form-stack" onSubmit={(e) => void onRemote(e)}>
+              <form className="login-form" onSubmit={(e) => void onRemote(e)}>
                 <label>
-                  Email
-                  <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
+                  {tx("loginEmail")}
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    required
+                  />
                 </label>
                 <label>
-                  Password
+                  {tx("loginPassword")}
                   <input
                     type="password"
                     value={password}
@@ -113,17 +129,17 @@ export function LoginPage() {
                     required
                   />
                 </label>
-                <button type="submit" className="btn btn-ghost login-submit" disabled={remoteBusy}>
+                <button type="submit" className="btn btn-primary login-submit" disabled={remoteBusy}>
                   {remoteBusy ? tx("loginBusy") : tx("loginSubmit")}
                 </button>
               </form>
             ) : (
-              <>
+              <div className="login-remote-todo">
                 <p className="meta">{tx("loginRemoteTodo")}</p>
                 <button type="button" className="btn btn-ghost login-submit" disabled title={tx("apiNotConfigured")}>
-                  {tx("loginSubmit")} — {tx("apiNotConfigured")}
+                  {tx("loginSubmit")}
                 </button>
-              </>
+              </div>
             )}
           </section>
         </div>

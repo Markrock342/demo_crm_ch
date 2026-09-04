@@ -79,18 +79,20 @@ export function OverviewPage() {
   const exceptionPreview = useMemo(() => {
     const rows: { id: string; label: string; meta: string; to: string }[] = [];
     for (const j of delayed.slice(0, 3)) {
-      rows.push({ id: `d-${j.id}`, label: j.jobNumber, meta: "ETA delayed", to: `/jobs/${j.id}` });
+      rows.push({ id: `d-${j.id}`, label: j.jobNumber, meta: tx("etaDelayed"), to: `/jobs/${j.id}` });
     }
     for (const d of missingDocs.slice(0, 3)) {
+      const statusLabel =
+        d.status === "late" ? tx("docStatusLate") : d.status === "wait" ? tx("docStatusWait") : d.status;
       rows.push({
         id: d.id,
         label: `${d.docType} · ${d.name}`,
-        meta: d.status,
+        meta: statusLabel,
         to: d.jobId ? `/jobs/${d.jobId}` : "/docs?missing=1",
       });
     }
     return rows;
-  }, [delayed, missingDocs]);
+  }, [delayed, missingDocs, tx]);
 
   async function runMgmtReport() {
     setReportBusy(true);
@@ -118,18 +120,20 @@ export function OverviewPage() {
   if (!shell) {
     return (
       <div className="page page--workspace">
-        <PageToolbar title={tx("navOverview")} hint={tx("apiNotConfigured")} />
-        <p className="meta">{tx("apiNotConfigured")}</p>
-        <Link to="/login">{tx("loginPickDept")}</Link>
+        <PageToolbar title={tx("navOverview")} />
+        <p className="empty">{tx("apiNotConfigured")}</p>
+        <p className="page-foot">
+          <Link to="/login">{tx("loginPickDept")}</Link>
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="page page--workspace">
+    <div className="page page--workspace page--overview">
       <PageToolbar
         title={tx("navOverview")}
-        hint={`${tx("shellDataBadge")} · LogisticsOS`}
+        hint={tx("shellDataBadge")}
         actions={
           <>
             <button type="button" className="btn btn-ghost" disabled={reportBusy} onClick={() => void runMgmtReport()}>
@@ -144,117 +148,127 @@ export function OverviewPage() {
           </>
         }
       />
+
       {mgmtReport ? (
-        <p className="meta panel" style={{ whiteSpace: "pre-wrap" }}>
+        <p className="meta overview-report" style={{ whiteSpace: "pre-wrap" }}>
           {mgmtReport}
         </p>
       ) : null}
 
-      <section className="panel">
-        <h2>{tx("arAging")}</h2>
-        <div className="stat-row">
-          <div>
-            <span className="meta">0–30</span>
-            <strong className="num">{aging.b0}</strong>
-          </div>
-          <div>
-            <span className="meta">31–60</span>
-            <strong className="num">{aging.b30}</strong>
-          </div>
-          <div>
-            <span className="meta">61+</span>
-            <strong className="num">{aging.b60}</strong>
-          </div>
-        </div>
-      </section>
+      <div className="stat-strip" aria-label={tx("navOverview")}>
+        <span className="stat-chip stat-chip--metric">
+          <strong className="num">{activeJobs.length}</strong>
+          <span>{tx("dashActiveJobs")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{departing}</strong>
+          <span>{tx("dashDeparting")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{arriving}</strong>
+          <span>{tx("dashArriving")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{delayed.length}</strong>
+          <span>{tx("dashDelayed")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{inTransitTeu}</strong>
+          <span>{tx("dashInTransitTeu")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{teu}</strong>
+          <span>{tx("dashTeuTotal")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{missingDocs.length}</strong>
+          <span>{tx("dashMissingDocs")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{outstanding.length}</strong>
+          <span>{tx("dashOutstandingAr")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{gpMonth}</strong>
+          <span>{tx("dashGpMonth")}</span>
+        </span>
+      </div>
 
-      <section className="kpis" aria-label={tx("navOverview")}>
-        <div className="kpi-lead">
-          <div className="num">{activeJobs.length}</div>
-          <div className="lbl">{tx("dashActiveJobs")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{departing}</div>
-          <div className="lbl">{tx("dashDeparting")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{arriving}</div>
-          <div className="lbl">{tx("dashArriving")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{delayed.length}</div>
-          <div className="lbl">{tx("dashDelayed")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{inTransitTeu}</div>
-          <div className="lbl">{tx("dashInTransitTeu")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{missingDocs.length}</div>
-          <div className="lbl">{tx("dashMissingDocs")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{outstanding.length}</div>
-          <div className="lbl">{tx("dashOutstandingAr")}</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{teu}</div>
-          <div className="lbl">TEU</div>
-        </div>
-        <div className="kpi">
-          <div className="num">{gpMonth}</div>
-          <div className="lbl">{tx("dashGpMonth")}</div>
-        </div>
-      </section>
+      <div className="stat-strip stat-strip--secondary" aria-label={tx("arAging")}>
+        <span className="filter-strip-label">{tx("arAging")}</span>
+        <span className="stat-chip">
+          <strong className="num">{aging.b0}</strong>
+          <span>0–30</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{aging.b30}</strong>
+          <span>31–60</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{aging.b60}</strong>
+          <span>61+</span>
+        </span>
+      </div>
 
-      <section className="panel">
-        <h2>{tx("exceptionsTitle")}</h2>
-        <p className="meta">
-          <Link to="/exceptions">{tx("exceptionOpenCenter")}</Link>
-        </p>
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("exceptionsTitle")}</h2>
+          <Link className="btn btn-ghost btn-slim" to="/exceptions">
+            {tx("exceptionOpenCenter")}
+          </Link>
+        </div>
         {exceptionPreview.length === 0 ? (
-          <p className="empty">{tx("emptyShellCrm")}</p>
+          <p className="empty">{tx("emptyExceptions")}</p>
         ) : (
-          <ul className="list-plain">
+          <ul className="dense-list">
             {exceptionPreview.map((e) => (
               <li key={e.id}>
                 <Link to={e.to}>
                   <strong>{e.label}</strong>
-                </Link>{" "}
-                <span className="meta">{e.meta}</span>
+                  <span className="meta">{e.meta}</span>
+                </Link>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <div className="job-detail-grid">
-        <section className="panel">
-          <h2>{tx("profitByCustomer")}</h2>
-          <ul className="list-plain">
+      <div className="rank-grid">
+        <section className="block">
+          <div className="block-head">
+            <h2>{tx("profitByCustomer")}</h2>
+          </div>
+          <ul className="dense-list">
             {byCustomer.map((r) => (
               <li key={r.id}>
-                {r.c ? customerName(r.c as Customer, locale) : r.id}: <strong>{r.gp}</strong>
+                <span>{r.c ? customerName(r.c as Customer, locale) : r.id}</span>
+                <strong className="num">{r.gp}</strong>
               </li>
             ))}
           </ul>
         </section>
-        <section className="panel">
-          <h2>{tx("profitByRoute")}</h2>
-          <ul className="list-plain">
+        <section className="block">
+          <div className="block-head">
+            <h2>{tx("profitByRoute")}</h2>
+          </div>
+          <ul className="dense-list">
             {byRoute.map(([route, gp]) => (
               <li key={route}>
-                {route}: <strong>{gp}</strong>
+                <span className="mono">{route}</span>
+                <strong className="num">{gp}</strong>
               </li>
             ))}
           </ul>
         </section>
-        <section className="panel">
-          <h2>{tx("profitBySales")}</h2>
-          <ul className="list-plain">
+        <section className="block">
+          <div className="block-head">
+            <h2>{tx("profitBySales")}</h2>
+          </div>
+          <ul className="dense-list">
             {bySales.map(([name, gp]) => (
               <li key={name}>
-                {name}: <strong>{gp}</strong>
+                <span>{name}</span>
+                <strong className="num">{gp}</strong>
               </li>
             ))}
           </ul>

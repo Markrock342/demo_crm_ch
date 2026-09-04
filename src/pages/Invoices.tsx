@@ -236,7 +236,7 @@ export function InvoicesPage() {
       {shell ? (
         <>
           <div className="toolbar">
-            <button type="button" className="btn btn-primary" disabled={!selectedInvoices.length} onClick={createBn}>
+            <button type="button" className="btn btn-ghost" disabled={!selectedInvoices.length} onClick={createBn}>
               {tx("createShellBillingNote")}
             </button>
             <button type="button" className="btn btn-ghost" disabled title={tx("loginRemoteTodo")}>
@@ -245,20 +245,27 @@ export function InvoicesPage() {
           </div>
 
           {billingNotes.length ? (
-            <div className="panel">
-              <h2>{tx("billingNotes")}</h2>
-              <ul className="list-plain">
+            <section className="block">
+              <div className="block-head">
+                <h2>{tx("billingNotes")}</h2>
+              </div>
+              <ul className="dense-list">
                 {billingNotes.map((bn) => (
                   <li key={bn.id}>
-                    {bn.billingNumber} — {bn.grandTotal} {bn.currency}
+                    <span>{bn.billingNumber}</span>
+                    <strong className="num">
+                      {bn.grandTotal} {bn.currency}
+                    </strong>
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
           ) : null}
 
-          <div className="panel">
-            <h2>{tx("recordShellPayment")}</h2>
+          <section className="block">
+            <div className="block-head">
+              <h2>{tx("recordShellPayment")}</h2>
+            </div>
             <div className="form pipe-form">
               <label>
                 {tx("colInvoice")}
@@ -281,7 +288,7 @@ export function InvoicesPage() {
                 {tx("recordShellPayment")}
               </button>
             </div>
-          </div>
+          </section>
         </>
       ) : null}
     </div>

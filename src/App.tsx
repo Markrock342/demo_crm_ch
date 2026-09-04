@@ -258,16 +258,19 @@ function AppShell() {
         </Link>
 
         {!narrowHeader ? (
-          <form className="bar-search" onSubmit={onSearch}>
-            <MagnifyingGlass size={18} weight="regular" aria-hidden />
+          <form className="bar-search" onSubmit={onSearch} role="search">
+            <MagnifyingGlass size={16} weight="regular" className="bar-search-icon" aria-hidden />
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setCmd(true)}
-              placeholder={`${tx("cmdHint")} ⌘K`}
+              placeholder={tx("search")}
               aria-label={tx("search")}
             />
+            <kbd className="bar-search-kbd" aria-hidden>
+              ⌘K
+            </kbd>
           </form>
         ) : null}
 
@@ -286,9 +289,9 @@ function AppShell() {
           ) : null}
           <LangPicker value={locale} onChange={setLocale} compact={narrowHeader} />
           <Link className="bar-cta" to="/inbox" onClick={() => setMenuOpen(false)}>
-            <EnvelopeSimple size={18} weight="fill" aria-hidden />
+            <EnvelopeSimple size={18} weight="regular" aria-hidden />
             <span className="bar-cta-text">{tx("headerCta")}</span>
-            {unread > 0 ? <span className="badge badge-white">{unread}</span> : null}
+            {unread > 0 ? <span className="badge badge-seal">{unread}</span> : null}
           </Link>
           <div className="bar-user">
             <span className="bar-avatar" aria-hidden>
@@ -353,21 +356,23 @@ function AppShell() {
               </button>
             </div>
           ) : null}
-          {visibleGroups.map((g) => (
-            <div key={g.key} className="nav-group">
-              <p className="nav-label">{tx(g.key)}</p>
-              <nav className="nav" aria-label={tx(g.key)}>
-                {g.items.map((l) => (
-                  <NavLink key={l.to} to={l.to} end={"end" in l ? l.end : false} onClick={() => setMenuOpen(false)}>
-                    <l.icon size={18} weight="regular" aria-hidden />
-                    {tx(l.key)}
-                    {l.to === "/inbox" && unread > 0 ? <span className="badge badge-seal">{unread}</span> : null}
-                    {l.to === "/tasks" && hot > 0 ? <span className="badge badge-seal">{hot}</span> : null}
-                  </NavLink>
-                ))}
-              </nav>
-            </div>
-          ))}
+          <div className="side-scroll">
+            {visibleGroups.map((g) => (
+              <div key={g.key} className="nav-group">
+                <p className="nav-label">{tx(g.key)}</p>
+                <nav className="nav" aria-label={tx(g.key)}>
+                  {g.items.map((l) => (
+                    <NavLink key={l.to} to={l.to} end={"end" in l ? l.end : false} onClick={() => setMenuOpen(false)}>
+                      <l.icon size={18} weight="regular" aria-hidden />
+                      {tx(l.key)}
+                      {l.to === "/inbox" && unread > 0 ? <span className="badge badge-seal">{unread}</span> : null}
+                      {l.to === "/tasks" && hot > 0 ? <span className="badge badge-seal">{hot}</span> : null}
+                    </NavLink>
+                  ))}
+                </nav>
+              </div>
+            ))}
+          </div>
           <div className="side-foot">
             <p className="tenant">{tx("tenant")}</p>
             <p className={`gemini-dot ${gemini ? "on" : "off"}`}>{gemini ? tx("geminiOn") : tx("geminiOff")}</p>

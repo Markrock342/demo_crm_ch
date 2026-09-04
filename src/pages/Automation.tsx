@@ -11,14 +11,14 @@ export function AutomationPage() {
   if (!shell) {
     return (
       <div className="page page--workspace">
-        <PageToolbar title={tx("navAutomation")} hint={tx("apiNotConfigured")} />
-        <p className="meta">{tx("apiNotConfigured")}</p>
+        <PageToolbar title={tx("navAutomation")} />
+        <p className="empty">{tx("apiNotConfigured")}</p>
       </div>
     );
   }
 
   return (
-    <div className="page page--workspace">
+    <div className="page page--workspace page--automation">
       <PageToolbar
         title={tx("navAutomation")}
         hint={tx("shellDataBadge")}
@@ -28,9 +28,27 @@ export function AutomationPage() {
           </button>
         }
       />
-      <section className="panel">
-        <h2>{tx("automationRules")}</h2>
-        <ul className="list-plain">
+
+      <div className="stat-strip">
+        <span className="stat-chip">
+          <strong className="num">{auto.rules.filter((r) => r.enabled).length}</strong>
+          <span>{tx("automationOn")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{auto.rules.length}</strong>
+          <span>{tx("automationRules")}</span>
+        </span>
+        <span className="stat-chip">
+          <strong className="num">{auto.auditLog.length}</strong>
+          <span>{tx("automationAudit")}</span>
+        </span>
+      </div>
+
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("automationRules")}</h2>
+        </div>
+        <ul className="dense-list">
           {auto.rules.map((r) => (
             <li key={r.id} className="row-between">
               <span>
@@ -44,16 +62,24 @@ export function AutomationPage() {
           ))}
         </ul>
       </section>
-      <section className="panel">
-        <h2>{tx("automationAudit")}</h2>
-        {auto.auditLog.length === 0 ? <p className="empty">{tx("emptyShellCrm")}</p> : null}
-        <ul className="list-plain">
-          {auto.auditLog.slice(0, 40).map((a) => (
-            <li key={a.id}>
-              <span className="mono meta">{a.at.slice(0, 19)}</span> · {a.ruleName} — {a.detail}
-            </li>
-          ))}
-        </ul>
+
+      <section className="block">
+        <div className="block-head">
+          <h2>{tx("automationAudit")}</h2>
+        </div>
+        {auto.auditLog.length === 0 ? (
+          <p className="empty">{tx("emptyShellCrm")}</p>
+        ) : (
+          <ul className="dense-list">
+            {auto.auditLog.slice(0, 40).map((a) => (
+              <li key={a.id}>
+                <span>
+                  <span className="mono meta">{a.at.slice(0, 19)}</span> · {a.ruleName} — {a.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );
