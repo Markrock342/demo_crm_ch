@@ -8,6 +8,7 @@ import { useShellOps } from "../shell/opsStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
 import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
+import { isBeforeToday } from "../lib/dates.ts";
 import { PageToolbar } from "../ui/PageToolbar";
 
 type Exc = { id: string; kind: string; label: string; meta: string; to: string };
@@ -43,7 +44,14 @@ export function ExceptionsPage() {
       }
     }
     for (const inv of billing.invoices) {
-      if (inv.overdue || (inv.balanceDue > 0 && inv.dueDate && inv.dueDate < "2026-09-04" && inv.status !== "PAID" && inv.status !== "DRAFT")) {
+      if (
+        inv.overdue ||
+        (inv.balanceDue > 0 &&
+          inv.dueDate &&
+          isBeforeToday(inv.dueDate) &&
+          inv.status !== "PAID" &&
+          inv.status !== "DRAFT")
+      ) {
         const c = crm.customers.find((x) => x.id === inv.customerId);
         list.push({
           id: `inv-${inv.id}`,

@@ -15,6 +15,8 @@ import { ShellNotificationProvider } from "./shell/notificationStore.tsx";
 import { ShellAutomationProvider } from "./shell/automationStore.tsx";
 import { PortalSessionProvider } from "./shell/portalSession.tsx";
 import { StoreProvider } from "./store.tsx";
+import { ThemedApp } from "./v2/ThemedApp.tsx";
+import "antd/dist/reset.css";
 import "./index.css";
 import "./ui/kit.css";
 
@@ -34,7 +36,9 @@ createRoot(document.getElementById("root")!).render(
                           <StoreProvider>
                             <CrmSync />
                             <BrowserRouter>
-                              <App />
+                              <ThemedApp>
+                                <App />
+                              </ThemedApp>
                             </BrowserRouter>
                           </StoreProvider>
                         </ShellAutomationProvider>

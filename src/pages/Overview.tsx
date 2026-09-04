@@ -10,6 +10,7 @@ import { useShellOps } from "../shell/opsStore.tsx";
 import { useIsShellMode } from "../shell/session.tsx";
 import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
+import { jobDateIsToday } from "../lib/dates.ts";
 import { PageToolbar } from "../ui/PageToolbar";
 
 function arAgingBuckets(invoices: { balanceDue: number; dueDate?: string; status: string }[]) {
@@ -43,9 +44,8 @@ export function OverviewPage() {
   const outstanding = billing.invoices.filter((i) => i.balanceDue > 0);
   const teu = ops.boxes.reduce((n, b) => n + b.teu, 0);
   const inTransitTeu = ops.boxes.filter((b) => b.status === "in_transit" || b.status === "loaded").reduce((n, b) => n + b.teu, 0);
-  const todayKey = "09-04";
-  const departing = jobs.jobs.filter((j) => j.etd === todayKey || j.etd.endsWith("-04")).length;
-  const arriving = jobs.jobs.filter((j) => j.eta === todayKey || j.eta.endsWith("-04")).length;
+  const departing = jobs.jobs.filter((j) => jobDateIsToday(j.etd)).length;
+  const arriving = jobs.jobs.filter((j) => jobDateIsToday(j.eta)).length;
   const gpMonth = jobs.jobs.reduce((n, j) => n + jobGrossProfit(j), 0);
   const aging = useMemo(() => arAgingBuckets(billing.invoices), [billing.invoices]);
 
