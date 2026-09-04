@@ -10,7 +10,7 @@ export async function generateJson(prompt: string, jsonSchema: Record<string, un
     throw err;
   }
   const { GoogleGenAI } = await import("@google/genai");
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
   const ai = new GoogleGenAI({ apiKey: key });
   const response = await ai.models.generateContent({
     model,

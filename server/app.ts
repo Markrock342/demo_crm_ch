@@ -25,7 +25,7 @@ export function createApp() {
   app.route("/public", publicQuoteRoutes());
 
   app.get("/ai/health", (c) => {
-    return c.json({ ok: hasGeminiKey(), model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash" });
+    return c.json({ ok: hasGeminiKey(), model: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash" });
   });
 
   app.post("/ai/mail", async (c) => {
