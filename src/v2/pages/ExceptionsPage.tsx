@@ -1,6 +1,7 @@
 import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import { Link } from "react-router-dom";
+import { Col, Row } from "antd";
 import { useMemo } from "react";
 import { customerName, type Customer } from "../../data";
 import { isBeforeToday } from "../../lib/dates.ts";
@@ -11,6 +12,7 @@ import { useShellOps } from "../../shell/opsStore.tsx";
 import { useShellSupport } from "../../shell/supportStore.tsx";
 import { useStore } from "../../store";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { useLiveInvoices } from "../hooks/useCommercial.ts";
 
@@ -62,6 +64,15 @@ export function ExceptionsPageV2() {
     return list;
   }, [billing.invoices, crm.customers, jobs.jobs, live, liveInv.data, locale, ops.boxes, shell, support.docs]);
 
+  const excFacts = {
+    totalExceptions: rows.length,
+    delayedJobs: rows.filter((r) => r.kind === "ETA delayed").length,
+    missingDocs: rows.filter((r) => r.kind === "Missing document").length,
+    overdueInvoices: rows.filter((r) => r.kind === "Invoice overdue").length,
+    containerRisk: rows.filter((r) => r.kind === "Container risk").length,
+  };
+  const excLocal = `Action center: ${rows.length} exceptions — ${excFacts.delayedJobs} delayed, ${excFacts.missingDocs} docs, ${excFacts.overdueInvoices} AR, ${excFacts.containerRisk} container risks.`;
+
   const columns: ProColumns<Exc>[] = [
     { title: tx("exceptionKind"), dataIndex: "kind", width: 140 },
     { title: "Ref", dataIndex: "label", render: (_, r) => <Link to={r.to}>{r.label}</Link> },
@@ -80,6 +91,11 @@ export function ExceptionsPageV2() {
   return (
     <div style={{ padding: "0 8px 24px" }}>
       <PageHeader title={tx("navActionCenter")} subtitle={`${rows.length} · ${shell ? tx("shellDataBadge") : tx("liveApiBadge")}`} />
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24}>
+          <AiBriefCard title={tx("aiMgmtReport")} facts={excFacts} localFallback={excLocal} compact />
+        </Col>
+      </Row>
       <ProTable<Exc> rowKey="id" columns={columns} dataSource={rows} search={false} pagination={{ pageSize: 20 }} />
     </div>
   );

@@ -2,12 +2,14 @@ import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { Col, Row } from "antd";
 import { customerName, type Customer } from "../../data";
 import { fetchContainers, type ContainerDto } from "../../api/operations.ts";
 import { useShellCrm } from "../../shell/crmStore.tsx";
 import { useShellOps } from "../../shell/opsStore.tsx";
 import { useStore } from "../../store";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { StatusTag } from "../components/StatusTag.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { queryKeys } from "../queries/keys.ts";
@@ -48,6 +50,14 @@ export function ContainersPageV2() {
 
   const rows = shell ? shellRows : (liveQ.data ?? []);
 
+  const boxFacts = {
+    containers: rows.length,
+    hold: rows.filter((r) => r.status === "hold").length,
+    inTransit: rows.filter((r) => r.status === "sail").length,
+    teu: rows.reduce((n, r) => n + (r.teu ?? 0), 0),
+  };
+  const boxLocal = `Container fleet: ${rows.length} units, ${boxFacts.teu} TEU, ${boxFacts.hold} on hold, ${boxFacts.inTransit} sailing.`;
+
   const columns: ProColumns<ContainerDto>[] = [
     { title: tx("colBox"), dataIndex: "containerNo", width: 130 },
     {
@@ -75,6 +85,13 @@ export function ContainersPageV2() {
         title={tx("boxesTitle")}
         subtitle={`${rows.length} · ${shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("apiNotConfigured")}`}
       />
+      {(shell || live) && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24}>
+            <AiBriefCard title={tx("aiJobSummary")} facts={boxFacts} localFallback={boxLocal} compact />
+          </Col>
+        </Row>
+      )}
       {!shell && !live ? <p>{tx("apiNotConfigured")}</p> : null}
       {(shell || live) && (
         <ProTable<ContainerDto>

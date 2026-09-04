@@ -5,10 +5,13 @@ import { useShellCrm } from "../shell/crmStore.tsx";
 import { useShellQuotes } from "../shell/quoteStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
+import { uiV2 } from "../v2/config.ts";
+import { QuoteWizardPageV2 } from "../v2/pages/QuoteWizardPage.tsx";
 
 type ChargeRow = { description: string; sellAmount: number };
 
 export function QuoteWizardPage() {
+  if (uiV2) return <QuoteWizardPageV2 />;
   const { tx, locale } = useStore();
   const crm = useShellCrm();
   const quotes = useShellQuotes();

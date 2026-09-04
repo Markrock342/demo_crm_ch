@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
-import { authMiddleware, requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { authMiddleware, requireAuth, requireTenant, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
 import {
   createContact,
@@ -68,30 +68,36 @@ function dbOr503(c: { json: (body: unknown, status?: number) => Response }) {
   return db;
 }
 
+const tenantGate = [requireAuth(), requireTenant()] as const;
+
+function orgId(c: { get: (k: "organizationId") => string | null }) {
+  return c.get("organizationId")!;
+}
+
 export function crmRoutes() {
   const r = new Hono<AuthEnv>();
 
   r.use("*", authMiddleware);
 
-  r.get("/customers", requireAuth(), async (c) => {
+  r.get("/customers", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const q = c.req.query("q");
     const limit = Number(c.req.query("limit") ?? 100);
     const offset = Number(c.req.query("offset") ?? 0);
-    const result = await listCustomers(db, { q, limit, offset });
+    const result = await listCustomers(db, orgId(c), { q, limit, offset });
     return c.json(result);
   });
 
-  r.get("/customers/:id", requireAuth(), async (c) => {
+  r.get("/customers/:id", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const row = await getCustomer(db, c.req.param("id"));
+    const row = await getCustomer(db, orgId(c), c.req.param("id"));
     if (!row) return c.json({ error: "not_found" }, 404);
     return c.json(row);
   });
 
-  r.post("/customers", requireAuth(), async (c) => {
+  r.post("/customers", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const user = c.get("user")!;
@@ -101,7 +107,7 @@ export function crmRoutes() {
     } catch {
       return c.json({ error: "invalid_body" }, 400);
     }
-    const row = await createCustomer(db, body);
+    const row = await createCustomer(db, orgId(c), body);
     await writeAudit(db, {
       userId: user.id,
       action: "CUSTOMER_CREATED",
@@ -112,15 +118,15 @@ export function crmRoutes() {
     return c.json(row, 201);
   });
 
-  r.patch("/customers/:id", requireAuth(), async (c) => {
+  r.patch("/customers/:id", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const user = c.get("user")!;
     const id = c.req.param("id");
-    const before = await getCustomer(db, id);
+    const before = await getCustomer(db, orgId(c), id);
     if (!before) return c.json({ error: "not_found" }, 404);
     const patch = await c.req.json();
-    const row = await updateCustomer(db, id, patch);
+    const row = await updateCustomer(db, orgId(c), id, patch);
     await writeAudit(db, {
       userId: user.id,
       action: "CUSTOMER_UPDATED",
@@ -169,15 +175,15 @@ export function crmRoutes() {
     return c.json(row, 201);
   });
 
-  r.get("/leads", requireAuth(), async (c) => {
+  r.get("/leads", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const stage = c.req.query("stage");
-    const items = await listLeads(db, stage);
+    const items = await listLeads(db, orgId(c), stage);
     return c.json({ items });
   });
 
-  r.post("/leads", requireAuth(), async (c) => {
+  r.post("/leads", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const user = c.get("user")!;
@@ -187,7 +193,7 @@ export function crmRoutes() {
     } catch {
       return c.json({ error: "invalid_body" }, 400);
     }
-    const row = await createLead(db, body);
+    const row = await createLead(db, orgId(c), body);
     await writeAudit(db, {
       userId: user.id,
       action: "LEAD_CREATED",

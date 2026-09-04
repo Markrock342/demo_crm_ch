@@ -100,7 +100,7 @@ export function OverviewPage() {
     setReportBusy(true);
     const local = `Ops: ${activeJobs.length} active jobs, ${delayed.length} delayed, ${inTransitTeu} TEU in transit. Docs missing/wait: ${missingDocs.length}. AR open: ${outstanding.length} (0–30: ${aging.b0}, 31–60: ${aging.b30}, 61+: ${aging.b60}).`;
     try {
-      const summary = await aiBrief(locale as "zh" | "th" | "en", {
+      const brief = await aiBrief(locale as "zh" | "th" | "en", {
         activeJobs: activeJobs.length,
         delayed: delayed.length,
         missingDocs: missingDocs.length,
@@ -109,8 +109,8 @@ export function OverviewPage() {
         ar0_30: aging.b0,
         ar31_60: aging.b30,
         ar61: aging.b60,
-      });
-      setMgmtReport(summary || local);
+      }, "overview");
+      setMgmtReport(brief.summary || local);
     } catch (e) {
       void e;
       setMgmtReport(local);

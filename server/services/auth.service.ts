@@ -4,6 +4,8 @@ import type { Db } from "../db/index.js";
 import { permissions, rolePermissions, roles, userRoles, users } from "../db/schema/index.js";
 import { PERMISSIONS, ROLES, permissionsForRoles, type PermissionCode, type RoleCode } from "../domain/rbac.js";
 import { writeAudit } from "./audit.service.js";
+import { ensureDemoOrganization, linkUserToOrganization, resolvePrimaryOrganization } from "./tenancy.service.js";
+import { DEMO_ORG_ID } from "../domain/tenancy.js";
 
 export type AuthUser = {
   id: string;
@@ -12,6 +14,8 @@ export type AuthUser = {
   nameZh: string | null;
   roles: RoleCode[];
   permissions: PermissionCode[];
+  organizationId: string | null;
+  organizationName: string | null;
 };
 
 export async function loginUser(db: Db, email: string, password: string): Promise<AuthUser | null> {
@@ -35,6 +39,7 @@ export async function loadAuthUser(db: Db, userId: string): Promise<AuthUser | n
 
   const roleCodes = roleRows.map((r) => r.code as RoleCode);
   const perms = [...permissionsForRoles(roleCodes)];
+  const tenant = await resolvePrimaryOrganization(db, userId);
 
   return {
     id: row.id,
@@ -43,6 +48,8 @@ export async function loadAuthUser(db: Db, userId: string): Promise<AuthUser | n
     nameZh: row.nameZh,
     roles: roleCodes,
     permissions: perms,
+    organizationId: tenant?.organizationId ?? null,
+    organizationName: tenant?.organizationName ?? null,
   };
 }
 
@@ -119,4 +126,12 @@ export async function seedAuth(db: Db) {
     entityId: "auth",
     newValue: { users: demoUsers.map((u) => u.email) },
   });
+
+  await ensureDemoOrganization(db);
+  for (const u of demoUsers) {
+    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, u.email)).limit(1);
+    if (existing?.id) {
+      await linkUserToOrganization(db, existing.id, DEMO_ORG_ID, u.role === "SUPER_ADMIN" ? "owner" : "member");
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { containers } from "../db/schema/operations.js";
+import { customers } from "../db/schema/crm.js";
 
 export type ContainerDto = {
   id: string;
@@ -44,9 +45,10 @@ function toDto(row: typeof containers.$inferSelect): ContainerDto {
 
 export async function listContainers(
   db: Db,
+  organizationId: string,
   filters?: { status?: string; customerId?: string; jobId?: string; statuses?: string[] },
 ) {
-  const clauses = [];
+  const clauses = [eq(containers.organizationId, organizationId)];
   if (filters?.customerId) clauses.push(eq(containers.customerId, filters.customerId));
   if (filters?.jobId) clauses.push(eq(containers.jobId, filters.jobId));
   if (filters?.status) clauses.push(eq(containers.status, filters.status));
@@ -55,13 +57,17 @@ export async function listContainers(
   const rows = await db
     .select()
     .from(containers)
-    .where(clauses.length ? and(...clauses) : undefined)
+    .where(and(...clauses))
     .orderBy(desc(containers.updatedAt));
   return rows.map(toDto);
 }
 
-export async function getContainer(db: Db, id: string) {
-  const [row] = await db.select().from(containers).where(eq(containers.id, id)).limit(1);
+export async function getContainer(db: Db, organizationId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(containers)
+    .where(and(eq(containers.id, id), eq(containers.organizationId, organizationId)))
+    .limit(1);
   return row ? toDto(row) : null;
 }
 
@@ -87,10 +93,18 @@ export async function createContainer(
 ) {
   const containerNo = input.containerNo.trim().toUpperCase();
   const id = `ctr-${containerNo}`;
+  const [cust] = await db
+    .select({ organizationId: customers.organizationId })
+    .from(customers)
+    .where(eq(customers.id, input.customerId))
+    .limit(1);
+  if (!cust) throw new Error("customer_not_found");
+
   const [row] = await db
     .insert(containers)
     .values({
       id,
+      organizationId: cust.organizationId,
       customerId: input.customerId,
       containerNo,
       type: input.type,

@@ -1,12 +1,14 @@
 import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
 import { Link } from "react-router-dom";
+import { Col, Row } from "antd";
 import { customerName, type Customer } from "../../data";
 import type { InvoiceRow } from "../../api/commercial.ts";
 import { useShellBilling } from "../../shell/billingStore.tsx";
 import { useShellCrm } from "../../shell/crmStore.tsx";
 import { useStore } from "../../store";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { Money } from "../components/Money.tsx";
 import { StatusTag } from "../components/StatusTag.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
@@ -34,6 +36,14 @@ export function InvoicesPageV2() {
   }));
 
   const rows = shell ? shellRows : (liveInv.data ?? []);
+
+  const arFacts = {
+    invoices: rows.length,
+    openBalance: rows.filter((r) => parseFloat(r.balanceDue) > 0).length,
+    draft: rows.filter((r) => r.status === "DRAFT").length,
+    paid: rows.filter((r) => r.status === "PAID").length,
+  };
+  const arLocal = `AR: ${rows.length} invoices, ${arFacts.openBalance} with balance due, ${arFacts.draft} drafts.`;
 
   const columns: ProColumns<InvoiceRow>[] = [
     { title: "Invoice", dataIndex: "invoiceNumber", width: 140 },
@@ -72,6 +82,13 @@ export function InvoicesPageV2() {
         title={tx("navInvoices")}
         subtitle={`${rows.length} · ${shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("apiNotConfigured")}`}
       />
+      {(shell || live) && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24}>
+            <AiBriefCard title={tx("aiMgmtReport")} facts={arFacts} localFallback={arLocal} compact />
+          </Col>
+        </Row>
+      )}
       {!shell && !live ? <p>{tx("apiNotConfigured")}</p> : null}
       {(shell || live) && (
         <ProTable<InvoiceRow>

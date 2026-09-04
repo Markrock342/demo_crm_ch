@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Space } from "antd";
+import { Alert, Button, Col, Row, Space } from "antd";
 import { useAuth } from "../../auth/AuthProvider";
 import { customerName, type Customer } from "../../data";
 import { useShellCrm } from "../../shell/crmStore.tsx";
@@ -9,6 +9,7 @@ import { useIsShellMode } from "../../shell/session.tsx";
 import { useStore } from "../../store";
 import { JobsProTable } from "../components/JobsProTable.tsx";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { ErrorState, LoadingState } from "../components/states.tsx";
 import { useLiveJobsList } from "../hooks/useJobs.ts";
 
@@ -58,6 +59,15 @@ export function JobsPageV2() {
   }, [billing, crm.customers, customerId, delayedOnly, locale, milestoneFilter, q, rows, status]);
 
   const hint = shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("apiNotConfigured");
+
+  const fleetFacts = {
+    visibleJobs: filtered.length,
+    delayed: filtered.filter((j) => j.delayed).length,
+    open: filtered.filter((j) => j.status === "OPEN").length,
+    inProgress: filtered.filter((j) => j.status === "IN_PROGRESS").length,
+    unbilled: filtered.filter((j) => j.billingStatus === "UNBILLED").length,
+  };
+  const fleetLocal = `Fleet view: ${filtered.length} jobs shown, ${fleetFacts.delayed} delayed, ${fleetFacts.unbilled} unbilled.`;
 
   if (!shell && !live) {
     return (
@@ -117,6 +127,12 @@ export function JobsPageV2() {
           </Link>
         }
       />
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24}>
+          <AiBriefCard title={tx("aiJobSummary")} facts={fleetFacts} localFallback={fleetLocal} compact />
+        </Col>
+      </Row>
 
       {loading ? <LoadingState tip={tx("loginBusy")} /> : null}
       {error ? <ErrorState subTitle={error} /> : null}

@@ -6,6 +6,7 @@ import { CalendarPage } from "./pages/Calendar";
 import { ContactsPage } from "./pages/Contacts";
 import { CustomersPage } from "./pages/Customers";
 import { DocsPage } from "./pages/Docs";
+import { DocumentTemplatesPageV2 } from "./v2/pages/DocumentTemplatesPage.tsx";
 import { ExceptionsPage } from "./pages/Exceptions";
 import { InboxPage } from "./pages/Inbox";
 import { InvoicesPage } from "./pages/Invoices";
@@ -53,6 +54,7 @@ export function AppRoutes() {
       <Route path="/yard" element={<YardPage />} />
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/docs" element={<DocsPage />} />
+      <Route path="/docs/templates" element={<DocumentTemplatesPageV2 />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/automation" element={<AutomationPage />} />
       <Route path="/tasks" element={<TasksPage />} />

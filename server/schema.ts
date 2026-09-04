@@ -68,9 +68,14 @@ export const mailResultSchema = z.object({
 export const briefRequestSchema = z.object({
   locale: localeSchema.default("zh"),
   facts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  context: z.string().optional(),
 });
 
 export const briefResultSchema = z.object({
+  situation: z.string(),
+  risks: z.array(z.string()),
+  recommendations: z.array(z.string()),
+  actions: z.array(z.string()),
   summary: z.string(),
 });
 
@@ -122,6 +127,12 @@ export const geminiMailJsonSchema = {
 export const geminiBriefJsonSchema = {
   type: "object",
   additionalProperties: false,
-  properties: { summary: { type: "string" } },
-  required: ["summary"],
+  properties: {
+    situation: { type: "string" },
+    risks: { type: "array", items: { type: "string" } },
+    recommendations: { type: "array", items: { type: "string" } },
+    actions: { type: "array", items: { type: "string" } },
+    summary: { type: "string" },
+  },
+  required: ["situation", "risks", "recommendations", "actions", "summary"],
 };

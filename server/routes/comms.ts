@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
-import { authMiddleware, requireAuth, requirePermission, type AuthEnv } from "../middleware/auth.js";
+import { authMiddleware, requireAuth, requirePermission, requireTenant, type AuthEnv } from "../middleware/auth.js";
+import { eq } from "drizzle-orm";
+import { crmDocs, documentTemplates } from "../db/schema/index.js";
+import { objectKeyForDoc, readObject, saveObject } from "../lib/storage.js";
 import {
   createMail,
   getMail,
@@ -46,17 +49,23 @@ const mailPatchSchema = z.object({
   needsHuman: z.boolean().optional(),
 });
 
+const tenantGate = [requireAuth(), requireTenant()] as const;
+
+function orgId(c: { get: (k: "organizationId") => string | null }) {
+  return c.get("organizationId")!;
+}
+
 export function commsRoutes() {
   const r = new Hono<AuthEnv>();
   r.use("*", authMiddleware);
 
-  r.get("/mails", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.get("/mails", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    return c.json({ items: await listMails(db, c.req.query("customerId")) });
+    return c.json({ items: await listMails(db, orgId(c), c.req.query("customerId")) });
   });
 
-  r.post("/mails", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.post("/mails", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const body = z
@@ -87,21 +96,21 @@ export function commsRoutes() {
         needsHuman: z.boolean().optional(),
       })
       .parse(await c.req.json());
-    const row = await createMail(db, body);
+    const row = await createMail(db, body, orgId(c));
     return c.json(row, 201);
   });
 
-  r.patch("/mails/:id", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.patch("/mails/:id", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const id = c.req.param("id");
     const patch = mailPatchSchema.parse(await c.req.json());
-    const existing = await getMail(db, id);
+    const existing = await getMail(db, orgId(c), id);
     if (!existing) return c.json({ error: "not_found" }, 404);
     if (patch.state && !mailTransitionAllowed(existing.state, patch.state)) {
       return c.json({ error: "invalid_status" }, 409);
     }
-    const row = await updateMail(db, id, {
+    const row = await updateMail(db, orgId(c), id, {
       ...patch,
       intent: patch.intent ?? undefined,
       summary: patch.summary ?? undefined,
@@ -113,13 +122,13 @@ export function commsRoutes() {
     return c.json(row);
   });
 
-  r.get("/docs", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.get("/docs", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    return c.json({ items: await listCrmDocs(db, c.req.query("customerId")) });
+    return c.json({ items: await listCrmDocs(db, orgId(c), c.req.query("customerId")) });
   });
 
-  r.patch("/docs/:id", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.patch("/docs/:id", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const body = z
@@ -136,7 +145,7 @@ export function commsRoutes() {
     return c.json(row);
   });
 
-  r.post("/docs", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.post("/docs", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const body = z
@@ -150,14 +159,14 @@ export function commsRoutes() {
         updated: z.string(),
       })
       .parse(await c.req.json());
-    return c.json(await upsertCrmDoc(db, body), 201);
+    return c.json(await upsertCrmDoc(db, body, orgId(c)), 201);
   });
 
-  r.post("/mails/:id/send", requireAuth(), requirePermission("customer.view"), async (c) => {
+  r.post("/mails/:id/send", ...tenantGate, requirePermission("customer.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const id = c.req.param("id");
-    const existing = await getMail(db, id);
+    const existing = await getMail(db, orgId(c), id);
     if (!existing) return c.json({ error: "not_found" }, 404);
     if (existing.state !== "open") return c.json({ error: "invalid_status" }, 409);
     const body = z
@@ -183,7 +192,7 @@ export function commsRoutes() {
     if (!mailTransitionAllowed(existing.state, "sent")) {
       return c.json({ error: "invalid_status" }, 409);
     }
-    const row = await updateMail(db, id, { state: "sent", unread: false });
+    const row = await updateMail(db, orgId(c), id, { state: "sent", unread: false });
     return c.json({ mail: row, sandbox: result });
   });
 
@@ -232,6 +241,96 @@ export function commsRoutes() {
       summary: body.jobId ? `jobId=${body.jobId}` : undefined,
     });
     return c.json(row, 201);
+  });
+
+  r.post("/docs/:id/upload", requireAuth(), requireTenant(), requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const orgId = c.get("organizationId")!;
+    const docId = c.req.param("id");
+    const [doc] = await db.select().from(crmDocs).where(eq(crmDocs.id, docId)).limit(1);
+    if (!doc || doc.organizationId !== orgId) return c.json({ error: "not_found" }, 404);
+
+    const form = await c.req.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return c.json({ error: "file_required" }, 400);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const key = objectKeyForDoc(docId, file.name);
+    await saveObject(orgId, key, bytes);
+
+    const [row] = await db
+      .update(crmDocs)
+      .set({
+        storageKey: key,
+        mimeType: file.type || "application/octet-stream",
+        sizeBytes: String(bytes.length),
+        updatedAt: new Date(),
+      })
+      .where(eq(crmDocs.id, docId))
+      .returning();
+    return c.json(row);
+  });
+
+  r.get("/docs/:id/file", requireAuth(), requireTenant(), requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const orgId = c.get("organizationId")!;
+    const docId = c.req.param("id");
+    const [doc] = await db.select().from(crmDocs).where(eq(crmDocs.id, docId)).limit(1);
+    if (!doc?.storageKey || doc.organizationId !== orgId) return c.json({ error: "not_found" }, 404);
+    const bytes = await readObject(orgId, doc.storageKey);
+    if (!bytes) return c.json({ error: "not_found" }, 404);
+    return new Response(bytes, {
+      headers: {
+        "Content-Type": doc.mimeType ?? "application/octet-stream",
+        "Content-Disposition": `inline; filename="${doc.name}"`,
+      },
+    });
+  });
+
+  r.get("/document-templates", requireAuth(), requireTenant(), requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const orgId = c.get("organizationId")!;
+    const rows = await db.select().from(documentTemplates).where(eq(documentTemplates.organizationId, orgId));
+    return c.json({ items: rows });
+  });
+
+  r.get("/document-templates/:id/preview", requireAuth(), requireTenant(), requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const orgId = c.get("organizationId")!;
+    const [tpl] = await db.select().from(documentTemplates).where(eq(documentTemplates.id, c.req.param("id"))).limit(1);
+    if (!tpl || tpl.organizationId !== orgId) return c.json({ error: "not_found" }, 404);
+    try {
+      const { generate } = await import("@pdfme/generator");
+      const { text } = await import("@pdfme/schemas");
+      const template = tpl.templateJson as Parameters<typeof generate>[0]["template"];
+      const pdf = await generate({
+        template,
+        inputs: [{ title: tpl.name }],
+        plugins: { text },
+      });
+      return new Response(pdf, {
+        headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${tpl.code}-preview.pdf"` },
+      });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "preview_failed" }, 400);
+    }
+  });
+
+  r.patch("/document-templates/:id", requireAuth(), requireTenant(), requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const orgId = c.get("organizationId")!;
+    const body = z.object({ templateJson: z.record(z.string(), z.unknown()).optional(), name: z.string().optional() }).parse(await c.req.json());
+    const [row] = await db
+      .update(documentTemplates)
+      .set({ ...body, updatedAt: new Date() })
+      .where(eq(documentTemplates.id, c.req.param("id")))
+      .returning();
+    if (!row || row.organizationId !== orgId) return c.json({ error: "not_found" }, 404);
+    return c.json(row);
   });
 
   return r;

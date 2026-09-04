@@ -4,6 +4,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { commercialRoutes, publicQuoteRoutes } from "./routes/commercial.js";
 import { commsRoutes } from "./routes/comms.js";
+import { portalRoutes } from "./routes/portal.js";
 import { crmRoutes } from "./routes/crm.js";
 import { systemRoutes } from "./routes/system.js";
 import { trackingRoutes } from "./routes/tracking.js";
@@ -19,6 +20,7 @@ export function createApp() {
   app.route("/", crmRoutes());
   app.route("/", commercialRoutes());
   app.route("/", commsRoutes());
+  app.route("/portal", portalRoutes());
   app.route("/", trackingRoutes());
   app.route("/public", publicQuoteRoutes());
 

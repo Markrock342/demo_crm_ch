@@ -8,6 +8,7 @@ export type PortalSession = {
 type PortalValue = {
   session: PortalSession | null;
   enter: (customerId: string, pin: string, expectedPin?: string) => string | null;
+  enterFromApi: (customerId: string) => void;
   leave: () => void;
 };
 
@@ -31,11 +32,16 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
     if (!customerId) return "errorSave";
     const want = (expectedPin || "demo").trim() || "demo";
     if (pin.trim() && pin.trim() !== want) return "portalBadPin";
-    // empty PIN allowed (optional); non-empty must match
     const s = { customerId, enteredAt: new Date().toISOString() };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s));
     setSession(s);
     return null;
+  }, []);
+
+  const enterFromApi = useCallback((customerId: string) => {
+    const s = { customerId, enteredAt: new Date().toISOString() };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    setSession(s);
   }, []);
 
   const leave = useCallback(() => {
@@ -43,7 +49,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, []);
 
-  const value = useMemo(() => ({ session, enter, leave }), [session, enter, leave]);
+  const value = useMemo(() => ({ session, enter, enterFromApi, leave }), [session, enter, enterFromApi, leave]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -2,12 +2,13 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
-import { Card } from "antd";
+import { Card, Col, Row } from "antd";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useShellJobs } from "../../shell/jobStore.tsx";
 import { useStore } from "../../store";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { useLiveJobsList } from "../hooks/useJobs.ts";
 
@@ -37,6 +38,14 @@ export function CalendarPageV2() {
     return list;
   }, [activities, jobs, tasks]);
 
+  const calFacts = {
+    events: events.length,
+    etd: events.filter((e) => e.title.startsWith("ETD")).length,
+    eta: events.filter((e) => e.title.startsWith("ETA")).length,
+    tasks: events.filter((e) => e.id.startsWith("task-")).length,
+  };
+  const calLocal = `Schedule: ${events.length} calendar events — ${calFacts.etd} departures, ${calFacts.eta} arrivals, ${calFacts.tasks} tasks due.`;
+
   if (!enabled) {
     return (
       <div style={{ padding: 24 }}>
@@ -49,6 +58,11 @@ export function CalendarPageV2() {
   return (
     <div style={{ padding: "0 8px 24px" }}>
       <PageHeader title={tx("calendarTitle")} subtitle={`${events.length} events · FullCalendar`} />
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24}>
+          <AiBriefCard title={tx("aiJobSummary")} facts={calFacts} localFallback={calLocal} compact />
+        </Col>
+      </Row>
       <Card size="small">
         <FullCalendar
           plugins={[dayGridPlugin, listPlugin, interactionPlugin] as never[]}

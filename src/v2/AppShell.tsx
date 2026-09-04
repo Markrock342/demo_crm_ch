@@ -138,7 +138,9 @@ export function V2AppShell() {
           <div style={{ padding: "8px 16px", fontSize: 12, color: "#888" }}>
             <Typography.Text type="secondary">{tx("tenant")}</Typography.Text>
             <Space size="middle" style={{ marginLeft: 12 }}>
-              <span className={`gemini-dot ${gemini ? "on" : "off"}`}>{gemini ? tx("geminiOn") : tx("geminiOff")}</span>
+              <Link to="/" style={{ color: "inherit" }}>
+                <span className={`gemini-dot ${gemini ? "on" : "off"}`}>✦ {gemini ? tx("geminiOn") : tx("geminiOff")}</span>
+              </Link>
               {shellUser ? <span>{tx("shellMode")}</span> : mode === "demo" ? <span>{tx("demoMode")}</span> : null}
             </Space>
           </div>

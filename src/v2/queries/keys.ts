@@ -7,6 +7,7 @@ export const queryKeys = {
     financials: (id: string) => ["jobs", "financials", id] as const,
     charges: (id: string) => ["jobs", "charges", id] as const,
     milestones: (id: string) => ["jobs", "milestones", id] as const,
+    tasks: (id: string) => ["jobs", "tasks", id] as const,
   },
   containers: {
     all: ["containers"] as const,
@@ -27,5 +28,8 @@ export const queryKeys = {
   },
   docs: {
     byCustomer: (customerId: string) => ["docs", "customer", customerId] as const,
+  },
+  mails: {
+    byCustomer: (customerId: string) => ["mails", "customer", customerId] as const,
   },
 };

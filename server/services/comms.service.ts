@@ -1,6 +1,8 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { crmDocs, mails } from "../db/schema/comms.js";
+import { customers } from "../db/schema/crm.js";
+import { DEMO_ORG_ID } from "../domain/tenancy.js";
 
 export type MailDto = {
   id: string;
@@ -85,24 +87,44 @@ function toDoc(row: typeof crmDocs.$inferSelect): CrmDocDto {
   };
 }
 
-export async function listMails(db: Db, customerId?: string) {
-  const rows = customerId
-    ? await db.select().from(mails).where(eq(mails.customerId, customerId)).orderBy(desc(mails.updatedAt))
-    : await db.select().from(mails).orderBy(desc(mails.updatedAt));
+export async function listMails(db: Db, organizationId: string, customerId?: string) {
+  const clauses = [eq(mails.organizationId, organizationId)];
+  if (customerId) clauses.push(eq(mails.customerId, customerId));
+  const rows = await db
+    .select()
+    .from(mails)
+    .where(and(...clauses))
+    .orderBy(desc(mails.updatedAt));
   return rows.map(toMail);
 }
 
-export async function getMail(db: Db, id: string) {
-  const [row] = await db.select().from(mails).where(eq(mails.id, id)).limit(1);
+export async function getMail(db: Db, organizationId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(mails)
+    .where(and(eq(mails.id, id), eq(mails.organizationId, organizationId)))
+    .limit(1);
   return row ? toMail(row) : null;
 }
 
-export async function createMail(db: Db, input: Omit<MailDto, "id"> & { id?: string }) {
+export async function createMail(db: Db, input: Omit<MailDto, "id"> & { id?: string }, organizationId?: string) {
   const id = input.id ?? `m${Date.now()}`;
+  let orgId = organizationId;
+  if (!orgId && input.customerId) {
+    const [cust] = await db
+      .select({ organizationId: customers.organizationId })
+      .from(customers)
+      .where(eq(customers.id, input.customerId))
+      .limit(1);
+    orgId = cust?.organizationId;
+  }
+  if (!orgId) orgId = DEMO_ORG_ID;
+
   const [row] = await db
     .insert(mails)
     .values({
       id,
+      organizationId: orgId,
       customerId: input.customerId || null,
       fromAddr: input.from,
       subjectZh: input.subjectZh,
@@ -131,8 +153,12 @@ export async function createMail(db: Db, input: Omit<MailDto, "id"> & { id?: str
   return toMail(row);
 }
 
-export async function updateMail(db: Db, id: string, patch: Partial<MailDto>) {
-  const [existing] = await db.select().from(mails).where(eq(mails.id, id)).limit(1);
+export async function updateMail(db: Db, organizationId: string, id: string, patch: Partial<MailDto>) {
+  const [existing] = await db
+    .select()
+    .from(mails)
+    .where(and(eq(mails.id, id), eq(mails.organizationId, organizationId)))
+    .limit(1);
   if (!existing) return null;
   const [row] = await db
     .update(mails)
@@ -168,14 +194,28 @@ export async function updateMail(db: Db, id: string, patch: Partial<MailDto>) {
   return row ? toMail(row) : null;
 }
 
-export async function listCrmDocs(db: Db, customerId?: string) {
-  const rows = customerId
-    ? await db.select().from(crmDocs).where(eq(crmDocs.customerId, customerId)).orderBy(desc(crmDocs.updatedAt))
-    : await db.select().from(crmDocs).orderBy(desc(crmDocs.updatedAt));
+export async function listCrmDocs(db: Db, organizationId: string, customerId?: string) {
+  const clauses = [eq(crmDocs.organizationId, organizationId)];
+  if (customerId) clauses.push(eq(crmDocs.customerId, customerId));
+  const rows = await db
+    .select()
+    .from(crmDocs)
+    .where(and(...clauses))
+    .orderBy(desc(crmDocs.updatedAt));
   return rows.map(toDoc);
 }
 
-export async function upsertCrmDoc(db: Db, input: CrmDocDto) {
+export async function upsertCrmDoc(db: Db, input: CrmDocDto, organizationId?: string) {
+  let orgId = organizationId;
+  if (!orgId) {
+    const [cust] = await db
+      .select({ organizationId: customers.organizationId })
+      .from(customers)
+      .where(eq(customers.id, input.customerId))
+      .limit(1);
+    orgId = cust?.organizationId ?? DEMO_ORG_ID;
+  }
+
   const [existing] = await db.select().from(crmDocs).where(eq(crmDocs.id, input.id)).limit(1);
   if (existing) {
     const [row] = await db
@@ -197,6 +237,7 @@ export async function upsertCrmDoc(db: Db, input: CrmDocDto) {
     .insert(crmDocs)
     .values({
       id: input.id,
+      organizationId: orgId,
       customerId: input.customerId,
       boxId: input.boxId,
       kind: input.kind,

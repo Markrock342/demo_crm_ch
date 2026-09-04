@@ -1,6 +1,6 @@
 import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
-import { Button, Form, Input } from "antd";
+import { Button, Col, Form, Input, Row } from "antd";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { RateSearchRow } from "../../api/commercial.ts";
@@ -8,6 +8,7 @@ import { useShellSupport } from "../../shell/supportStore.tsx";
 import { useIsShellMode } from "../../shell/session.tsx";
 import { useStore } from "../../store";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { Money } from "../components/Money.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { useLiveRates } from "../hooks/useCommercial.ts";
@@ -48,6 +49,15 @@ export function RatesPageV2() {
   const rows: RateSearchRow[] = shell ? shellRows : (liveRates.data ?? []);
   const localeTag = locale === "zh" ? "zh-CN" : locale === "th" ? "th-TH" : "en-US";
 
+  const rateFacts = {
+    lanes: rows.length,
+    origin: search.origin,
+    destination: search.destination,
+    containerType: search.containerType,
+    avgSell: rows.length ? Math.round(rows.reduce((n, r) => n + parseFloat(r.totalSell ?? "0"), 0) / rows.length) : 0,
+  };
+  const rateLocal = `Rates: ${rows.length} lanes ${search.origin}→${search.destination} ${search.containerType}.`;
+
   const columns: ProColumns<RateSearchRow>[] = [
     { title: "POL", dataIndex: "pol", width: 120 },
     { title: "POD", dataIndex: "pod", width: 120 },
@@ -85,6 +95,13 @@ export function RatesPageV2() {
         title={tx("navRates")}
         subtitle={shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("apiNotConfigured")}
       />
+      {(shell || live) && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24}>
+            <AiBriefCard title={tx("aiMgmtReport")} facts={rateFacts} localFallback={rateLocal} compact />
+          </Col>
+        </Row>
+      )}
       {live ? (
         <Form layout="inline" style={{ marginBottom: 16 }} onFinish={() => liveRates.refetch()}>
           <Form.Item label="Origin">

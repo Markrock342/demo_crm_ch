@@ -8,7 +8,12 @@ import { ConfidenceBar } from "../ui/ConfidenceBar";
 import { Button } from "../ui/Button";
 import { PageToolbar } from "../ui/PageToolbar";
 
+import { uiV2 } from "../v2/config.ts";
+import { InboxPageV2 } from "../v2/pages/InboxPage.tsx";
+
 export function InboxPage() {
+  if (uiV2) return <InboxPageV2 />;
+
   const { tx, locale, mails, customers, boxes, query, sendMail, saveDraft, rejectMail, markRead, applyMailAnalysis, applyMailOps, addPastedMail } =
     useStore();
   const open = mails.filter((m) => m.state === "open");

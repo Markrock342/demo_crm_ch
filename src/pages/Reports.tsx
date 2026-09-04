@@ -7,10 +7,14 @@ import { useShellSupport } from "../shell/supportStore.tsx";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 import { useMemo, useState } from "react";
+import { uiV2 } from "../v2/config.ts";
+import { ReportsPageV2 } from "../v2/pages/ReportsPage.tsx";
 
 const depts = ["sales", "ops", "finance", "yard"] as const;
 
 export function ReportsPage() {
+  if (uiV2) return <ReportsPageV2 />;
+
   const shell = useIsShellMode();
   const { tx, locale, boxes, deals, invoices, flash } = useStore();
   const billing = useShellBilling();
@@ -114,8 +118,8 @@ export function ReportsPage() {
     try {
       const facts: Record<string, string | number | boolean> = { department: dept };
       for (const c of cards[dept]) facts[c.l] = c.n;
-      const text = await aiBrief(locale, facts);
-      setBrief(text);
+      const text = await aiBrief(locale, facts, "reports");
+      setBrief(text.summary);
     } catch (e) {
       setBriefErr(e instanceof AiError && e.code === "missing_key" ? tx("aiNoKey") : tx("aiError"));
     } finally {

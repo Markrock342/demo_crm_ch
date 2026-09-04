@@ -1,7 +1,8 @@
-import { asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { asc, desc, eq, ilike, inArray, or, sql, and } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { contacts, customers, leads, opportunities } from "../db/schema/crm.js";
 import { containers } from "../db/schema/operations.js";
+import { DEMO_ORG_ID } from "../domain/tenancy.js";
 
 export type CustomerDto = {
   id: string;
@@ -134,21 +135,26 @@ function toOpportunity(row: typeof opportunities.$inferSelect): OpportunityDto {
 
 export async function listCustomers(
   db: Db,
+  organizationId: string,
   opts: { q?: string; limit?: number; offset?: number } = {},
 ) {
   const limit = Math.min(opts.limit ?? 100, 200);
   const offset = opts.offset ?? 0;
   const q = opts.q?.trim();
 
+  const orgFilter = eq(customers.organizationId, organizationId);
   const where = q
-    ? or(
-        ilike(customers.nameZh, `%${q}%`),
-        ilike(customers.nameEn, `%${q}%`),
-        ilike(customers.nameTh, `%${q}%`),
-        ilike(customers.cityZh, `%${q}%`),
-        ilike(customers.owner, `%${q}%`),
+    ? and(
+        orgFilter,
+        or(
+          ilike(customers.nameZh, `%${q}%`),
+          ilike(customers.nameEn, `%${q}%`),
+          ilike(customers.nameTh, `%${q}%`),
+          ilike(customers.cityZh, `%${q}%`),
+          ilike(customers.owner, `%${q}%`),
+        ),
       )
-    : undefined;
+    : orgFilter;
 
   const rows = await db
     .select()
@@ -171,8 +177,12 @@ export async function listCustomers(
   return { items: rows.map((r) => toCustomer(r, counts.get(r.id) ?? 0)), total: count, limit, offset };
 }
 
-export async function getCustomer(db: Db, id: string) {
-  const [row] = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
+export async function getCustomer(db: Db, organizationId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(customers)
+    .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
+    .limit(1);
   if (!row) return null;
   const counts = await containerCountMap(db, [id]);
   return toCustomer(row, counts.get(id) ?? 0);
@@ -180,6 +190,7 @@ export async function getCustomer(db: Db, id: string) {
 
 export async function createCustomer(
   db: Db,
+  organizationId: string,
   input: {
     nameZh: string;
     nameTh?: string;
@@ -200,6 +211,7 @@ export async function createCustomer(
     .insert(customers)
     .values({
       id,
+      organizationId,
       nameZh: input.nameZh,
       nameTh: input.nameTh || input.nameZh,
       nameEn: input.nameEn || input.nameZh,
@@ -217,7 +229,7 @@ export async function createCustomer(
   return toCustomer(row, 0);
 }
 
-export async function updateCustomer(db: Db, id: string, patch: Partial<CustomerDto>) {
+export async function updateCustomer(db: Db, organizationId: string, id: string, patch: Partial<CustomerDto>) {
   const { boxes: _boxes, ...rest } = patch;
   const [row] = await db
     .update(customers)
@@ -226,7 +238,7 @@ export async function updateCustomer(db: Db, id: string, patch: Partial<Customer
       updatedAt: new Date(),
       updated: patch.updated ?? formatStamp(new Date()),
     })
-    .where(eq(customers.id, id))
+    .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
     .returning();
   if (!row) return null;
   const counts = await containerCountMap(db, [id]);
@@ -263,11 +275,13 @@ export async function createContact(
   return toContact(row);
 }
 
-export async function listLeads(db: Db, stage?: string) {
+export async function listLeads(db: Db, organizationId: string, stage?: string) {
+  const filters = [eq(leads.organizationId, organizationId)];
+  if (stage) filters.push(eq(leads.stage, stage));
   const rows = await db
     .select()
     .from(leads)
-    .where(stage ? eq(leads.stage, stage) : undefined)
+    .where(and(...filters))
     .orderBy(desc(leads.updatedAt));
   return rows.map(toLead);
 }
@@ -281,12 +295,17 @@ export async function updateLeadStage(db: Db, id: string, stage: string) {
   return row ? toLead(row) : null;
 }
 
-export async function createLead(db: Db, input: Omit<LeadDto, "id" | "updated" | "stage"> & { stage?: string; id?: string }) {
+export async function createLead(
+  db: Db,
+  organizationId: string,
+  input: Omit<LeadDto, "id" | "updated" | "stage"> & { stage?: string; id?: string },
+) {
   const id = input.id ?? `l${Date.now()}`;
   const [row] = await db
     .insert(leads)
     .values({
       id,
+      organizationId,
       company: input.company,
       city: input.city,
       lane: input.lane,
@@ -351,6 +370,7 @@ export async function seedCrmFromDemo(db: Db) {
   await db.insert(customers).values(
     seedCustomers.map((c) => ({
       id: c.id,
+      organizationId: DEMO_ORG_ID,
       nameZh: c.nameZh,
       nameTh: c.nameTh,
       nameEn: c.nameEn,
@@ -382,6 +402,7 @@ export async function seedCrmFromDemo(db: Db) {
   await db.insert(leads).values(
     seedLeads.map((l) => ({
       id: l.id,
+      organizationId: DEMO_ORG_ID,
       company: l.company,
       city: l.city,
       lane: l.lane,

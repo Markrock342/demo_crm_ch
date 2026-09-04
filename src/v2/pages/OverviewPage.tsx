@@ -1,7 +1,7 @@
 import { Card, Col, List, Row, Statistic } from "antd";
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
-import { jobDateIsToday, todayMonthDay } from "../../lib/dates.ts";
+import { jobDateIsToday, todayMonthDay, isBeforeToday } from "../../lib/dates.ts";
 import { jobGrossProfit } from "../../ports/job.port.ts";
 import { useShellBilling } from "../../shell/billingStore.tsx";
 import { useShellJobs } from "../../shell/jobStore.tsx";
@@ -12,7 +12,8 @@ import { PageHeader } from "../components/PageHeader.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { useLiveInvoices } from "../hooks/useCommercial.ts";
 import { useLiveJobsList } from "../hooks/useJobs.ts";
-import { isBeforeToday } from "../../lib/dates.ts";
+import { AiSpotlight } from "../components/AiSpotlight.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 
 export function OverviewPageV2() {
   const { tx } = useStore();
@@ -68,8 +69,21 @@ export function OverviewPageV2() {
 
   const hint = shell ? tx("shellDataBadge") : tx("liveApiBadge");
 
+  const mgmtFacts = {
+    activeJobs: activeJobs.length,
+    delayed: delayed.length,
+    missingDocs: missingDocs.length,
+    outstanding: outstanding.length,
+    inTransitTeu: teu,
+    departingToday: departing,
+    arrivingToday: arriving,
+  };
+  const mgmtLocal = `Ops: ${activeJobs.length} active jobs, ${delayed.length} delayed, ${teu} TEU, ${missingDocs.length} doc issues, ${outstanding.length} open AR invoices.`;
+
   return (
     <div style={{ padding: "0 8px 24px" }}>
+      <AiSpotlight facts={mgmtFacts} localFallback={mgmtLocal} context="overview" />
+
       <PageHeader
         title={tx("navOverview")}
         subtitle={`LogisticsOS · ${hint} · ${todayMonthDay()}`}
@@ -100,6 +114,12 @@ export function OverviewPageV2() {
         </Col>
         <Col xs={12} sm={8} lg={4}>
           <Card size="small"><Statistic title="AR open" value={outstanding.length} /></Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24}>
+          <AiBriefCard title={tx("aiJobSummary")} buttonLabel={tx("runAiJobSummary")} facts={mgmtFacts} localFallback={mgmtLocal} compact />
         </Col>
       </Row>
 

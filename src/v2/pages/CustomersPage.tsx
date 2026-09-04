@@ -1,12 +1,13 @@
 import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
-import { Button } from "antd";
+import { Button, Col, Row } from "antd";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { cityName, customerName, laneName, type Customer } from "../../data";
 import { useShellCrm } from "../../shell/crmStore.tsx";
 import { useStore } from "../../store";
 import { PageHeader } from "../components/PageHeader.tsx";
+import { AiBriefCard } from "../components/AiBriefCard.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 
 export function CustomersPageV2() {
@@ -25,6 +26,9 @@ export function CustomersPageV2() {
       }),
     [customers, q],
   );
+
+  const custFacts = { customers: rows.length, lanes: new Set(rows.map((c) => c.laneZh)).size };
+  const custLocal = `Customer book: ${rows.length} accounts across ${custFacts.lanes} trade lanes.`;
 
   const columns: ProColumns<Customer>[] = [
     {
@@ -48,6 +52,11 @@ export function CustomersPageV2() {
         subtitle={`${rows.length} · ${shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("demoMode")}`}
         extra={<Button type="primary" disabled={!shell}>{tx("addCustomer")}</Button>}
       />
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24}>
+          <AiBriefCard title={tx("aiMgmtReport")} facts={custFacts} localFallback={custLocal} compact />
+        </Col>
+      </Row>
       <ProTable<Customer>
         rowKey="id"
         columns={columns}

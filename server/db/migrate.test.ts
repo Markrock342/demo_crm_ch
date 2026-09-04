@@ -9,7 +9,7 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "migrations"
 describe("db migrations layout", () => {
   it("ships sorted SQL migrations and migrate runner with ledger transaction", () => {
     const files = readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
+      .filter((f) => f.endsWith(".sql") && !f.startsWith("._"))
       .sort();
     assert.ok(files.length >= 3, "expected at least init + crm + commercial migrations");
     assert.deepEqual(files, [...files].sort(), "migration filenames must sort lexicographically");

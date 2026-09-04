@@ -8,6 +8,7 @@ export type SessionClaims = {
   email: string;
   roles: string[];
   permissions: string[];
+  orgId: string;
 };
 
 export type SessionPayload = SessionClaims & JWTPayload;
@@ -19,8 +20,8 @@ function secret() {
 }
 
 export async function signSession(claims: SessionClaims) {
-  const { sub, email, roles, permissions } = claims;
-  return new SignJWT({ email, roles, permissions })
+  const { sub, email, roles, permissions, orgId } = claims;
+  return new SignJWT({ email, roles, permissions, orgId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(sub)
     .setIssuedAt()

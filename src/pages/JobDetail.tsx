@@ -96,6 +96,10 @@ export function JobDetailPage() {
     return <Navigate to="/jobs" replace />;
   }
 
+  if (uiV2) {
+    return <JobDetailLiveV2Loader job={shellJob} loading={false} error={null} />;
+  }
+
   return <JobDetailBody job={shellJob} />;
 }
 
@@ -252,7 +256,7 @@ function JobDetailBody({ job }: { job: ShellJob }) {
     setAiBusy(true);
     const local = `${job.jobNumber} is ${job.status}. Route ${job.pol}→${job.pod}. ETD ${job.etd} / ETA ${job.eta}. Carrier ${job.carrier || "—"}. Billing ${job.billingStatus}.${job.delayed ? " Delayed." : ""}`;
     try {
-      const summary = await aiBrief(locale as "zh" | "th" | "en", {
+      const brief = await aiBrief(locale as "zh" | "th" | "en", {
         jobNumber: job.jobNumber,
         status: job.status,
         pol: job.pol,
@@ -263,8 +267,8 @@ function JobDetailBody({ job }: { job: ShellJob }) {
         billing: job.billingStatus,
         delayed: Boolean(job.delayed),
         missingDocs: docs.filter((d) => d.status !== "ok").length,
-      });
-      setAiSummary(summary || local);
+      }, "job");
+      setAiSummary(brief.summary || local);
     } catch (e) {
       if (e instanceof AiError && e.code === "missing_key") setAiSummary(local);
       else setAiSummary(local);

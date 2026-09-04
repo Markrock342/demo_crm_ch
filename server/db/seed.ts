@@ -5,6 +5,7 @@ import { seedCommsFromDemo } from "../services/comms.service.js";
 import { seedCrmFromDemo } from "../services/crm.service.js";
 import { seedCommercial } from "./seed-commercial.js";
 import { seedOperations } from "./seed-operations.js";
+import { syncDocSequences } from "./seed-sequences.js";
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
@@ -32,6 +33,7 @@ async function main() {
   const commercial = await seedCommercial(db);
   const operations = await seedOperations(db);
   const comms = await seedCommsFromDemo(db);
+  await syncDocSequences(db);
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
   if (!crm.skipped) {

@@ -45,7 +45,7 @@ async function main() {
 
   const done = await appliedFiles(sql);
   const files = readdirSync(join(dir, "migrations"))
-    .filter((f) => f.endsWith(".sql"))
+    .filter((f) => f.endsWith(".sql") && !f.startsWith("._"))
     .sort();
 
   for (const file of files) {
