@@ -1,13 +1,11 @@
 # CANGZHAN LogisticsOS — Production V2 Status
 
 Branch: `feature/logisticsos-ui-v2`  
-Last updated: 2026-09-04 (P3 Jobs kickoff)
+Last updated: 2026-09-04 (P2–P3 bulk wire-up)
 
 ## Goal
 
 Convert demo CRM shell → production-grade, multi-tenant Freight Forwarding TMS without big-bang rewrite.
-
-Reference brief: `LOGISTICSOS_V2_BRIEF.md`
 
 ---
 
@@ -16,106 +14,147 @@ Reference brief: `LOGISTICSOS_V2_BRIEF.md`
 | Phase | Scope | Status |
 |-------|--------|--------|
 | **P0** | DB hardening, dates, tenancy, auth foundation | **PARTIAL** |
-| **P1** | Ant Design V2 shell, theme, shared primitives | **DONE** (foundation) |
-| P2 | Customers → Rates → Quotations | NOT STARTED |
-| **P3** | Jobs → Job Detail → Shipments → Containers → Milestones | **IN PROGRESS** |
+| **P1** | Ant Design V2 shell, theme, shared primitives | **DONE** |
+| **P2** | Customers → Rates → Quotations | **PARTIAL** (V2 UI + live API on Rates/Quotes list) |
+| **P3** | Jobs → Job Detail → Shipments → Containers → Milestones | **PARTIAL** (Jobs/Containers/Calendar done; Shipments shell) |
 | P4 | Documents + storage + PDF Template Studio (pdfme) | NOT STARTED |
-| P5 | Invoices/AP/Payments + financial reports | NOT STARTED |
+| **P5** | Invoices/AP/Payments + financial reports | **PARTIAL** (Invoices V2 + list API) |
 | P6 | Inbox/email + tracking + notifications + automation | NOT STARTED |
 | P7 | Customer Portal | NOT STARTED |
-| P8 | Analytics / FullCalendar / QA / security | NOT STARTED |
+| **P8** | Analytics / FullCalendar / QA / security | **PARTIAL** (FullCalendar wired; charts/reports pending) |
 
 ---
 
 ## P0 — DONE / BLOCKED / NEXT
 
 ### DONE
-- Removed hard-coded dashboard dates (`todayKey = "09-04"`, invoice cutoff `"2026-09-04"`)
-- Added `src/lib/dates.ts` — tenant timezone helpers (`Asia/Bangkok` default)
-- Unit tests: `server/lib/dates.test.ts` (mirrors `src/lib/dates.ts`)
+- Hard-coded dates removed (`src/lib/dates.ts`)
+- `server/lib/dates.test.ts`
 
 ### BLOCKED
-- Migration ledger audit (existing `server/db/migrate.test.ts` — needs full P0 review)
-- Document-number concurrency race
-- Serverless DB pooling / TLS / PITR
-- Multi-tenant `organizations` schema + session-scoped tenant resolution
-- Production auth (MFA, invite, session revoke)
+- Multi-tenant org schema + session tenant resolution
+- Document-number concurrency, pooling/PITR, MFA/invite
 
 ### NEXT
-- Tenant table + FK indexes + status constraints migration
-- Automated tenant isolation tests
-- Resolve shell vs production API gaps before page rewrites
+- Tenant isolation tests + migrations
 
 ---
 
-## P1 — DONE / BLOCKED / NEXT
+## P1 — DONE
+
+- Ant Design ProLayout shell (`src/v2/AppShell.tsx`)
+- Theme, PageHeader, StatusTag, Money, states
+- TanStack Query (`AppProviders`, query keys)
+- `VITE_UI_V2=false` → legacy shell rollback
+
+---
+
+## P2 — DONE / BLOCKED / NEXT
 
 ### DONE
-- Dependencies: `antd`, `@ant-design/pro-components`, `@ant-design/charts`, `@tanstack/react-query`, FullCalendar packages, `@pdfme/*`, `dayjs`
-- `src/v2/theme.ts` — enterprise logistics theme tokens
-- `src/v2/AppShell.tsx` — ProLayout shell (default on branch; set `VITE_UI_V2=false` for legacy)
-- `src/v2/navConfig.ts` — LogisticsOS navigation groups
-- `src/v2/components/*` — PageHeader, StatusTag, Money, EntityLink, Empty/Loading/Error states
-- `src/v2/providers/AppProviders.tsx` — ConfigProvider + QueryClient
-- `src/AppRoutes.tsx` — shared route table (legacy + V2)
-- Legacy shell preserved as `LegacyAppShell` for rollback
-- **`JobsProTable`** — ProTable with column settings, density, client pagination
-- **`src/v2/pages/JobsPage.tsx`** — Jobs list on TanStack Query (production) + shell fallback
-- **`src/v2/pages/JobDetailLive.tsx`** — Live job detail tabs: Overview, Milestones, Charges (+ financials from API)
-- Query hooks: `src/v2/hooks/useJobs.ts`, `src/v2/queries/keys.ts`
+- `CustomersPageV2` — ProTable (shell + CrmSync production customers)
+- `RatesPageV2` — shell rates + live `searchRates` API
+- `QuotationsPageV2` — shell quotes + live `fetchQuotations`
 
 ### BLOCKED
-- Individual pages (except Jobs) still use custom CSS / PageToolbar
-- DrawerForm, ActionCenter component, DocumentPreview, FileUploader — not built
-- FullCalendar not wired (Calendar.tsx still custom)
-- pdfme Designer page not built
-- Job list GP column shows `—` in live mode until list API includes financials (detail fetches `/financials`)
-- Server-side pagination / saved views / bulk assign — not on API yet
+- Quote Wizard V2 / approval workflow UI
+- Rate create/edit production forms
+- Customer 360 V2 (Account page still legacy)
 
 ### NEXT
-- ProTable + production API for Customers, Rates
-- Expand Job Detail live tabs: Containers, Documents, Invoices, Tasks
-- Wire TanStack Query to production endpoints; stop duplicating shell stores on live paths
+- Quote Builder steps on production API
+- Customer detail tabs wired to live data
 
 ---
 
-## Known shell vs production gaps (do not mask with UI)
+## P3 — DONE / BLOCKED / NEXT
 
-| Area | Shell | Production API |
-|------|-------|----------------|
-| Job Detail | Full 360 panels | Live V2 tabs (Overview/Milestones/Charges); Documents/Containers pending |
-| Quotations / Rates | Wizard + stores | Partial / stub |
-| Documents | Metadata | No object storage |
-| Portal | PIN demo | No real customer auth |
-| Container tracking | `trackingMock` | No TrackingProvider |
-| Inbox | Store sandbox | Needs provider abstraction |
+### DONE
+- **Backend:** `GET /api/jobs` enriched with `grossProfit`, `billingStatus`, pagination `{ total, limit, offset }` via `job-enrichment.service.ts`
+- **Backend:** `GET /api/containers?jobId=` filter
+- `JobsPageV2` + `JobsProTable` (live GP column)
+- `JobDetailLiveV2` tabs: Overview, Milestones, Charges, **Containers**, **Documents**, **Invoices**
+- `ContainersPageV2` (Boxes route)
+- `ExceptionsPageV2` (Action Center)
+- `OverviewPageV2` — KPI cards, works in shell + production
+
+### BLOCKED
+- Shipments page (still shell store)
+- Job Detail: Tasks, Emails, Activity tabs on production
+- Server-side ProTable pagination/filters (client-side only)
+
+### NEXT
+- Shipments ↔ Job canonical model on API
+- Milestone PATCH from UI
 
 ---
 
-## Quality gate (per module)
+## P5 — DONE / BLOCKED / NEXT
 
-Before marking any module **DONE**:
+### DONE
+- `InvoicesPageV2` — live `fetchInvoices` + shell fallback
 
-- [ ] Production API connected
-- [ ] PostgreSQL persistence
-- [ ] Tenant isolation + server-side RBAC
-- [ ] Loading / empty / error states
-- [ ] No hard-coded dates
-- [ ] No mock data in production path
-- [ ] `npm run build` + `npm run lint` + `npm test` pass
+### BLOCKED
+- Vendor Bills V2, Payments UI, AR aging charts
+- Invoice create/issue from V2 Job Detail
+
+### NEXT
+- VendorBills ProTable + pay flow
+
+---
+
+## P8 — DONE / BLOCKED / NEXT
+
+### DONE
+- `CalendarPageV2` — FullCalendar (ETD/ETA/tasks/activities)
+
+### BLOCKED
+- Reports/analytics charts (`@ant-design/charts` not wired)
+- Playwright E2E critical path
+- Code-splitting (bundle ~2.7MB)
+
+### NEXT
+- Reports page with server aggregates
+- Lazy-load FullCalendar + pdfme
+
+---
+
+## V2 page map (default when `VITE_UI_V2` ≠ false)
+
+| Route | V2 component |
+|-------|----------------|
+| `/` | OverviewPageV2 |
+| `/exceptions` | ExceptionsPageV2 |
+| `/customers` | CustomersPageV2 |
+| `/rates` | RatesPageV2 |
+| `/quotations` | QuotationsPageV2 |
+| `/jobs` | JobsPageV2 |
+| `/jobs/:id` | JobDetailLiveV2 (production) |
+| `/invoices` | InvoicesPageV2 |
+| `/boxes` | ContainersPageV2 |
+| `/calendar` | CalendarPageV2 |
+
+Legacy pages still active: Shipments, Inbox, Docs, Portal, Settings, Vendor Bills, Tasks, Reports, Automation, Yard, Quote Wizard.
+
+---
+
+## Quality gate checklist (whole product)
+
+- [x] No hard-coded dashboard dates
+- [x] `npm run build` passes
+- [x] `npm test` passes
+- [ ] Tenant isolation
+- [ ] All routes production-backed (no shell in live path)
+- [ ] Document file storage
+- [ ] Portal real auth
+- [ ] pdfme template studio
 
 ---
 
 ## Commands
 
 ```bash
-# V2 UI (default on this branch)
-npm run dev
-
-# Legacy shell
-VITE_UI_V2=false npm run dev
-
-npm run build
-npm run test
-tsx --test server/lib/dates.test.ts
+npm run dev                    # V2 default
+VITE_UI_V2=false npm run dev   # legacy
+npm run build && npm test
 ```
