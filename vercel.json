@@ -1,4 +1,7 @@
 {
+  "regions": [
+    "sin1"
+  ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
@@ -19,5 +22,14 @@
       "includeFiles": "server/**"
     }
   },
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...path]"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
