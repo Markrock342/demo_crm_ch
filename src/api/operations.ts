@@ -23,6 +23,9 @@ export type ContainerDto = {
   vessel: string | null;
   seal: string | null;
   commodity: string | null;
+  /** Real last free day (YYYY-MM-DD) and contract free days, when known. */
+  lastFreeDay?: string | null;
+  freeDays?: number | null;
 };
 
 export async function fetchContainers(params?: { status?: string; customerId?: string; jobId?: string; yard?: boolean }) {
@@ -56,7 +59,7 @@ export async function createContainerApi(input: {
 
 export async function patchContainerApi(
   id: string,
-  patch: { status?: string; yardCode?: string; bl?: string; eta?: string | null; vessel?: string | null },
+  patch: { status?: string; yardCode?: string; bl?: string; eta?: string | null; vessel?: string | null; lastFreeDay?: string | null; freeDays?: number | null },
 ) {
   return apiFetch(`/api/containers/${id}`, {
     method: "PATCH",

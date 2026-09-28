@@ -15,21 +15,18 @@ import {
   type Mail,
 } from "./data";
 import {
-  activities as seedActs,
-  tasks as seedTasks,
-  type Activity,
   type Contact,
   type Deal,
   type DealStage,
   type Lead,
   type LeadStage,
-  type TaskItem,
   type CrmDoc,
 } from "./crm";
 import type { MailAnalysis } from "./ai/client";
 import { invoices as seedInvoices, shipments as seedShipments, type Invoice, type Shipment } from "./logistics";
 import { applyMailOps, syncCustomerBoxCounts } from "./ops";
 import { t, type Locale } from "./i18n";
+import { loadPageLocale } from "./i18n-ui";
 import type { DocStatus } from "./crm";
 import {
   apiCreateContact,
@@ -41,6 +38,8 @@ import {
   type CrmBundle,
 } from "./api/crm";
 import { apiConfirmSendMail, apiCreateMail, apiPatchDocStatus, apiPatchMail, apiUpsertDoc } from "./api/comms";
+import { createActivity as apiCreateActivity, createTask as apiCreateTask } from "./api/tasks";
+import { queryClient } from "./v2/queryClient";
 
 const UI_KEY = "cangzhan-ui-v1";
 
@@ -56,6 +55,11 @@ function browserLocale(): Locale {
   if (lang.startsWith("en")) return "en";
   if (lang.startsWith("zh")) return "zh";
   return "zh";
+}
+
+/** Language the app starts in (persisted choice, else browser language). main.tsx preloads its strings. */
+export function initialLocale(): Locale {
+  return loadUi().locale;
 }
 
 function loadUi(): UiPrefs {
@@ -83,8 +87,6 @@ type Persist = {
   contacts: Contact[];
   leads: Lead[];
   deals: Deal[];
-  tasks: TaskItem[];
-  activities: Activity[];
   docs: CrmDoc[];
   shipments: Shipment[];
   invoices: Invoice[];
@@ -96,7 +98,8 @@ function emptyPersist(): Persist {
   const boxes = seedBoxes;
   return {
     locale: "zh",
-    // Customers, contacts, leads, deals, mail and documents come from the API (CrmSync) —
+    // Customers, contacts, leads, deals, mail and documents come from the API (CrmSync);
+    // tasks and activities from /api/tasks + /api/activities (react-query, src/v2/hooks/useTasks.ts) —
     // never show bundled sample rows in their place.
     customers: [],
     boxes,
@@ -104,8 +107,6 @@ function emptyPersist(): Persist {
     contacts: [],
     leads: [],
     deals: [],
-    tasks: seedTasks,
-    activities: seedActs,
     docs: [],
     shipments: seedShipments,
     invoices: seedInvoices,
@@ -132,12 +133,9 @@ type Store = Persist & {
   applyMailOps: (id: string) => void;
   setDocStatus: (id: string, status: DocStatus) => void;
   addPastedMail: (input: { from: string; subject: string; body: string; analysis?: MailAnalysis }) => string;
-  addNote: (customerId: string, body: string) => void;
   moveDeal: (id: string, stage: DealStage) => void;
   setLeadStage: (id: string, stage: LeadStage) => void;
   convertLead: (id: string) => void;
-  toggleTask: (id: string) => void;
-  addTask: (title: string, customerId?: string) => void;
   addLead: (l: Pick<Lead, "company" | "city" | "lane" | "contact" | "source" | "teu" | "owner">) => void;
   addContact: (c: Pick<Contact, "customerId" | "name" | "title" | "email" | "phone" | "wechat">) => void;
   addDeal: (d: Pick<Deal, "customerId" | "title" | "lane" | "value" | "teu" | "close" | "owner">) => void;
@@ -164,8 +162,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState(init.contacts);
   const [leads, setLeads] = useState(init.leads);
   const [deals, setDeals] = useState(init.deals);
-  const [tasks, setTasks] = useState(init.tasks);
-  const [activities, setActivities] = useState(init.activities);
   const [docs, setDocs] = useState(init.docs);
   const [shipments, setShipments] = useState(init.shipments);
   const [invoices, setInvoices] = useState(init.invoices);
@@ -196,7 +192,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [locale],
   );
 
-  const setLocale = useCallback((l: Locale) => setLocaleState(l), []);
+  // Page strings load per language on demand; switch once they have arrived.
+  const setLocale = useCallback((l: Locale) => {
+    loadPageLocale(l)
+      .catch(() => undefined)
+      .then(() => setLocaleState(l));
+  }, []);
   const setMotion = useCallback((v: boolean) => setMotionState(v), []);
 
   const hydrateCrm = useCallback((bundle: CrmBundle) => {
@@ -320,11 +321,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       if (apiEnabled) {
         void apiConfirmSendMail(id, {})
-          .then(({ mail }) => setMails((list) => list.map((m) => (m.id === id ? { ...m, ...mail } : m))))
+          .then(({ mail }) => {
+            setMails((list) => list.map((m) => (m.id === id ? { ...m, ...mail } : m)));
+            flash("sentMail");
+          })
           .catch(() => flash("errorSave"));
-      } else {
-        setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "sent", unread: false } : m)));
+        return;
       }
+      setMails((list) => list.map((m) => (m.id === id ? { ...m, state: "sent", unread: false } : m)));
       flash("sentMail");
     },
     [apiEnabled, flash],
@@ -439,32 +443,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         draftEn: mail.draftEn,
         customerId: mail.customerId || null,
       };
-      const result = applyMailOps(a, boxes, docs, tasks, mail.customerId);
+      const result = applyMailOps(a, boxes, docs, [], mail.customerId);
       setBoxes(result.boxes);
       setDocs(result.docs);
-      setTasks(result.tasks);
       setCustomers((cs) => syncCustomerBoxCounts(cs, result.boxes));
       if (apiEnabled) {
         for (const d of result.docs) {
           void apiUpsertDoc(d).catch(() => undefined);
         }
-      }
-      if (result.applied.length) {
-        setActivities((list) => [
-          {
-            id: `a${Date.now()}`,
-            type: "task",
-            at: `${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")} ${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`,
-            user: "林晓衡",
-            customerId: mail.customerId,
-            body: `Applied mail ops: ${result.applied.join(", ")}`,
-          },
-          ...list,
-        ]);
+        // Follow-up to-dos and the timeline entry are saved through the API (owner = signed-in user).
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const writes: Promise<unknown>[] = result.tasks.map((t) =>
+          apiCreateTask({
+            title: t.title,
+            priority: t.priority,
+            dueAt: today.toISOString(),
+            customerId: t.customerId || null,
+            containerNo: t.boxId || null,
+          }),
+        );
+        const customerId = mail.customerId || a.customerId;
+        if (result.applied.length && customerId) {
+          writes.push(apiCreateActivity({ type: "mail", body: `${mail.subjectEn || mail.subjectZh} → ${result.applied.join(", ")}`, customerId }));
+        }
+        void Promise.allSettled(writes).then(() => {
+          void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+          void queryClient.invalidateQueries({ queryKey: ["activities"] });
+        });
       }
       flash("opsApplied");
     },
-    [apiEnabled, boxes, docs, flash, mails, tasks],
+    [apiEnabled, boxes, docs, flash, mails],
   );
 
   const addPastedMail = useCallback(
@@ -509,17 +519,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [apiEnabled, flash],
   );
 
-  const addNote = useCallback(
-    (customerId: string, body: string) => {
-      if (!body.trim()) return;
-      const now = new Date();
-      const at = `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      setActivities((list) => [{ id: `a${Date.now()}`, type: "note", at, user: "林晓衡", customerId, body: body.trim() }, ...list]);
-      flash("noteSaved");
-    },
-    [flash],
-  );
-
   const moveDeal = useCallback(
     (id: string, stage: DealStage) => {
       if (apiEnabled) {
@@ -556,34 +555,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       flash("converted");
     },
     [addCustomer, flash, leads],
-  );
-
-  const toggleTask = useCallback(
-    (id: string) => {
-      setTasks((list) => list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-      flash("taskDone");
-    },
-    [flash],
-  );
-
-  const addTask = useCallback(
-    (title: string, customerId?: string) => {
-      if (!title.trim()) return;
-      setTasks((list) => [
-        {
-          id: `t${Date.now()}`,
-          title: title.trim(),
-          due: "09-03",
-          owner: "林晓衡",
-          priority: "mid",
-          done: false,
-          customerId,
-        },
-        ...list,
-      ]);
-      flash("taskDone");
-    },
-    [flash],
   );
 
   const addLead = useCallback(
@@ -707,8 +678,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setContacts(fresh.contacts);
     setLeads(fresh.leads);
     setDeals(fresh.deals);
-    setTasks(fresh.tasks);
-    setActivities(fresh.activities);
     setDocs(fresh.docs);
     setShipments(fresh.shipments);
     setInvoices(fresh.invoices);
@@ -723,8 +692,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     contacts,
     leads,
     deals,
-    tasks,
-    activities,
     docs,
     shipments,
     invoices,
@@ -747,12 +714,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     applyMailOps: applyMailOpsFn,
     setDocStatus,
     addPastedMail,
-    addNote,
     moveDeal,
     setLeadStage,
     convertLead,
-    toggleTask,
-    addTask,
     addLead,
     addContact,
     addDeal,

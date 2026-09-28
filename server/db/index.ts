@@ -16,7 +16,9 @@ export function getDb(): Db | null {
   if (!url) return null;
   if (!db) {
     const poolMax = Math.max(1, Number(process.env.DB_POOL_MAX ?? "3") || 3);
-    client = postgres(url, { max: poolMax, idle_timeout: 20 });
+    // DB_POOL_MAX: 1 on serverless, 10–20 per process on a VPS (see .env.example).
+    const idle = Math.max(1, Number(process.env.DB_IDLE_TIMEOUT ?? "20") || 20);
+    client = postgres(url, { max: poolMax, idle_timeout: idle });
     db = drizzle(client, { schema });
   }
   return db;

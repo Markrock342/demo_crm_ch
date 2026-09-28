@@ -26,6 +26,7 @@ import {
 import { CompanyMark, SalesMobileList } from "../v2/pages/SalesMobileList.tsx";
 import { matches } from "../v2/pages/salesUtil.ts";
 import "../v2/pages/sales.css";
+import { ImportButton } from "../v2/pages/ImportButton.tsx";
 
 type ContactForm = { customerId: string; name: string; title: string; email: string; phone: string; wechat: string };
 
@@ -217,6 +218,7 @@ export function ContactsPage() {
         extra={
           <>
             <ViewSwitch value={view} onChange={setView} labels={{ cards: tx("viewCards"), list: tx("viewList") }} />
+            <ImportButton entity="contacts" />
             {noCustomers ? <Tooltip title={tx("sales_needCustomer")}>{newButton}</Tooltip> : newButton}
           </>
         }

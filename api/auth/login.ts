@@ -3,6 +3,13 @@ import { getDb, hasDatabase } from "../../server/db/index.js";
 import { sessionCookie, signSession } from "../../server/lib/jwt.js";
 import { loginUser } from "../../server/services/auth.service.js";
 import { writeAudit } from "../../server/services/audit.service.js";
+import {
+  clearLoginFailures,
+  clientIp,
+  loginLockKey,
+  loginLockRemaining,
+  noteStaffLoginFailure,
+} from "../../server/services/login-lockout.service.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
@@ -16,8 +23,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const password = String(body?.password ?? "");
   if (!email || !password) return res.status(400).json({ error: "invalid_body" });
 
+  // Same lockout as server/routes/auth.ts (DB-backed, so it holds across serverless instances).
+  const ip = clientIp((n) => req.headers[n]);
+  const lockKey = loginLockKey(email, ip);
+  const wait = await loginLockRemaining(db, lockKey);
+  if (wait > 0) {
+    res.setHeader("Retry-After", String(wait));
+    return res.status(429).json({ error: "too_many_attempts", retryAfter: wait });
+  }
+
   const user = await loginUser(db, email, password);
-  if (!user) return res.status(401).json({ error: "invalid_credentials" });
+  if (!user) {
+    await noteStaffLoginFailure(db, email, ip);
+    return res.status(401).json({ error: "invalid_credentials" });
+  }
+  await clearLoginFailures(db, lockKey);
 
   const { resolvePrimaryOrganization } = await import("../../server/services/tenancy.service.js");
   const tenant = await resolvePrimaryOrganization(db, user.id);

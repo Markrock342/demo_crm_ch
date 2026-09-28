@@ -6,6 +6,8 @@ import { roles, userRoles, users } from "../db/schema/auth.js";
 import { organizationMembers } from "../db/schema/tenancy.js";
 import { ROLES, type RoleCode } from "../domain/rbac.js";
 import { writeAudit } from "./audit.service.js";
+// Circular with middleware/auth.ts (it imports isSessionStale from here); only used inside functions, so safe.
+import { forgetAuth } from "../middleware/auth.js";
 
 export type OrgUserDto = {
   id: string;
@@ -240,6 +242,7 @@ export async function createOrgUser(
 
   await writeAudit(db, {
     userId: actorId,
+    organizationId,
     action: "USER_CREATE",
     entityType: "user",
     entityId: userId,
@@ -300,9 +303,12 @@ export async function updateOrgUser(
     }
   });
 
+  // Role / active changes must apply on the user's very next request, not after the auth cache TTL.
+  forgetAuth(userId);
   const after = await getOrgUser(db, organizationId, userId);
   await writeAudit(db, {
     userId: actorId,
+    organizationId,
     action: input.active === false ? "USER_DEACTIVATE" : input.active === true && !before.active ? "USER_REACTIVATE" : "USER_UPDATE",
     entityType: "user",
     entityId: userId,
@@ -331,7 +337,8 @@ export async function resetOrgUserPassword(
     .update(users)
     .set({ passwordHash: await hashPassword(next), passwordChangedAt: new Date(), updatedAt: new Date() })
     .where(eq(users.id, userId));
-  await writeAudit(db, { userId: actorId, action: "USER_PASSWORD_RESET", entityType: "user", entityId: userId });
+  forgetAuth(userId);
+  await writeAudit(db, { userId: actorId, organizationId, action: "USER_PASSWORD_RESET", entityType: "user", entityId: userId });
   return { tempPassword: chosen ? null : next };
 }
 
@@ -377,6 +384,7 @@ export async function updateAccountNames(
     .update(users)
     .set({ name: input.name.trim(), nameZh: input.nameZh?.trim() || null, nameTh: input.nameTh?.trim() || null, updatedAt: new Date() })
     .where(eq(users.id, userId));
+  forgetAuth(userId);
   await writeAudit(db, { userId, action: "ACCOUNT_UPDATE", entityType: "user", entityId: userId, newValue: input });
   return getAccount(db, userId);
 }
@@ -399,6 +407,7 @@ export async function changeOwnPassword(db: Db, userId: string, currentPassword:
     .update(users)
     .set({ passwordHash: await hashPassword(newPassword), passwordChangedAt: at, updatedAt: at })
     .where(eq(users.id, userId));
+  forgetAuth(userId);
   await writeAudit(db, { userId, action: "ACCOUNT_PASSWORD_CHANGE", entityType: "user", entityId: userId });
   return at;
 }

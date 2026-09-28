@@ -3,10 +3,9 @@ import { App, Button, Drawer, Dropdown, Form, Input, InputNumber, Popconfirm, Sp
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import type { LeadRow as Lead } from "../api/pipeline.ts";
 import { useAuth } from "../auth/AuthProvider";
-import { leadStages, type Lead, type LeadStage } from "../crm";
-import { useShellCrm } from "../shell/crmStore.tsx";
-import { useIsShellMode } from "../shell/session.tsx";
+import { leadStages, type LeadStage } from "../crm";
 import { useStore } from "../store";
 import { demoSearchText } from "../v2/lib/demoText.ts";
 import { useDemoText } from "../v2/lib/useDemoText.ts";
@@ -15,7 +14,9 @@ import {
   DataTable,
   EmptyState,
   EntityCard,
+  ErrorState,
   FilterBar,
+  LoadingState,
   PageHeader,
   PersonAvatar,
   StatusTag,
@@ -25,7 +26,9 @@ import {
 } from "../v2/components";
 import { CompanyMark, LaneRoute, SalesLane, SalesMobileList } from "../v2/pages/SalesMobileList.tsx";
 import { useMedia } from "../ui/useMedia";
-import { crmDate, daysUntil, leadStageTone, matches, uniqueSorted, type GfxTone } from "../v2/pages/salesUtil.ts";
+import { useLeadMutations, useLeadRows } from "../v2/hooks/usePipeline.ts";
+import { ownerKey, OwnerSelect, useOwnerMenu, useOwnerName } from "../v2/pages/OwnerPicker.tsx";
+import { crmDate, daysUntil, leadStageTone, matches, type GfxTone } from "../v2/pages/salesUtil.ts";
 import "../v2/pages/sales.css";
 
 const STAGE_ICON: Record<LeadStage, { icon: Icon; tone: GfxTone }> = {
@@ -38,21 +41,34 @@ const STAGE_ICON: Record<LeadStage, { icon: Icon; tone: GfxTone }> = {
 /** Open leads untouched this long get an amber card. */
 const STALE_DAYS = 14;
 
-type LeadForm = { company: string; city: string; lane: string; contact: string; source: string; teu: number; owner: string };
+type LeadForm = { company: string; city: string; lane: string; contact: string; source: string; teu: number; ownerUserId?: string | null };
 
 export function LeadsPage() {
-  const shell = useIsShellMode();
   const store = useStore();
-  const crm = useShellCrm();
   const { user } = useAuth();
   const { tx } = store;
   const dt = useDemoText();
-  const leads = (shell ? crm.leads : store.leads) as Lead[];
-  const setLeadStage = shell ? crm.setLeadStage : store.setLeadStage;
-  const addLead = shell ? crm.addLead : store.addLead;
-  const canConvert = !shell;
+  const leadsQ = useLeadRows();
+  const leads = useMemo(() => leadsQ.data ?? [], [leadsQ.data]);
+  const { create, patch } = useLeadMutations();
+  const ownerName = useOwnerName();
+  const ownerMenu = useOwnerMenu();
+  const canConvert = true;
   const mobile = useMedia("(max-width: 640px)");
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
+  const setLeadStage = (id: string, stage: LeadStage) => patch.mutate({ id, patch: { stage } });
+  const assignOwner = (id: string, ownerUserId: string) =>
+    patch.mutate({ id, patch: { ownerUserId } }, { onSuccess: () => message.success(tx("fd_ownerSaved")) });
+  /** New customer from the lead (store → API), then mark the lead qualified. */
+  const convertLead = (l: Lead) => {
+    store.addCustomer({ nameZh: l.company, cityZh: l.city, laneZh: l.lane, owner: ownerName(l) || l.owner });
+    patch.mutate({ id: l.id, patch: { stage: "qualified" } }, { onSuccess: () => message.success(tx("converted")) });
+  };
+  const ownerItems = (l: Lead) => [
+    { type: "divider" as const },
+    { key: "owner", label: tx("fd_changeOwner"), children: ownerMenu.map((o) => ({ ...o, disabled: o.key === `owner:${l.ownerUserId}` })) },
+  ];
+  const onMenu = (l: Lead, key: string) => (key.startsWith("owner:") ? assignOwner(l.id, key.slice(6)) : setLeadStage(l.id, key as LeadStage));
 
   const [params, setParams] = useSearchParams();
   const open = params.get("new") === "1";
@@ -87,26 +103,40 @@ export function LeadsPage() {
       leads.filter(
         (l) =>
           (view === "cards" || stage === "all" || l.stage === stage) &&
-          (!owner || l.owner === owner) &&
-          matches(q, ...[l.company, l.city, l.lane, l.contact, l.source, l.owner].map(demoSearchText)),
+          (!owner || ownerKey(l) === owner) &&
+          matches(q, ...[l.company, l.city, l.lane, l.contact, l.source].map(demoSearchText), ownerName(l)),
       ),
-    [leads, stage, owner, q, view],
+    [leads, stage, owner, q, view, ownerName],
   );
 
-  const owners = useMemo(() => uniqueSorted(leads.map((l) => l.owner)), [leads]);
+  const owners = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of leads) {
+      const k = ownerKey(l);
+      if (k && !m.has(k)) m.set(k, ownerName(l));
+    }
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [leads, ownerName]);
 
   function submit(values: LeadForm) {
-    addLead({
-      company: values.company,
-      city: values.city ?? "",
-      lane: values.lane ?? "",
-      contact: values.contact ?? "",
-      source: values.source ?? "",
-      teu: values.teu ?? 0,
-      owner: values.owner ?? "",
-    });
-    form.resetFields();
-    setOpen(false);
+    create.mutate(
+      {
+        company: values.company.trim(),
+        city: values.city?.trim() || undefined,
+        lane: values.lane?.trim() || undefined,
+        contact: values.contact?.trim() || undefined,
+        source: values.source?.trim() || undefined,
+        teu: values.teu ?? 0,
+        ownerUserId: values.ownerUserId ?? null,
+      },
+      {
+        onSuccess: () => {
+          message.success(tx("savedLead"));
+          form.resetFields();
+          setOpen(false);
+        },
+      },
+    );
   }
 
   const convertable = (l: Lead) => canConvert && l.stage !== "lost" && l.stage !== "qualified";
@@ -119,6 +149,7 @@ export function LeadsPage() {
           ...(convertable(l) ? [{ key: "convert", label: tx("sales_convert") }, { type: "divider" as const }] : []),
           { key: "h", type: "group" as const, label: tx("sales_changeStage") },
           ...leadStages.map((s) => ({ key: s, label: stageLabel(s), disabled: s === l.stage })),
+          ...ownerItems(l),
         ],
         onClick: ({ key }) => {
           if (key === "convert") {
@@ -126,9 +157,9 @@ export function LeadsPage() {
               title: tx("sales_convertConfirm", { name: dt(l.company) }),
               okText: tx("sales_convert"),
               cancelText: tx("sales_cancel"),
-              onOk: () => store.convertLead(l.id),
+              onOk: () => convertLead(l),
             });
-          } else setLeadStage(l.id, key as LeadStage);
+          } else onMenu(l, key);
         },
       }}
     >
@@ -143,7 +174,7 @@ export function LeadsPage() {
           title={tx("sales_convertConfirm", { name: dt(l.company) })}
           okText={tx("sales_convert")}
           cancelText={tx("sales_cancel")}
-          onConfirm={() => store.convertLead(l.id)}
+          onConfirm={() => convertLead(l)}
         >
           <Button type="link" size="small">
             {tx("sales_convert")}
@@ -156,8 +187,9 @@ export function LeadsPage() {
           items: [
             { key: "h", type: "group", label: tx("sales_changeStage") },
             ...leadStages.map((s) => ({ key: s, label: stageLabel(s), disabled: s === l.stage })),
+            ...ownerItems(l),
           ],
-          onClick: ({ key }) => setLeadStage(l.id, key as LeadStage),
+          onClick: ({ key }) => onMenu(l, key),
         }}
       >
         <Button type="text" size="small" aria-label={tx("sales_moreActions")} icon={<DotsThree size={18} weight="bold" />} />
@@ -188,7 +220,7 @@ export function LeadsPage() {
       className: "cz-num",
       render: (v: number) => (v ? v : <span className="cz-muted">—</span>),
     },
-    { title: tx("sales_owner"), dataIndex: "owner", align: "center", render: (v: string) => <PersonAvatar name={v} /> },
+    { title: tx("sales_owner"), key: "owner", align: "center", render: (_, l) => <PersonAvatar name={ownerName(l) || null} /> },
     {
       title: <span className="sr-only">{tx("sales_moreActions")}</span>,
       key: "actions",
@@ -227,14 +259,14 @@ export function LeadsPage() {
               title={tx("sales_convertConfirm", { name: dt(l.company) })}
               okText={tx("sales_convert")}
               cancelText={tx("sales_cancel")}
-              onConfirm={() => store.convertLead(l.id)}
+              onConfirm={() => convertLead(l)}
             >
               <Tooltip title={tx("sales_convert")}>
                 <Button size="small" type="text" aria-label={tx("sales_convert")} icon={<UserPlus size={18} aria-hidden />} />
               </Tooltip>
             </Popconfirm>
           ) : null}
-          <PersonAvatar name={l.owner} size={26} />
+          {ownerName(l) ? <PersonAvatar name={ownerName(l)} size={26} /> : null}
         </>
       }
     >
@@ -295,7 +327,7 @@ export function LeadsPage() {
               key: "owner",
               placeholder: tx("sales_allOwners"),
               value: owner,
-              options: owners.map((o) => ({ value: o, label: dt(o) })),
+              options: owners.map(([k, name]) => ({ value: k, label: name })),
               onChange: setOwner,
               width: 160,
             },
@@ -309,7 +341,11 @@ export function LeadsPage() {
         />
       </PageHeader>
 
-      {view === "cards" ? (
+      {leadsQ.isError ? (
+        <ErrorState title={tx("jobs_loadFailed")} action={<Button onClick={() => void leadsQ.refetch()}>{tx("fd_retry")}</Button>} />
+      ) : leadsQ.isLoading ? (
+        <LoadingState />
+      ) : view === "cards" ? (
         leads.length === 0 ? (
           emptyState
         ) : (
@@ -335,7 +371,7 @@ export function LeadsPage() {
             status: stageTag(l),
             sub: (
               <>
-                <PersonAvatar name={l.owner} size={20} />
+                {ownerName(l) ? <PersonAvatar name={ownerName(l)} size={20} /> : null}
                 {subLine(l)}
               </>
             ),
@@ -365,7 +401,7 @@ export function LeadsPage() {
             <Button type="text" onClick={() => setOpen(false)}>
               {tx("sales_cancel")}
             </Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button type="primary" loading={create.isPending} onClick={() => form.submit()}>
               {tx("sales_save")}
             </Button>
           </div>
@@ -376,7 +412,7 @@ export function LeadsPage() {
           layout="vertical"
           requiredMark
           onFinish={submit}
-          initialValues={{ teu: 4, owner: user?.nameZh || user?.name || "" }}
+          initialValues={{ teu: 4, ownerUserId: user?.id }}
         >
           <Form.Item
             name="company"
@@ -402,8 +438,8 @@ export function LeadsPage() {
           <Form.Item name="source" label={tx("sales_fSource")}>
             <Input placeholder={tx("sales_fSourcePh")} />
           </Form.Item>
-          <Form.Item name="owner" label={tx("sales_fOwner")}>
-            <Input />
+          <Form.Item name="ownerUserId" label={tx("sales_fOwner")}>
+            <OwnerSelect />
           </Form.Item>
         </Form>
       </Drawer>

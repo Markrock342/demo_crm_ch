@@ -5,6 +5,7 @@ import { authMiddleware, requireAuth, requireTenant, type AuthEnv } from "../mid
 import { clearSessionCookie, sessionCookie, signSession } from "../lib/jwt.js";
 import { loginUser } from "../services/auth.service.js";
 import { writeAudit } from "../services/audit.service.js";
+import { clearLoginFailures, clientIp, loginLockKey, loginLockRemaining, noteStaffLoginFailure } from "../services/login-lockout.service.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -28,8 +29,20 @@ export function authRoutes() {
       return c.json({ error: "invalid_body" }, 400);
     }
 
+    const ip = clientIp((n) => c.req.header(n));
+    const lockKey = loginLockKey(body.email, ip);
+    const wait = await loginLockRemaining(db, lockKey);
+    if (wait > 0) {
+      c.header("Retry-After", String(wait));
+      return c.json({ error: "too_many_attempts", retryAfter: wait }, 429);
+    }
+
     const user = await loginUser(db, body.email, body.password);
-    if (!user) return c.json({ error: "invalid_credentials" }, 401);
+    if (!user) {
+      await noteStaffLoginFailure(db, body.email, ip);
+      return c.json({ error: "invalid_credentials" }, 401);
+    }
+    await clearLoginFailures(db, lockKey);
 
     const { resolvePrimaryOrganization } = await import("../services/tenancy.service.js");
     const tenant = await resolvePrimaryOrganization(db, user.id);
@@ -45,6 +58,7 @@ export function authRoutes() {
 
     await writeAudit(db, {
       userId: user.id,
+      organizationId: tenant.organizationId,
       action: "USER_LOGIN",
       entityType: "user",
       entityId: user.id,
@@ -71,6 +85,7 @@ export function authRoutes() {
     if (db && user) {
       await writeAudit(db, {
         userId: user.id,
+        organizationId: c.get("organizationId"),
         action: "USER_LOGOUT",
         entityType: "user",
         entityId: user.id,

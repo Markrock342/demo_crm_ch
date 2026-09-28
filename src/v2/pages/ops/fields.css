@@ -1,0 +1,179 @@
+/* Cut-off pills, cut-off editor, free-time editor, owner picker (round-3 fields). */
+
+.fd-cuts {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fd-cuts-icon {
+  color: var(--ink-faint);
+  flex: none;
+}
+
+.fd-cut {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fd-cut b {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.fd-cut.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.fd-cut.is-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.fd-cut.is-empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-faint);
+}
+
+.fd-cut-editor {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.fd-cut-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) minmax(150px, 190px);
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.fd-cut-row .fd-cut {
+  justify-content: center;
+}
+
+.fd-cut-name {
+  color: var(--ink-soft);
+  font-size: var(--body-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fd-cut-picker {
+  width: 100%;
+}
+
+.fd-cut-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fd-panel {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.fd-panel-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--body-sm);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.fd-panel-h svg {
+  color: var(--accent);
+}
+
+.fd-jobs {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fd-jobs li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.fd-jobs li .fd-grow {
+  flex: 1;
+}
+
+.fd-link-row {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.fd-link-row .ant-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.fd-free-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  align-items: end;
+  gap: var(--space-sm);
+}
+
+.fd-free-editor label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--caption);
+  color: var(--ink-soft);
+}
+
+.fd-owner-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fd-amounts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .fd-cut-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .fd-cut-row .fd-cut-picker {
+    grid-column: 1 / -1;
+  }
+
+  .fd-free-editor {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .fd-free-editor > button {
+    grid-column: 1 / -1;
+  }
+}

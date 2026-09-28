@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { customerName } from "../data";
+import type { Activity, TaskItem } from "../crm";
 import { useStore } from "../store";
 import { PageToolbar } from "../ui/PageToolbar";
 
@@ -22,7 +23,10 @@ import { CalendarPageV2 } from "../v2/pages/CalendarPage.tsx";
 
 export function CalendarPage() {
   if (uiV2) return <CalendarPageV2 />;
-  const { tx, locale, tasks, activities, customers, shipments } = useStore();
+  const { tx, locale, customers, shipments } = useStore();
+  // Legacy (non-v2) calendar: tasks and activities now live in the API (see v2 CalendarPage).
+  const tasks: TaskItem[] = [];
+  const activities: Activity[] = [];
   const { days, today } = useMemo(() => weekWindow(), []);
 
   const eventCount = useMemo(() => {

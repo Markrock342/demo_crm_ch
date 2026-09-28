@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, type ReactNode } from "react";
+import { Select } from "antd";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { fetchJobs } from "../../../api/commercial.ts";
+import { fetchJob } from "../../../api/commercial.ts";
+import { fetchJobsPage } from "../../../api/lists.ts";
 import type { Locale } from "../../../i18n";
 import { useShellJobs } from "../../../shell/jobStore.tsx";
 import { useStore } from "../../../store";
@@ -9,27 +11,78 @@ import { useAppMode } from "../../hooks/useAppMode.ts";
 import { fmtDate, fmtMoney } from "../../lib/format.ts";
 import "./finance.css";
 
-/** Resolve a job id to its human job number in shell and live mode. Never returns the raw id. */
-export function useJobLookup() {
-  const { shell, live } = useAppMode();
+/**
+ * Resolve a job id to its human job number. Live rows carry their own job number (pass them as
+ * `known`), so no full job list is fetched; demo mode reads the shell store. Never returns the raw id.
+ */
+export function useJobLookup(known?: ReadonlyArray<{ jobId: string | null; jobNumber?: string | null }>) {
+  const { shell } = useAppMode();
   const shellJobs = useShellJobs();
-  const liveJobs = useQuery({
-    queryKey: ["fin", "jobs-lookup"],
-    queryFn: () => fetchJobs(),
-    enabled: live,
-    staleTime: 60_000,
-  });
 
   const map = useMemo(() => {
     const m = new Map<string, string>();
     if (shell) for (const j of shellJobs.jobs) m.set(j.id, j.jobNumber);
-    if (live) for (const j of liveJobs.data ?? []) m.set(j.id, j.jobNumber);
+    for (const r of known ?? []) if (r.jobId && r.jobNumber) m.set(r.jobId, r.jobNumber);
     return m;
-  }, [shell, live, shellJobs.jobs, liveJobs.data]);
+  }, [shell, shellJobs.jobs, known]);
 
   const numberOf = useCallback((id: string | null | undefined) => (id ? map.get(id) : undefined), [map]);
   const options = useMemo(() => [...map.entries()].map(([value, label]) => ({ value, label })), [map]);
   return { numberOf, options };
+}
+
+/**
+ * Job picker that searches on the server (paged job list, 20 at a time), so it works with any
+ * number of jobs. Drop-in for a Form.Item child (value / onChange).
+ */
+export function JobSelect({
+  value,
+  onChange,
+  customerId,
+  placeholder,
+}: {
+  value?: string | null;
+  onChange?: (v: string | null) => void;
+  customerId?: string;
+  placeholder?: string;
+}) {
+  const { live } = useAppMode();
+  const [typed, setTyped] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setQ(typed.trim()), 250);
+    return () => clearTimeout(t);
+  }, [typed]);
+  const found = useQuery({
+    queryKey: ["fin", "job-search", q, customerId ?? ""],
+    queryFn: () => fetchJobsPage({ q: q || undefined, customerId, limit: 20 }),
+    enabled: live,
+    staleTime: 30_000,
+  });
+  const items = found.data?.items ?? [];
+  // Label for a pre-selected job that is not in the current results.
+  const picked = useQuery({
+    queryKey: ["fin", "job-label", value ?? ""],
+    queryFn: () => fetchJob(value!),
+    enabled: live && Boolean(value) && !items.some((j) => j.id === value),
+    staleTime: 300_000,
+  });
+  const label = (j: { jobNumber: string; pol?: string | null; pod?: string | null }) => `${j.jobNumber} · ${j.pol ?? ""} → ${j.pod ?? ""}`;
+  const options = items.map((j) => ({ value: j.id, label: label(j) }));
+  if (value && picked.data && !options.some((o) => o.value === value)) options.unshift({ value, label: label(picked.data) });
+  return (
+    <Select
+      allowClear
+      showSearch
+      filterOption={false}
+      onSearch={setTyped}
+      placeholder={placeholder}
+      value={value ?? undefined}
+      onChange={(v) => onChange?.((v as string | undefined) ?? null)}
+      options={options}
+      loading={found.isFetching}
+    />
+  );
 }
 
 /** Link to a job by its number; renders a dash when the job is unknown (never a raw id). */

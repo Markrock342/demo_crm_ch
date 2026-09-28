@@ -1,4 +1,4 @@
-import { Result, Spin } from "antd";
+import { Result } from "antd";
 import type { ReactNode } from "react";
 import "./kit.css";
 
@@ -19,14 +19,7 @@ export function EmptyState({ title, description, action }: EmptyProps) {
   );
 }
 
-export function LoadingState({ tip }: { tip?: string }) {
-  return (
-    <div className="cz-loading">
-      <Spin />
-      {tip ? <span>{tip}</span> : null}
-    </div>
-  );
-}
+export { LoadingState } from "./LoadingState.tsx";
 
 export function ErrorState({ title, subTitle, action }: { title?: string; subTitle?: string; action?: ReactNode }) {
   return <Result status="warning" title={title ?? "Something went wrong"} subTitle={subTitle} extra={action} />;

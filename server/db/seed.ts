@@ -10,6 +10,8 @@ import { seedCommercial } from "./seed-commercial.js";
 import { seedOperations } from "./seed-operations.js";
 import { seedSales } from "./seed-sales.js";
 import { seedFinance } from "./seed-finance.js";
+import { seedTasks } from "./seed-tasks.js";
+import { seedFields } from "./seed-fields.js";
 import { syncDocSequences } from "./seed-sequences.js";
 
 function loadDotEnv(path: string) {
@@ -52,6 +54,8 @@ async function main() {
   await syncDocSequences(db);
   const sales = await seedSales(db);
   const finance = await seedFinance(db);
+  const todo = await seedTasks(db);
+  const fields = await seedFields(db);
   await seedTestPortalAccess(db);
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
@@ -69,6 +73,8 @@ async function main() {
   }
   console.log(`Sales seed: ${sales.quotations} quotations, ${sales.leads} leads, ${sales.deals} deals, ${sales.docs} docs, ${sales.mails} extra mails`);
   console.log(`Finance seed: ${finance.invoices} invoices, ${finance.payments} payments, ${finance.billingNotes} billing notes, ${finance.vendorBills} vendor bills`);
+  console.log(`Bookings seed: ${fields.bookings} bookings, ${fields.containers} containers with free time`);
+  console.log(`Tasks seed: ${todo.tasks} tasks, ${todo.activities} activities`);
 }
 
 main().catch((e) => {

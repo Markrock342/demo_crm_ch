@@ -29,3 +29,11 @@ Foundation โค้ดพร้อม: migrate ledger ใน transaction, `.env
 - [x] Harden migrate + PgBouncer compose + docs
 - [ ] ตั้ง Vercel env แล้ว `npm run db:migrate` / `db:seed` กับ prod URL
 - [ ] Confirm `/api/health` → `mode: "production"`
+
+## รันบน VPS (~100 ผู้ใช้ต่อวัน) — Scale notes
+
+- `DB_POOL_MAX=10–20` ต่อ process (`node server` / `tsx server/index.ts`), ให้ (จำนวน process × pool) < `max_connections` ของ Postgres; `DB_IDLE_TIMEOUT=60–300`. Serverless (Vercel) ยังใช้ `DB_POOL_MAX=1` + pooled URL.
+- `SERVE_STATIC=1` ให้ API process เสิร์ฟ `dist/` เอง: ไฟล์ `.br`/`.gz` ที่ build สร้างไว้ล่วงหน้า, `/assets/*` cache 1 ปี (immutable), `index.html` no-cache; `/api/*` บีบอัด gzip. `HOST=0.0.0.0` เมื่ออยู่หลัง reverse proxy / container.
+- Session: resolve ครั้งเดียวต่อ request + cache roles/tenant `AUTH_CACHE_TTL_MS` (default 5000); ปิดบัญชี / เปลี่ยนรหัสผ่านมีผลทันที.
+- Lists (`/api/jobs`, `/api/invoices?limit=…`, `/api/customers?stats=1`, `/api/containers?limit=…`) ค้น/กรอง/นับ/แบ่งหน้าใน SQL; index อยู่ใน migration `0017_scale_indexes.sql`.
+- Load test: `LOADTEST_PASSWORD=… npx tsx scripts/scale-data.ts create` (org แยก `loadtest-scale`: 1,000 ลูกค้า · 5,000 Job · 10,000 ใบแจ้งหนี้) → `node scripts/loadtest.mjs --users 100 --duration 60` → `npx tsx scripts/scale-data.ts remove`.

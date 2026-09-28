@@ -2,7 +2,8 @@ import { stageFromNext } from "../jobsShared.ts";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { mapJobRowToShell } from "../../../adapters/api/jobMapper.ts";
-import { fetchJobs } from "../../../api/commercial.ts";
+import type { JobRow } from "../../../api/commercial.ts";
+import { fetchInvoicesPage, fetchJobsPage } from "../../../api/lists.ts";
 import { isBeforeToday, todayIso } from "../../../lib/dates.ts";
 import type { ShellJob } from "../../../ports/job.port.ts";
 import { useShellBilling } from "../../../shell/billingStore.tsx";
@@ -12,7 +13,7 @@ import { useShellSupport } from "../../../shell/supportStore.tsx";
 import { useStore } from "../../../store";
 import { fmtDate, fmtMoney } from "../../lib/format.ts";
 import { useAppMode } from "../../hooks/useAppMode.ts";
-import { useLiveInvoices } from "../../hooks/useCommercial.ts";
+import { useCan } from "../../hooks/useCan.ts";
 import { queryKeys } from "../../queries/keys.ts";
 import { useCustomerLookup } from "../../hooks/useCustomerLookup.ts";
 import type { Locale } from "../../../i18n";
@@ -70,20 +71,44 @@ export function daysAgo(d: Date | null): number | null {
 /** A job plus the code of its next open milestone (live list API / shell milestones). */
 export type HomeJob = ShellJob & { nextCode?: string | null };
 
-/** Jobs for the current mode (shell seed or live API). */
+const toHomeJob = (r: JobRow): HomeJob => ({ ...mapJobRowToShell(r), nextCode: r.nextMilestoneCode ?? null });
+
+/** Jobs for the current mode: live = the 500 most recently updated (paged list API). */
 export function useModeJobs(): { jobs: HomeJob[]; loading: boolean } {
   const { shell } = useAppMode();
   const jobsShell = useShellJobs();
   const liveJobs = useQuery({
     queryKey: [...queryKeys.jobs.all, "home-with-next"],
-    queryFn: async () => {
-      const rows = await fetchJobs();
-      return rows.map((r): HomeJob => ({ ...mapJobRowToShell(r), nextCode: r.nextMilestoneCode ?? null }));
-    },
+    queryFn: async () => (await fetchJobsPage({ limit: 500 })).items.map(toHomeJob),
     enabled: !shell,
   });
   const shellJobs = useMemo(
     () => jobsShell.jobs.map((j): HomeJob => ({ ...j, nextCode: j.milestones.find((m) => !m.actualAt)?.code ?? "DONE" })),
+    [jobsShell.jobs],
+  );
+  return shell ? { jobs: shellJobs, loading: false } : { jobs: liveJobs.data ?? [], loading: liveJobs.isLoading };
+}
+
+/**
+ * Active (not closed) jobs only — what the home page and the action center work from.
+ * Live: open + in-progress tabs of the paged list, so closed history never crowds them out.
+ */
+export function useActiveJobs(): { jobs: HomeJob[]; loading: boolean } {
+  const { shell } = useAppMode();
+  const jobsShell = useShellJobs();
+  const liveJobs = useQuery({
+    queryKey: [...queryKeys.jobs.all, "home-active"],
+    queryFn: async () => {
+      const [open, going] = await Promise.all([fetchJobsPage({ status: "OPEN", limit: 500 }), fetchJobsPage({ status: "IN_PROGRESS", limit: 500 })]);
+      return [...open.items, ...going.items].map(toHomeJob);
+    },
+    enabled: !shell,
+  });
+  const shellJobs = useMemo(
+    () =>
+      jobsShell.jobs
+        .filter((j) => j.status !== "CLOSED")
+        .map((j): HomeJob => ({ ...j, nextCode: j.milestones.find((m) => !m.actualAt)?.code ?? "DONE" })),
     [jobsShell.jobs],
   );
   return shell ? { jobs: shellJobs, loading: false } : { jobs: liveJobs.data ?? [], loading: liveJobs.isLoading };
@@ -113,7 +138,14 @@ export type InvoiceLite = {
 export function useModeInvoices(): InvoiceLite[] {
   const { shell } = useAppMode();
   const billing = useShellBilling();
-  const liveInv = useLiveInvoices();
+  const { live } = useAppMode();
+  const can = useCan();
+  // Open receivables only (balance > 0, issued / part-paid) — all that the home page and alerts use.
+  const liveInv = useQuery({
+    queryKey: ["invoices", "home-open"],
+    queryFn: async () => (await fetchInvoicesPage({ view: "open", limit: 500 })).items,
+    enabled: live && can("invoice.view"),
+  });
   return useMemo(() => {
     if (shell) {
       return billing.invoices.map((i) => ({
@@ -152,7 +184,7 @@ export function useModeInvoices(): InvoiceLite[] {
 export function useAttentionItems(): { items: AttentionItem[]; loading: boolean } {
   const { tx, locale } = useStore();
   const { shell } = useAppMode();
-  const { jobs, loading } = useModeJobs();
+  const { jobs, loading } = useActiveJobs();
   const invoices = useModeInvoices();
   const ops = useShellOps();
   const support = useShellSupport();

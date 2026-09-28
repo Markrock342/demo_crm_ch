@@ -101,11 +101,18 @@ export function QuotationsPageV2() {
     return `${r.quotationNumber} ${nameOf(r.customerId, "")} ${r.pol} ${r.pod} ${r.origin} ${r.destination}`.toLowerCase().includes(q);
   });
   const filtered = baseFiltered.filter((r) => inTab(r, view === "cards" ? "all" : tab));
+  /** Quote total(s): one amount in the quote currency, or one per charge currency when they can't be combined. */
   const amountOf = useMemo(() => {
-    const m: Record<string, { amount: number; currency: string }> = {};
-    if (shell) for (const q of quoteStore.quotations) if (q.totalSell) m[q.id] = { amount: q.totalSell, currency: q.currency };
+    const m: Record<string, { amount: number; currency: string }[]> = {};
+    if (shell) for (const q of quoteStore.quotations) if (q.totalSell) m[q.id] = [{ amount: q.totalSell, currency: q.currency }];
+    for (const r of liveQ.data ?? []) {
+      if (r.totalSell !== null && r.totalSell !== undefined) m[r.id] = [{ amount: Number(r.totalSell), currency: r.currency }];
+      else if (r.totalsByCurrency && Object.keys(r.totalsByCurrency).length)
+        m[r.id] = Object.entries(r.totalsByCurrency).map(([currency, v]) => ({ amount: Number(v), currency }));
+    }
     return m;
-  }, [shell, quoteStore.quotations]);
+  }, [shell, quoteStore.quotations, liveQ.data]);
+  const amountText = (id: string) => (amountOf[id] ?? []).map((a) => fmtMoney(a.amount, a.currency, locale)).join(" + ");
   const count = (t: string) => baseFiltered.filter((r) => inTab(r, t)).length;
 
   const active = rows.filter((r) => ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT"].includes(String(r.status))).length;
@@ -154,7 +161,11 @@ export function QuotationsPageV2() {
           done={String(r.status) === "ACCEPTED"}
           size="sm"
         />
-        {amount ? <span className="sales-quote-amount">{fmtMoney(amount.amount, amount.currency, locale)}</span> : null}
+        {amount?.length ? (
+          <span className="sales-quote-amount" title={amount.length > 1 ? tx("fd_qMixed") : tx("fd_qTotal")}>
+            {amountText(r.id)}
+          </span>
+        ) : null}
       </EntityCard>
     );
   };
@@ -294,6 +305,7 @@ export function QuotationsPageV2() {
               <>
                 <span>{nameOf(r.customerId)}</span>
                 <LaneCell from={r.pol} to={r.pod} />
+                {amountOf[r.id]?.length ? <strong className="cz-num">{amountText(r.id)}</strong> : null}
               </>
             ),
             onOpen: () => navigate(`/quotations/new?quote=${r.id}`),
@@ -331,6 +343,19 @@ export function QuotationsPageV2() {
               title: tx("jobs_qColLoad"),
               key: "load",
               render: (_, r) => <span className="jobs-vessel">{loadText(r)}</span>,
+            },
+            {
+              title: tx("fd_qTotal"),
+              key: "total",
+              align: "right",
+              render: (_, r) =>
+                amountOf[r.id]?.length ? (
+                  <span className="cz-num jobs-nowrap" title={amountOf[r.id]!.length > 1 ? tx("fd_qMixed") : undefined}>
+                    {amountText(r.id)}
+                  </span>
+                ) : (
+                  <span className="cz-muted">—</span>
+                ),
             },
             {
               title: tx("jobs_qColValid"),

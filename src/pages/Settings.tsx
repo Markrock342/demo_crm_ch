@@ -1,4 +1,4 @@
-import { Buildings, Monitor, PlugsConnected, Translate, UserCircle, UsersThree, type Icon } from "@phosphor-icons/react";
+import { Bell, Buildings, ClockCounterClockwise, FileXls, Monitor, PlugsConnected, Translate, UserCircle, UsersThree, type Icon } from "@phosphor-icons/react";
 import { Segmented, Switch } from "antd";
 import { useEffect, useState } from "react";
 import { aiHealth } from "../ai/client";
@@ -8,12 +8,16 @@ import { useStore } from "../store";
 import { IconBadge, PageHeader, Panel, StatusTag, type GraphicTone } from "../v2/components";
 import "../v2/pages/finance/finance.css";
 import { AccountSection } from "./settings/AccountSection.tsx";
+import { AuditSection } from "./settings/AuditSection.tsx";
 import { CompanySection } from "./settings/CompanySection.tsx";
+import { NotifySection } from "./settings/NotifySection.tsx";
 import { UsersSection } from "./settings/UsersSection.tsx";
 import { Row } from "./settings/shared.tsx";
+import { ImportLink, useCanImport } from "../v2/pages/ImportButton.tsx";
+import { useNavigate } from "react-router-dom";
 import "./settings/settings.css";
 
-type SectionId = "account" | "company" | "users" | "display" | "language" | "system";
+type SectionId = "account" | "notify" | "company" | "users" | "audit" | "display" | "language" | "system" | "import";
 
 function useConnections() {
   const [ai, setAi] = useState<boolean | null>(null);
@@ -47,15 +51,27 @@ export function SettingsPage() {
   const [active, setActive] = useState<SectionId>("account");
   const isAdmin = Boolean(user && (user.roles.includes("SUPER_ADMIN") || user.permissions.includes("user.manage")));
 
+  const canImport = useCanImport();
+  const navigate = useNavigate();
+
+  // Order follows the page body; "import" is a link to its own page (/import).
   const sections: { id: SectionId; label: string; icon: Icon; tone: GraphicTone }[] = [
     { id: "account", label: tx("adm_secAccount"), icon: UserCircle, tone: "info" },
+    { id: "notify", label: tx("nt_secTitle"), icon: Bell, tone: "warning" },
     { id: "company", label: tx("adm_secCompany"), icon: Buildings, tone: "primary" },
     { id: "users", label: tx("adm_secUsers"), icon: UsersThree, tone: "success" },
+    { id: "audit", label: tx("sm_audit"), icon: ClockCounterClockwise, tone: "neutral" },
     { id: "display", label: tx("adm_secDisplay"), icon: Monitor, tone: "accent" },
     { id: "language", label: tx("adm_secLanguage"), icon: Translate, tone: "warning" },
     { id: "system", label: tx("adm_secSystem"), icon: PlugsConnected, tone: "neutral" },
+    { id: "import", label: tx("im_title"), icon: FileXls, tone: "success" },
   ];
-  const visible = sections.filter((s) => s.id !== "users" || isAdmin);
+  const visible = sections.filter((s) => {
+    if (s.id === "users" || s.id === "audit") return isAdmin;
+    if (s.id === "notify") return Boolean(user);
+    if (s.id === "import") return canImport;
+    return true;
+  });
 
   const head = (id: SectionId) => {
     const sec = sections.find((x) => x.id === id)!;
@@ -68,6 +84,10 @@ export function SettingsPage() {
   };
 
   function go(id: SectionId) {
+    if (id === "import") {
+      navigate("/import");
+      return;
+    }
     setActive(id);
     document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -82,7 +102,7 @@ export function SettingsPage() {
             {visible.map((s) => (
               <li key={s.id}>
                 <a
-                  href={`#settings-${s.id}`}
+                  href={s.id === "import" ? "/import" : `#settings-${s.id}`}
                   className={active === s.id ? "is-active" : undefined}
                   aria-current={active === s.id ? "true" : undefined}
                   onClick={(e) => {
@@ -102,6 +122,7 @@ export function SettingsPage() {
           <div id="settings-account" className="adm-anchor">
             <Panel title={head("account")}>{user ? <AccountSection /> : null}</Panel>
           </div>
+          {user ? <NotifySection /> : null}
 
           <div id="settings-company" className="adm-anchor">
             <Panel title={head("company")}>{user ? <CompanySection canEdit={isAdmin} /> : null}</Panel>
@@ -114,6 +135,7 @@ export function SettingsPage() {
               </Panel>
             </div>
           ) : null}
+          {isAdmin ? <AuditSection /> : null}
 
           <div id="settings-display" className="adm-anchor">
             <Panel title={head("display")}>
@@ -149,6 +171,7 @@ export function SettingsPage() {
               <Row label={tx("adm_database")}>
                 <Conn ok={db} />
               </Row>
+              <ImportLink />
             </Panel>
           </div>
         </div>

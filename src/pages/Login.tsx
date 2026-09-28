@@ -6,11 +6,12 @@ import { TEST_ACCOUNTS, TEST_PASSWORD, testAccountsEnabled } from "../auth/testA
 import { useAuth } from "../auth/AuthProvider";
 import { useStore } from "../store";
 import { LangPicker } from "../ui/LangPicker";
-import { IconBadge, RouteTrack, StageFlow, type StageKey } from "../v2/components";
+import { IconBadge, RouteTrack, StageFlow, type StageKey } from "../v2/components/Graphics.tsx";
 import "../v2/pages/public.css";
 
 const LOGIN_ERROR_KEY: Record<string, string> = {
   invalid_credentials: "pub_login_failed",
+  too_many_attempts: "sm_tooMany",
   unreachable: "pub_login_no_api",
   no_organization: "pub_login_no_org",
   server_error: "pub_login_server_error",

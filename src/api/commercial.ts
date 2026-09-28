@@ -47,6 +47,11 @@ export type QuotationRow = {
   status: string;
   currentRevision: number;
   validUntil: string | null;
+  /** Sell total of the current revision in the quote currency (null when it can't be converted). */
+  totalSell?: string | null;
+  /** Raw sell sums per charge currency. */
+  totalsByCurrency?: Record<string, string>;
+  chargeCount?: number;
 };
 
 export async function fetchQuotations(customerId?: string) {
@@ -162,6 +167,20 @@ export async function fetchJobs(customerId?: string, milestoneFilter?: "all" | "
   return (data.items as JobRow[]) ?? [];
 }
 
+export type JobReportSummary = {
+  total: number;
+  byStatus: Record<string, number>;
+  byBilling: Record<string, number>;
+  containers: number;
+  laneCount: number;
+  lanes: Array<{ pol: string; pod: string; containers: number }>;
+};
+
+/** Org-wide job aggregates for the Reports page (GET /api/reports/jobs-summary). */
+export async function fetchJobReportSummary() {
+  return (await apiFetch("/api/reports/jobs-summary")) as unknown as JobReportSummary;
+}
+
 export async function fetchJob(id: string) {
   return apiFetch(`/api/jobs/${id}`) as Promise<JobRow & Record<string, unknown>>;
 }
@@ -199,6 +218,7 @@ export type VendorBillRow = {
   id: string;
   vendorId: string;
   jobId: string | null;
+  jobNumber?: string | null;
   billNumber: string;
   total: string;
   currency: string;

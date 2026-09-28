@@ -4,7 +4,7 @@ import { ArrowRight, Boat, MagnifyingGlass, ShippingContainer } from "@phosphor-
 import { useStore } from "./store";
 import { v2NavGroups } from "./v2/navConfig.ts";
 import { useCustomerLookup } from "./v2/hooks/useCustomerLookup.ts";
-import { Flag } from "./v2/components";
+import { Flag } from "./v2/components/Graphics.tsx";
 import "./v2/pages/public.css";
 
 type Hit = { to: string; label: string; sub?: string; icon: ReactNode; tone?: string; trail?: ReactNode };

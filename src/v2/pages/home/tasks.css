@@ -1,0 +1,219 @@
+/* To-dos (tasks page, customer tab) and the activity timeline. */
+
+.tk-quickadd-due {
+  width: 150px;
+}
+
+.tk-quickadd.is-compact {
+  background: var(--fill);
+  border-color: transparent;
+}
+
+.tk-urgent.is-on {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.tk-person-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tk-scope {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.tk-owner-filter {
+  min-width: 170px;
+}
+
+@media (max-width: 640px) {
+  .tk-quickadd-due {
+    flex: 1 1 140px;
+    width: auto;
+  }
+  .tk-scope,
+  .tk-owner-filter {
+    width: 100%;
+  }
+}
+
+/* Card title doubles as the "open editor" button. */
+.tk-card-open {
+  all: unset;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tk-card-open:hover {
+  color: var(--primary-deep);
+}
+
+.tk-card-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Drawer ── */
+.tk-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+}
+
+.tk-full {
+  width: 100%;
+}
+
+.tk-drawer-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.tk-drawer-grow {
+  flex: 1;
+}
+
+.tk-drawer-meta {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+/* ── Customer tab ── */
+.tk-customer {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-md);
+}
+
+.tk-customer-tasks {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.tk-customer .hm-sec-title {
+  margin: 0;
+}
+
+.tk-quiet {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ── Activity timeline ── */
+.tk-timeline-wrap {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.tk-composer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.tk-composer-input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.tk-type-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 4px;
+}
+
+@media (max-width: 900px) {
+  .tk-type-label {
+    display: none;
+  }
+}
+
+.tk-timeline {
+  position: relative;
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The connecting line behind the icons. */
+.tk-timeline::before {
+  content: "";
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: 16px;
+  width: 2px;
+  background: var(--line);
+}
+
+.tk-tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-sm);
+}
+
+.tk-tl-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 5px;
+}
+
+.tk-tl-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.tk-tl-item.is-task .tk-tl-text {
+  color: var(--ink-soft);
+}
+
+.tk-tl-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.tk-tl-kind::before {
+  content: "·";
+  margin-inline-end: 6px;
+}
+
+.tk-tl-del {
+  color: var(--ink-faint);
+  opacity: 0;
+}
+
+.tk-tl-item:hover .tk-tl-del,
+.tk-tl-del:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .tk-tl-del {
+    opacity: 1;
+  }
+}
+
+/* Customer tab: title on its own row, pickers + add below. */
+.tk-quickadd.is-compact .hm-quickadd-title {
+  flex-basis: 100%;
+}

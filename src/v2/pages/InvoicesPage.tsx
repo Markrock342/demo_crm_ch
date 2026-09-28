@@ -3,6 +3,7 @@ import {
   CheckCircle,
   Clock,
   DotsThree,
+  DownloadSimple,
   FilePdf,
   FileText,
   HandCoins,
@@ -12,10 +13,10 @@ import {
   Wallet,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Drawer, Dropdown, Form, Input, InputNumber, Popconfirm, Select, Space } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   billingNotePdfUrl,
@@ -25,6 +26,7 @@ import {
   issueInvoice as apiIssueInvoice,
   recordPayment as apiRecordPayment,
 } from "../../api/commercial.ts";
+import { bulkIssueInvoices, fetchInvoicesPage, invoicesCsvUrl, type InvoiceGroup, type InvoicePageRow, type InvoiceView } from "../../api/lists.ts";
 import { useShellBilling } from "../../shell/billingStore.tsx";
 import { useShellJobs } from "../../shell/jobStore.tsx";
 import { useStore } from "../../store";
@@ -48,11 +50,16 @@ import {
   writeView,
 } from "../components";
 import { useAppMode } from "../hooks/useAppMode.ts";
-import { useLiveInvoices } from "../hooks/useCommercial.ts";
+import { useCan } from "../hooks/useCan.ts";
 import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
 import { fmtDate, fmtMoney } from "../lib/format.ts";
 import { LiveInvoiceDrawer } from "./finance/createDrawers.tsx";
-import { DueCell, JobLink, MobileList, daysUntil, fmtTotals, noCents, sumByCurrency, useJobLookup, useModeNote } from "./finance/financeKit.tsx";
+import { SendDocEmail } from "./finance/SendDocEmail.tsx";
+import { DueCell, JobLink, MobileList, daysUntil, fmtTotals, noCents, useModeNote } from "./finance/financeKit.tsx";
+import { CustomerFilter } from "./scale/CustomerFilter.tsx";
+import { ListPager, LoadMore } from "./scale/ListPager.tsx";
+import { useDebounced } from "./scale/useDebounced.ts";
+import "./scale/scale.css";
 import { BigMoney, CurrencyPick, DueChip, GroupHead, IconAction, type Tone } from "./finance/financeVisuals.tsx";
 
 type Row = {
@@ -65,9 +72,16 @@ type Row = {
   currency: string;
   status: string;
   dueDate: string | null;
+  /** From the list API (lookups only preload the first customers / jobs). */
+  customerLabel?: string;
+  jobNumber?: string | null;
+  group?: InvoiceGroup | "other";
 };
 
-type View = "all" | "draft" | "open" | "overdue" | "paid";
+type View = InvoiceView;
+/** Server-side paging: table page size, cards per urgency group (+ "load more"). */
+const PAGE = 50;
+const PER_GROUP = 12;
 
 const isOpen = (r: Row) => r.balance > 0 && (r.status === "ISSUED" || r.status === "PARTIALLY_PAID" || r.status === "PARTIAL");
 const isOverdue = (r: Row) => isOpen(r) && (daysUntil(r.dueDate) ?? 0) < 0;
@@ -75,11 +89,9 @@ const isSoon = (r: Row) => {
   const d = daysUntil(r.dueDate);
   return isOpen(r) && d !== null && d >= 0 && d <= 7;
 };
-const isCounted = (r: Row) => r.status !== "DRAFT" && r.status !== "VOID" && r.status !== "CANCELLED";
 
 type BillingNote = { id: string; billingNumber: string; customerId?: string; grandTotal: number; currency: string; createdAt?: string };
 
-const PAID_PREVIEW = 6;
 
 export function InvoicesPageV2() {
   const { shell, live } = useAppMode();
@@ -89,22 +101,26 @@ export function InvoicesPageV2() {
   const qc = useQueryClient();
   const billing = useShellBilling();
   const shellJobs = useShellJobs();
-  const liveInv = useLiveInvoices();
+  const can = useCan();
   const { nameOf, customers } = useCustomerLookup();
-  const { numberOf } = useJobLookup();
   const modeNote = useModeNote();
   const [params, setParams] = useSearchParams();
 
   const view = (params.get("view") as View) || "all";
   const jobIdFilter = params.get("jobId") ?? "";
   const [q, setQ] = useState("");
+  const dq = useDebounced(q.trim(), 300);
   const [customerFilter, setCustomerFilter] = useState<string | undefined>();
+  const [customerFilterLabel, setCustomerFilterLabel] = useState<string | undefined>();
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Record<string, Row>>({});
   const [payFor, setPayFor] = useState<Row | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
   const [layout, setLayoutState] = useState(() => readView("invoices"));
   const [curPick, setCurPick] = useState<string | undefined>();
-  const [showAllPaid, setShowAllPaid] = useState(false);
+  const [page, setPage] = useState(1);
+  const [extra, setExtra] = useState<Partial<Record<InvoiceGroup, Row[]>>>({});
+  const [moreBusy, setMoreBusy] = useState<InvoiceGroup | null>(null);
 
   const setLayout = (v: "cards" | "list") => {
     setLayoutState(v);
@@ -119,85 +135,85 @@ export function InvoicesPageV2() {
     setSelected([]);
   };
 
-  const rows: Row[] = useMemo(() => {
-    if (shell)
-      return billing.invoices.map((i) => ({
-        id: i.id,
-        invoiceNumber: i.invoiceNumber,
-        customerId: i.customerId,
-        jobId: i.jobId ?? null,
-        total: i.total,
-        balance: i.balanceDue,
-        currency: i.currency,
-        status: i.status,
-        dueDate: i.dueDate ?? null,
-      }));
-    return (liveInv.data ?? []).map((i) => ({
-      id: i.id,
-      invoiceNumber: i.invoiceNumber,
-      customerId: i.customerId,
-      jobId: i.jobId,
-      total: parseFloat(i.total) || 0,
-      balance: parseFloat(i.balanceDue) || 0,
-      currency: i.currency,
-      status: i.status,
-      dueDate: i.dueDate || null,
-    }));
-  }, [shell, billing.invoices, liveInv.data]);
+  const filters = { view, q: dq, customerId: customerFilter, jobId: jobIdFilter || undefined };
+  const filterKey = JSON.stringify(filters);
+  useEffect(() => {
+    setPage(1);
+    setExtra({});
+    setSelected([]);
+    setSelectedRows({});
+  }, [filterKey, layout]);
 
-  const scoped = jobIdFilter ? rows.filter((r) => r.jobId === jobIdFilter) : rows;
-
-  const counts = {
-    all: scoped.length,
-    draft: scoped.filter((r) => r.status === "DRAFT").length,
-    open: scoped.filter(isOpen).length,
-    overdue: scoped.filter(isOverdue).length,
-    paid: scoped.filter((r) => r.status === "PAID").length,
-  };
-
-  const needle = q.trim().toLowerCase();
-  const filtered = scoped.filter((r) => {
-    if (view === "draft" && r.status !== "DRAFT") return false;
-    if (view === "open" && !isOpen(r)) return false;
-    if (view === "overdue" && !isOverdue(r)) return false;
-    if (view === "paid" && r.status !== "PAID") return false;
-    if (customerFilter && r.customerId !== customerFilter) return false;
-    if (needle) {
-      const hay = `${r.invoiceNumber} ${nameOf(r.customerId, "")} ${numberOf(r.jobId) ?? ""}`.toLowerCase();
-      if (!hay.includes(needle)) return false;
-    }
-    return true;
+  const cardsQ = useQuery({
+    queryKey: ["invoices", "page", "cards", filterKey],
+    queryFn: () => fetchInvoicesPage({ ...filters, perGroup: PER_GROUP }),
+    enabled: live && layout === "cards",
+    placeholderData: keepPreviousData,
   });
+  const listQ = useQuery({
+    queryKey: ["invoices", "page", "list", filterKey, page],
+    queryFn: () => fetchInvoicesPage({ ...filters, limit: PAGE, offset: (page - 1) * PAGE }),
+    enabled: live && layout === "list",
+    placeholderData: keepPreviousData,
+  });
+  const data = layout === "cards" ? cardsQ.data : listQ.data;
+  const loadingList = live && (listQ.isLoading || (listQ.isFetching && listQ.isPlaceholderData));
 
-  // ── Money summary ──
-  const openRows = scoped.filter(isOpen);
-  const overdueRows = scoped.filter(isOverdue);
-  const weekRows = openRows.filter(isSoon);
-  const bal = (list: Row[]) => fmtTotals(sumByCurrency(list, (r) => r.balance, (r) => r.currency), locale, fmtMoney(0, "USD", locale));
+  const serverName = (i: InvoicePageRow) =>
+    (locale === "th" ? i.customerNameTh : locale === "en" ? i.customerNameEn : i.customerNameZh) || i.customerNameEn || i.customerNameTh || i.customerNameZh || "";
+  const toRow = (i: InvoicePageRow): Row => ({
+    id: i.id,
+    invoiceNumber: i.invoiceNumber,
+    customerId: i.customerId,
+    jobId: i.jobId,
+    total: parseFloat(i.total) || 0,
+    balance: parseFloat(i.balanceDue) || 0,
+    currency: i.currency,
+    status: i.status,
+    dueDate: i.dueDate || null,
+    customerLabel: nameOf(i.customerId, "") || serverName(i) || undefined,
+    jobNumber: i.jobNumber,
+    group: i.group,
+  });
+  const rows: Row[] = useMemo(() => (data?.items ?? []).map(toRow), [data, nameOf, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  const custName = (r: Row) => r.customerLabel || nameOf(r.customerId, tx("fin_unknownCustomer"));
+  const jobNos = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of [...rows, ...Object.values(extra).flat(), ...Object.values(selectedRows)]) if (r?.jobId && r.jobNumber) m.set(r.jobId, r.jobNumber);
+    return m;
+  }, [rows, extra, selectedRows]);
+  const numberOf = (id: string | null | undefined) => (id ? jobNos.get(id) : undefined);
 
-  const currencies = useMemo(() => {
-    const m = sumByCurrency(scoped.filter(isCounted), (r) => r.total, (r) => r.currency);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
-  }, [scoped]);
+  const counts = data?.counts ?? { all: 0, draft: 0, open: 0, overdue: 0, paid: 0 };
+  const summary = data?.summary;
+  const hasAny = counts.all > 0;
+
+  // ── Money summary (computed in SQL over every invoice in scope) ──
+  const toMap = (list: { currency: string; amount: number }[] | undefined) => new Map((list ?? []).map((m) => [m.currency, m.amount]));
+  const bal = (list: { currency: string; amount: number }[] | undefined) => fmtTotals(toMap(list), locale, fmtMoney(0, "USD", locale));
+  const openCount = summary?.open.count ?? 0;
+  const overdueCount = summary?.overdue.count ?? 0;
+  const weekCount = summary?.week.count ?? 0;
+
+  const currencies = (summary?.currencies ?? []).map((c) => c.currency);
   const cur = curPick && currencies.includes(curPick) ? curPick : (currencies[0] ?? "USD");
   const money = (n: number) => fmtMoney(n, cur, locale).replace(/\.00$/, "");
-  const inCur = scoped.filter((r) => isCounted(r) && r.currency === cur);
-  const sumOf = (list: Row[], f: (r: Row) => number) => list.reduce((n, r) => n + f(r), 0);
-  const paidAmt = sumOf(inCur, (r) => Math.max(0, r.total - r.balance));
-  const overdueAmt = sumOf(inCur.filter(isOverdue), (r) => r.balance);
-  const dueAmt = sumOf(inCur.filter((r) => isOpen(r) && !isOverdue(r)), (r) => r.balance);
+  const curSum = summary?.currencies.find((c) => c.currency === cur);
+  const paidAmt = curSum?.paid ?? 0;
+  const overdueAmt = curSum?.overdue ?? 0;
+  const dueAmt = curSum?.due ?? 0;
   const billed = paidAmt + overdueAmt + dueAmt;
   const collectedPct = billed ? Math.round((paidAmt / billed) * 100) : 0;
-  const agingDefs: { key: string; tone: Tone; test: (d: number) => boolean }[] = [
-    { key: "notDue", tone: "primary", test: (d) => d >= 0 },
-    { key: "d1_30", tone: "warning", test: (d) => d < 0 && d >= -30 },
-    { key: "d31_60", tone: "accent", test: (d) => d < -30 && d >= -60 },
-    { key: "d60", tone: "danger", test: (d) => d < -60 },
+  const agingDefs: { key: "notDue" | "d1_30" | "d31_60" | "d60"; tone: Tone }[] = [
+    { key: "notDue", tone: "primary" },
+    { key: "d1_30", tone: "warning" },
+    { key: "d31_60", tone: "accent" },
+    { key: "d60", tone: "danger" },
   ];
   const aging = agingDefs.map((b) => ({
     tone: b.tone,
     label: tx(`fin_age_${b.key}`),
-    value: sumOf(inCur.filter((r) => isOpen(r) && b.test(daysUntil(r.dueDate) ?? 0)), (r) => r.balance),
+    value: curSum?.aging[b.key] ?? 0,
   }));
 
   // ── Mutations (live) ──
@@ -209,6 +225,7 @@ export function InvoicesPageV2() {
   const issueMut = useMutation({ mutationFn: apiIssueInvoice, onSuccess: invalidate });
   const payMut = useMutation({ mutationFn: apiRecordPayment, onSuccess: invalidate });
   const bnMut = useMutation({ mutationFn: apiCreateBillingNote, onSuccess: invalidate });
+  const bulkIssueMut = useMutation({ mutationFn: bulkIssueInvoices, onSuccess: invalidate });
 
   const liveNotes = useQuery({ queryKey: ["fin", "billing-notes"], queryFn: () => fetchBillingNotes(), enabled: live });
   const notes: BillingNote[] = shell
@@ -230,7 +247,7 @@ export function InvoicesPageV2() {
   }
 
   async function createNote(ids: string[]) {
-    const picked = rows.filter((r) => ids.includes(r.id));
+    const picked = ids.map((id) => selectedRows[id] ?? rows.find((r) => r.id === id)).filter((r): r is Row => Boolean(r));
     if (!picked.length) return;
     const cust = picked[0]!.customerId;
     if (picked.some((r) => r.customerId !== cust)) {
@@ -246,13 +263,39 @@ export function InvoicesPageV2() {
       }
       message.success(tx("fin_noteCreated"));
       setSelected([]);
+      setSelectedRows({});
     } catch (e) {
       message.error(tx("fin_actionFailed", { err: e instanceof Error ? e.message : "" }));
     }
   }
 
-  const selectedRows = rows.filter((r) => selected.includes(r.id));
-  const mixedCustomers = new Set(selectedRows.map((r) => r.customerId)).size > 1;
+  const picked = selected.map((id) => selectedRows[id]).filter((r): r is Row => Boolean(r));
+  const mixedCustomers = new Set(picked.map((r) => r.customerId)).size > 1;
+  const pickedDrafts = picked.filter((r) => r.status === "DRAFT");
+
+  async function issueSelected() {
+    try {
+      const res = await bulkIssueMut.mutateAsync(pickedDrafts.map((r) => r.id));
+      message.success(
+        [tx("sc_issuedN", { n: res.issued.length }), res.skipped.length ? tx("sc_skippedN", { n: res.skipped.length }) : ""].filter(Boolean).join(" · "),
+      );
+      setSelected([]);
+      setSelectedRows({});
+    } catch (e) {
+      message.error(tx("fin_actionFailed", { err: e instanceof Error ? e.message : "" }));
+    }
+  }
+
+  async function loadMoreGroup(g: InvoiceGroup, shown: number) {
+    setMoreBusy(g);
+    try {
+      const res = await fetchInvoicesPage({ ...filters, group: g, limit: PER_GROUP * 2, offset: shown });
+      // Same order as the grouped query (open first by due date).
+      setExtra((e) => ({ ...e, [g]: [...(e[g] ?? []), ...res.items.map(toRow)] }));
+    } finally {
+      setMoreBusy(null);
+    }
+  }
 
   const moreMenu = (r: Row) => ({
     items: [
@@ -269,7 +312,7 @@ export function InvoicesPageV2() {
       render: (_, r) => (
         <>
           <span className="cz-cell-main">{r.invoiceNumber}</span>
-          <span className="cz-cell-sub">{nameOf(r.customerId, tx("fin_unknownCustomer"))}</span>
+          <span className="cz-cell-sub">{custName(r)}</span>
         </>
       ),
     },
@@ -321,6 +364,7 @@ export function InvoicesPageV2() {
               <FilePdf size={16} aria-hidden /> PDF
             </a>
           ) : null}
+          {live && r.status !== "DRAFT" ? <SendDocEmail kind="invoice" id={r.id} number={r.invoiceNumber} /> : null}
           <Dropdown trigger={["click"]} menu={moreMenu(r)}>
             <Button size="small" type="text" aria-label={tx("fin_moreActions")} icon={<DotsThree size={18} weight="bold" />} />
           </Dropdown>
@@ -330,13 +374,13 @@ export function InvoicesPageV2() {
   ];
 
   const aiFacts = {
-    invoices: rows.length,
-    openInvoices: openRows.length,
-    overdueInvoices: overdueRows.length,
+    invoices: counts.all,
+    openInvoices: openCount,
+    overdueInvoices: overdueCount,
     drafts: counts.draft,
-    outstanding: bal(openRows),
+    outstanding: bal(summary?.open.balance),
   };
-  const aiLocal = `AR: ${rows.length} invoices, ${openRows.length} open (${bal(openRows)}), ${overdueRows.length} overdue, ${counts.draft} drafts.`;
+  const aiLocal = `AR: ${counts.all} invoices, ${openCount} open (${bal(summary?.open.balance)}), ${overdueCount} overdue, ${counts.draft} drafts.`;
 
   const primary = (
     <Button type="primary" onClick={() => setDraftOpen(true)} disabled={shell && !customers.length}>
@@ -352,36 +396,35 @@ export function InvoicesPageV2() {
     );
   }
 
-  // ── Card groups (by urgency) ──
-  const byDue = (a: Row, b: Row) => (daysUntil(a.dueDate) ?? 9999) - (daysUntil(b.dueDate) ?? 9999);
-  const groups: { key: string; icon: typeof Wallet; tone: Tone; title: string; rows: Row[] }[] = [
-    { key: "overdue", icon: WarningCircle, tone: "danger", title: tx("fin_tabOverdue"), rows: filtered.filter(isOverdue).sort(byDue) },
-    { key: "soon", icon: Clock, tone: "warning", title: tx("fin_statDueWeek"), rows: filtered.filter(isSoon).sort(byDue) },
-    {
-      key: "open",
-      icon: Wallet,
-      tone: "primary",
-      title: tx("fin_tabOpen"),
-      rows: filtered.filter((r) => isOpen(r) && !isOverdue(r) && !isSoon(r)).sort(byDue),
-    },
-    { key: "draft", icon: PencilSimpleLine, tone: "neutral", title: tx("fin_tabDraft"), rows: filtered.filter((r) => r.status === "DRAFT") },
-    { key: "paid", icon: CheckCircle, tone: "success", title: tx("fin_tabPaid"), rows: filtered.filter((r) => r.status === "PAID") },
+  // ── Card groups (by urgency): first PER_GROUP per group from the server, "load more" for the rest ──
+  const groupCounts = cardsQ.data?.groupCounts;
+  const groupDefs: { key: InvoiceGroup; icon: typeof Wallet; tone: Tone; title: string }[] = [
+    { key: "overdue", icon: WarningCircle, tone: "danger", title: tx("fin_tabOverdue") },
+    { key: "soon", icon: Clock, tone: "warning", title: tx("fin_statDueWeek") },
+    { key: "open", icon: Wallet, tone: "primary", title: tx("fin_tabOpen") },
+    { key: "draft", icon: PencilSimpleLine, tone: "neutral", title: tx("fin_tabDraft") },
+    { key: "paid", icon: CheckCircle, tone: "success", title: tx("fin_tabPaid") },
   ];
+  const groups = groupDefs.map((g) => ({
+    ...g,
+    rows: [...rows.filter((r) => r.group === g.key), ...(extra[g.key] ?? [])],
+    total: groupCounts?.[g.key] ?? 0,
+  }));
 
   const card = (r: Row) => {
     const overdue = isOverdue(r);
     const soon = isSoon(r);
     const draft = r.status === "DRAFT";
     const paid = r.status === "PAID" || (!draft && r.balance <= 0);
-    const custName = nameOf(r.customerId, tx("fin_unknownCustomer"));
+    const cname = custName(r);
     const received = Math.max(0, r.total - r.balance);
     return (
       <EntityCard
         key={r.id}
         tone={overdue ? "danger" : soon ? "warning" : "default"}
-        media={<PersonAvatar name={custName} size={40} />}
+        media={<PersonAvatar name={cname} size={40} />}
         title={r.invoiceNumber}
-        subtitle={custName}
+        subtitle={cname}
         badge={draft ? <StatusTag status="DRAFT" /> : <DueChip date={r.dueDate} open={isOpen(r)} paid={paid} />}
         footer={
           <>
@@ -404,6 +447,7 @@ export function InvoicesPageV2() {
               ) : null}
               {isOpen(r) ? <IconAction icon={HandCoins} primary label={`${tx("fin_recordPayment")} ${r.invoiceNumber}`} onClick={() => setPayFor(r)} /> : null}
               {live ? <IconAction icon={FilePdf} label={`${tx("be_invoicePdf")} ${r.invoiceNumber}`} href={invoicePdfUrl(r.id)} /> : null}
+              {live && !draft ? <SendDocEmail kind="invoice" id={r.id} number={r.invoiceNumber} variant="icon" /> : null}
               {!draft ? <IconAction icon={Receipt} label={tx("fin_makeNoteOne")} onClick={() => void createNote([r.id])} /> : null}
               <Dropdown trigger={["click"]} menu={moreMenu(r)}>
                 <Button className="fin-iconbtn" type="text" aria-label={tx("fin_moreActions")} icon={<DotsThree size={20} weight="bold" />} />
@@ -427,7 +471,7 @@ export function InvoicesPageV2() {
     );
   };
 
-  const summary = (
+  const summaryPanel = (
     <Panel
       title={tx("fin_moneyTitle")}
       extra={<CurrencyPick value={cur} options={currencies} onChange={setCurPick} />}
@@ -464,6 +508,11 @@ export function InvoicesPageV2() {
   );
 
   const hasCards = groups.some((g) => g.rows.length);
+  const fromJobBtn = (
+    <Link to="/jobs">
+      <Button>{tx("fin_fromJob")}</Button>
+    </Link>
+  );
 
   return (
     <div className="cz-stack fin-page">
@@ -481,28 +530,28 @@ export function InvoicesPageV2() {
         }
       >
         <TileRow>
-          <Tile icon={Wallet} tone="primary" value={noCents(bal(openRows))} label={tx("fin_statOutstanding")} to="/invoices?view=open" visual={<span className="fin-tile-n">{tx("fin_nInvoices", { n: openRows.length })}</span>} />
+          <Tile icon={Wallet} tone="primary" value={noCents(bal(summary?.open.balance))} label={tx("fin_statOutstanding")} to="/invoices?view=open" visual={<span className="fin-tile-n">{tx("fin_nInvoices", { n: openCount })}</span>} />
           <Tile
             icon={WarningCircle}
-            tone={overdueRows.length ? "danger" : "neutral"}
-            value={noCents(bal(overdueRows))}
+            tone={overdueCount ? "danger" : "neutral"}
+            value={noCents(bal(summary?.overdue.balance))}
             label={tx("fin_statOverdue")}
             to="/invoices?view=overdue"
-            visual={<span className="fin-tile-n">{tx("fin_nInvoices", { n: overdueRows.length })}</span>}
+            visual={<span className="fin-tile-n">{tx("fin_nInvoices", { n: overdueCount })}</span>}
           />
           <Tile
             icon={Clock}
-            tone={weekRows.length ? "warning" : "neutral"}
-            value={noCents(bal(weekRows))}
+            tone={weekCount ? "warning" : "neutral"}
+            value={noCents(bal(summary?.week.balance))}
             label={tx("fin_statDueWeek")}
             to="/invoices?view=open"
-            visual={<span className="fin-tile-n">{tx("fin_nInvoices", { n: weekRows.length })}</span>}
+            visual={<span className="fin-tile-n">{tx("fin_nInvoices", { n: weekCount })}</span>}
           />
           <Tile icon={FileText} tone="neutral" value={String(counts.draft)} label={tx("fin_statDrafts")} to="/invoices?view=draft" />
         </TileRow>
       </PageHeader>
 
-      {billed > 0 ? summary : null}
+      {billed > 0 ? summaryPanel : null}
 
       <FilterBar
         tabs={{
@@ -517,16 +566,6 @@ export function InvoicesPageV2() {
           ],
         }}
         search={{ value: q, onChange: setQ, placeholder: tx("fin_searchInvoices") }}
-        selects={[
-          {
-            key: "customer",
-            placeholder: tx("fin_allCustomers"),
-            value: customerFilter,
-            onChange: setCustomerFilter,
-            options: [...new Set(rows.map((r) => r.customerId))].map((id) => ({ value: id, label: nameOf(id, tx("fin_unknownCustomer")) })),
-            width: 200,
-          },
-        ]}
         onClear={() => {
           setQ("");
           setCustomerFilter(undefined);
@@ -537,10 +576,27 @@ export function InvoicesPageV2() {
             setParams(next, { replace: true });
           }
         }}
-        count={filtered.length}
+        count={data ? data.total : undefined}
         extra={
           <>
             {jobIdFilter ? <span className="fin-chip">{tx("fin_forJob", { no: numberOf(jobIdFilter) ?? "—" })}</span> : null}
+            <CustomerFilter
+              value={customerFilter}
+              label={customerFilterLabel ?? (customerFilter ? nameOf(customerFilter, "") : undefined)}
+              placeholder={tx("fin_allCustomers")}
+              onChange={(id, name) => {
+                setCustomerFilter(id);
+                setCustomerFilterLabel(name);
+              }}
+            />
+            {live && can("invoice.view") ? (
+              <Button
+                href={invoicesCsvUrl({ ...filters, lang: locale })}
+                icon={<DownloadSimple size={16} aria-hidden />}
+                aria-label={tx("sc_exportFiltered")}
+                title={tx("sc_exportFiltered")}
+              />
+            ) : null}
             <ViewSwitch value={layout} onChange={setLayout} labels={{ cards: tx("viewCards"), list: tx("viewList") }} />
           </>
         }
@@ -550,32 +606,17 @@ export function InvoicesPageV2() {
         hasCards ? (
           groups
             .filter((g) => g.rows.length)
-            .map((g) => {
-              const limited = g.key === "paid" && !showAllPaid && g.rows.length > PAID_PREVIEW;
-              const list = limited ? g.rows.slice(0, PAID_PREVIEW) : g.rows;
-              return (
-                <section key={g.key} className="fin-group" aria-label={g.title}>
-                  <GroupHead
-                    icon={g.icon}
-                    tone={g.tone}
-                    title={g.title}
-                    count={g.rows.length}
-                    extra={
-                      g.key === "paid" && g.rows.length > PAID_PREVIEW ? (
-                        <button type="button" className="cz-link-btn" onClick={() => setShowAllPaid((v) => !v)}>
-                          {showAllPaid ? tx("fin_showLess") : tx("fin_showAll", { n: g.rows.length })}
-                        </button>
-                      ) : null
-                    }
-                  />
-                  <CardGrid min={300}>{list.map(card)}</CardGrid>
-                </section>
-              );
-            })
+            .map((g) => (
+              <section key={g.key} className="fin-group" aria-label={g.title}>
+                <GroupHead icon={g.icon} tone={g.tone} title={g.title} count={g.total} />
+                <CardGrid min={300}>{g.rows.map(card)}</CardGrid>
+                <LoadMore left={g.total - g.rows.length} loading={moreBusy === g.key} onClick={() => void loadMoreGroup(g.key, g.rows.length)} />
+              </section>
+            ))
         ) : (
           <div className="fin-empty-line">
-            <span>{rows.length ? tx("noResults") : tx("fin_emptyInvoices")}</span>
-            {rows.length ? null : primary}
+            <span>{hasAny ? tx("noResults") : tx("fin_emptyInvoices")}</span>
+            {hasAny ? null : primary}
           </div>
         )
       ) : (
@@ -585,23 +626,49 @@ export function InvoicesPageV2() {
               <span>{tx("fin_nSelected", { n: selected.length })}</span>
               {mixedCustomers ? <span className="fin-bulk-warn">{tx("fin_noteSameCustomer")}</span> : null}
               <Space wrap>
-                <Button onClick={() => setSelected([])} type="text">
+                <Button onClick={() => { setSelected([]); setSelectedRows({}); }} type="text">
                   {tx("fin_clearSelection")}
                 </Button>
-                <Button type="primary" icon={<Receipt size={16} />} disabled={mixedCustomers} loading={bnMut.isPending} onClick={() => void createNote(selected)}>
-                  {tx("fin_makeNote")}
-                </Button>
+                {live ? (
+                  <Button icon={<DownloadSimple size={16} aria-hidden />} href={invoicesCsvUrl({ ids: selected, lang: locale })}>
+                    {tx("sc_exportSelected")}
+                  </Button>
+                ) : null}
+                {live && can("invoice.issue") && pickedDrafts.length ? (
+                  <Popconfirm
+                    title={tx("sc_issueConfirm", { n: pickedDrafts.length })}
+                    description={tx("fin_issueConfirmHint")}
+                    okText={tx("fin_issue")}
+                    cancelText={tx("fin_cancel")}
+                    onConfirm={() => issueSelected()}
+                  >
+                    <Button icon={<PaperPlaneTilt size={16} aria-hidden />} loading={bulkIssueMut.isPending}>
+                      {tx("sc_issueSelected")} ({pickedDrafts.length})
+                    </Button>
+                  </Popconfirm>
+                ) : null}
+                {can("billing.create") ? (
+                  <Button
+                    type="primary"
+                    icon={<Receipt size={16} />}
+                    disabled={mixedCustomers || pickedDrafts.length > 0}
+                    loading={bnMut.isPending}
+                    onClick={() => void createNote(selected)}
+                  >
+                    {tx("fin_makeNote")}
+                  </Button>
+                ) : null}
               </Space>
             </div>
           ) : null}
 
           <MobileList
-            empty={rows.length ? tx("noResults") : tx("fin_emptyInvoices")}
-            items={filtered.map((r) => ({
+            empty={hasAny ? tx("noResults") : tx("fin_emptyInvoices")}
+            items={rows.map((r) => ({
               key: r.id,
               title: r.invoiceNumber,
               status: isOverdue(r) ? <StatusTag status="OVERDUE" /> : <StatusTag status={r.status} tone={r.status === "PARTIALLY_PAID" ? "warning" : undefined} />,
-              sub: `${nameOf(r.customerId, tx("fin_unknownCustomer"))} · ${fmtDate(r.dueDate, locale)}`,
+              sub: `${custName(r)} · ${fmtDate(r.dueDate, locale)}`,
               value: fmtMoney(r.balance, r.currency, locale),
               action:
                 r.status === "DRAFT" ? (
@@ -619,17 +686,30 @@ export function InvoicesPageV2() {
           <DataTable<Row>
             className="fin-desktop-table"
             rowKey="id"
-            loading={live && liveInv.isLoading}
+            loading={loadingList}
             columns={columns}
-            dataSource={filtered}
+            dataSource={rows}
+            pagination={false}
             rowSelection={{
               selectedRowKeys: selected,
-              onChange: (keys) => setSelected(keys as string[]),
-              getCheckboxProps: (r) => ({ disabled: r.status === "DRAFT", "aria-label": r.invoiceNumber }),
+              preserveSelectedRowKeys: true,
+              onChange: (keys, picked) => {
+                setSelected(keys as string[]);
+                setSelectedRows((prev) => {
+                  const next: Record<string, Row> = {};
+                  for (const k of keys as string[]) {
+                    const r = prev[k] ?? picked.find((x) => x?.id === k);
+                    if (r) next[k] = r;
+                  }
+                  return next;
+                });
+              },
+              getCheckboxProps: (r) => ({ disabled: false, "aria-label": r.invoiceNumber }),
             }}
-            emptyText={rows.length ? tx("noResults") : tx("fin_emptyInvoices")}
-            emptyAction={rows.length ? undefined : primary}
+            emptyText={hasAny ? tx("noResults") : tx("fin_emptyInvoices")}
+            emptyAction={hasAny ? undefined : fromJobBtn}
           />
+          <ListPager page={page} pageSize={PAGE} total={data?.total ?? 0} onChange={setPage} />
         </>
       )}
 
@@ -652,6 +732,7 @@ export function InvoicesPageV2() {
                     <FilePdf size={16} aria-hidden /> PDF
                   </a>
                 ) : null}
+                {live ? <SendDocEmail kind="billing_note" id={n.id} number={n.billingNumber} /> : null}
               </li>
             ))}
           </ul>

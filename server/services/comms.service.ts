@@ -88,7 +88,8 @@ function toDoc(row: typeof crmDocs.$inferSelect): CrmDocDto {
 }
 
 export async function listMails(db: Db, organizationId: string, customerId?: string) {
-  const clauses = [eq(mails.organizationId, organizationId)];
+  // Inbox only — mail we sent is stored with direction "out" (see outbound-mail.service.ts).
+  const clauses = [eq(mails.organizationId, organizationId), eq(mails.direction, "in")];
   if (customerId) clauses.push(eq(mails.customerId, customerId));
   const rows = await db
     .select()

@@ -1,4 +1,4 @@
-import { ArrowsLeftRight, Boat, FilePlus } from "@phosphor-icons/react";
+import { ArrowsLeftRight, Boat, FilePlus, PencilSimple, Plus } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Select, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -27,11 +27,15 @@ import {
   writeView,
 } from "../components";
 import { useAppMode } from "../hooks/useAppMode.ts";
+import { useCan } from "../hooks/useCan.ts";
+import { RateFormDrawer } from "./RateFormDrawer.tsx";
+import "./rate-form.css";
 import { fmtDate, fmtMoney } from "../lib/format.ts";
 import { queryKeys } from "../queries/keys.ts";
 import { ContainerChip, DateChip, SalesMobileList } from "./SalesMobileList.tsx";
 import { SALES_PORTS, fmtShortDate, placeCode, portName, uniqueSorted } from "./salesUtil.ts";
 import "./sales.css";
+import { ImportButton } from "./ImportButton.tsx";
 
 const STANDARD_TYPES = ["20GP", "40GP", "40HC", "45HC", "20RF", "40RF"];
 
@@ -50,6 +54,11 @@ export function RatesPageV2() {
   const support = useShellSupport();
   const navigate = useNavigate();
   const mobile = useMedia("(max-width: 640px)");
+  const can = useCan();
+  const canCreate = live && can("rate.create");
+  const canEdit = live && can("rate.edit");
+  /** Rate drawer: undefined = closed, null = add, string = edit that lane. */
+  const [rateForm, setRateForm] = useState<string | null | undefined>(undefined);
 
   const [view, setViewState] = useState(() => readView("rates"));
   const setView = (v: "cards" | "list") => {
@@ -229,9 +238,16 @@ export function RatesPageV2() {
       key: "use",
       align: "right",
       render: (_, r) => (
-        <Button size="small" icon={<FilePlus size={16} aria-hidden />} onClick={() => quoteFromRate(r)} disabled={r.status === "EXPIRED"}>
-          {tx("sales_useInQuote")}
-        </Button>
+        <span className="rt-row-actions">
+          {canEdit ? (
+            <Tooltip title={tx("rt_edit")}>
+              <Button size="small" type="text" aria-label={tx("rt_edit")} icon={<PencilSimple size={16} aria-hidden />} onClick={() => setRateForm(r.laneId)} />
+            </Tooltip>
+          ) : null}
+          <Button size="small" icon={<FilePlus size={16} aria-hidden />} onClick={() => quoteFromRate(r)} disabled={r.status === "EXPIRED"}>
+            {tx("sales_useInQuote")}
+          </Button>
+        </span>
       ),
     },
   ];
@@ -257,6 +273,11 @@ export function RatesPageV2() {
         footer={
           <>
             <ContainerChip type={r.containerType} />
+            {canEdit ? (
+              <Tooltip title={tx("rt_edit")}>
+                <Button type="text" aria-label={tx("rt_edit")} icon={<PencilSimple size={16} aria-hidden />} onClick={() => setRateForm(r.laneId)} />
+              </Tooltip>
+            ) : null}
             <Button
               type={expired ? "default" : "primary"}
               ghost={!expired}
@@ -292,15 +313,56 @@ export function RatesPageV2() {
     );
   };
 
-  const emptyState = <EmptyState title={tx("sales_ratesEmpty")} description={filtersOn ? tx("sales_ratesEmptyHint") : undefined} />;
+  const emptyState = filtersOn ? (
+    <EmptyState title={tx("sales_ratesEmpty")} description={tx("sales_ratesEmptyHint")} />
+  ) : (
+    <EmptyState
+      description={tx("hp_emptyRates")}
+      action={
+        canCreate ? (
+          <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setRateForm(null)}>
+            {tx("rt_add")}
+          </Button>
+        ) : (
+          <Button type="primary" onClick={() => navigate("/quotations/new")}>
+            {tx("hp_emptyRatesAction")}
+          </Button>
+        )
+      }
+    />
+  );
 
   return (
     <div className="cz-stack sales-page">
       <PageHeader
         title={tx("sales_ratesTitle")}
         subtitle={tx("sales_ratesSubShort")}
-        extra={<ViewSwitch value={view} onChange={setView} labels={{ cards: tx("viewCards"), list: tx("viewList") }} />}
+        extra={
+          <>
+            <ViewSwitch value={view} onChange={setView} labels={{ cards: tx("viewCards"), list: tx("viewList") }} />
+            <ImportButton entity="rates" />
+            {canCreate ? (
+              <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setRateForm(null)}>
+                {tx("rt_add")}
+              </Button>
+            ) : null}
+          </>
+        }
       />
+      {canCreate || canEdit ? (
+        <RateFormDrawer
+          open={rateForm !== undefined}
+          laneId={rateForm}
+          portOptions={portOptions}
+          containerTypes={STANDARD_TYPES}
+          onClose={() => setRateForm(undefined)}
+          onSaved={(lane) => {
+            setOrigin(lane.pol);
+            setDestination(lane.pod);
+            setContainerType(lane.containerType);
+          }}
+        />
+      ) : null}
 
       {!shell && !live ? (
         <Panel>

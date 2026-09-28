@@ -24,6 +24,19 @@ export const bookings = pgTable("bookings", {
   cbm: numeric("cbm", { precision: 18, scale: 4 }),
   salesOwnerId: text("sales_owner_id"),
   status: text("status").notNull().default("CONFIRMED"),
+  /** Carrier's own booking reference (booking_number is our BK-… number). */
+  carrierBookingNo: text("carrier_booking_no"),
+  vessel: text("vessel"),
+  voyage: text("voyage"),
+  bl: text("bl"),
+  etd: date("etd"),
+  eta: date("eta"),
+  teu: integer("teu").notNull().default(0),
+  /** Voyage stage: booking | gate_in | sail | arrived | delivered. */
+  stage: text("stage").notNull().default("booking"),
+  siCutoff: timestamp("si_cutoff", { withTimezone: true }),
+  cyCutoff: timestamp("cy_cutoff", { withTimezone: true }),
+  vgmCutoff: timestamp("vgm_cutoff", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -64,6 +77,9 @@ export const jobs = pgTable("jobs", {
   assignedOperator: text("assigned_operator"),
   status: text("status").notNull().default("BOOKING"),
   currency: text("currency").notNull().default("THB"),
+  siCutoff: timestamp("si_cutoff", { withTimezone: true }),
+  cyCutoff: timestamp("cy_cutoff", { withTimezone: true }),
+  vgmCutoff: timestamp("vgm_cutoff", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -116,6 +132,9 @@ export const containers = pgTable("containers", {
   vessel: text("vessel"),
   seal: text("seal"),
   commodity: text("commodity"),
+  /** Last day without demurrage (real value from the carrier / terminal). */
+  lastFreeDay: date("last_free_day"),
+  freeDays: integer("free_days"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

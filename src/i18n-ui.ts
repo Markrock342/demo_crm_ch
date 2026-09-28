@@ -206,14 +206,38 @@ const shellEn: Dict = {
   status_APPROVED: "Approved",
 };
 
-const pageBooks = import.meta.glob<Book>("./i18n-pages/*.ts", { eager: true, import: "default" });
+/*
+ * Page books load lazily, one language at a time (the `?locale=` query is handled by the
+ * i18n-locale-split plugin in vite.config.ts, which strips the other two languages).
+ * main.tsx awaits the starting language before first render; setLocale awaits the next one.
+ */
+type PageLoaders = Record<string, () => Promise<Partial<Book>>>;
+const pageLoaders: Record<keyof Book, PageLoaders> = {
+  zh: import.meta.glob<Partial<Book>>("./i18n-pages/*.ts", { query: "?locale=zh", import: "default" }),
+  th: import.meta.glob<Partial<Book>>("./i18n-pages/*.ts", { query: "?locale=th", import: "default" }),
+  en: import.meta.glob<Partial<Book>>("./i18n-pages/*.ts", { query: "?locale=en", import: "default" }),
+};
 
-function merge(locale: keyof Book, base: Dict): Dict {
-  const out: Dict = { ...base };
-  for (const book of Object.values(pageBooks)) Object.assign(out, book[locale]);
-  return out;
+/** Merged page strings per language; filled by loadPageLocale. Read by t() in i18n.ts. */
+export const pageDicts: Book = { zh: {}, th: {}, en: {} };
+const pageLoads: Partial<Record<keyof Book, Promise<void>>> = {};
+
+export function pageLocaleLoaded(locale: keyof Book): boolean {
+  return Object.keys(pageDicts[locale]).length > 0;
 }
 
-export const uiZh = merge("zh", shellZh);
-export const uiTh = merge("th", shellTh);
-export const uiEn = merge("en", shellEn);
+export function loadPageLocale(locale: keyof Book): Promise<void> {
+  pageLoads[locale] ??= Promise.all(Object.values(pageLoaders[locale]).map((load) => load()))
+    .then((books) => {
+      for (const book of books) Object.assign(pageDicts[locale], book[locale]);
+    })
+    .catch((err) => {
+      delete pageLoads[locale];
+      throw err;
+    });
+  return pageLoads[locale]!;
+}
+
+export const uiZh = shellZh;
+export const uiTh = shellTh;
+export const uiEn = shellEn;

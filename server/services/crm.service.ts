@@ -95,7 +95,7 @@ export type OpportunityDto = {
   owner: string;
 };
 
-function toCustomer(row: typeof customers.$inferSelect, boxes = 0): CustomerDto {
+export function toCustomer(row: typeof customers.$inferSelect, boxes = 0): CustomerDto {
   return {
     id: row.id,
     nameZh: row.nameZh,

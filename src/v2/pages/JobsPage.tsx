@@ -1,12 +1,11 @@
-import { ArrowRight, CheckCircle, Funnel, Plus, Warning, X } from "@phosphor-icons/react";
+import { ArrowRight, CheckCircle, DownloadSimple, Funnel, Plus, Warning, X } from "@phosphor-icons/react";
 import { Badge, Button, Popover, Radio } from "antd";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { mapJobRowToShell } from "../../adapters/api/jobMapper.ts";
-import { fetchJobs } from "../../api/commercial.ts";
+import { fetchJobsPage, jobsCsvUrl, type JobListParams, type JobPage, type JobPageRow } from "../../api/lists.ts";
 import { useAuth } from "../../auth/AuthProvider";
-import { useShellJobs } from "../../shell/jobStore.tsx";
 import { useIsShellMode } from "../../shell/session.tsx";
 import { useStore } from "../../store";
 import {
@@ -28,60 +27,34 @@ import {
   type StageKey,
 } from "../components";
 import { JobsProTable, rowProgress, rowStage, type JobListRow } from "../components/JobsProTable.tsx";
+import { useCan } from "../hooks/useCan.ts";
 import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../hooks/useUserLookup.ts";
-import { queryKeys } from "../queries/keys.ts";
-import { fmtShortDate, isStageKey, known, milestoneLabel, personName, STAGE_KEYS, stageFromMilestones, stageFromNext } from "./jobsShared.ts";
+import { fmtShortDate, isStageKey, known, milestoneLabel, personName, STAGE_KEYS, stageFromNext } from "./jobsShared.ts";
+import { CustomerFilter } from "./scale/CustomerFilter.tsx";
+import { JobsBulkBar } from "./scale/JobsBulkBar.tsx";
+import { LoadMore } from "./scale/ListPager.tsx";
+import { useDebounced } from "./scale/useDebounced.ts";
 import "./jobs.css";
+import { ImportButton } from "./ImportButton.tsx";
 
 type StatusTab = "all" | "OPEN" | "IN_PROGRESS" | "CLOSED" | "delayed";
 const BILLING = ["UNBILLED", "INVOICED", "PARTIAL", "PAID"] as const;
+/** Server-side paging: list page size, board cards per column, grid cards per "load more". */
+const PAGE = 50;
+const PER_STAGE = 20;
+const GRID = 48;
 
 export function JobsPageV2() {
   const shell = useIsShellMode();
   const { mode, user } = useAuth();
   const live = !shell && mode === "production" && Boolean(user);
-  const { tx } = useStore();
-  const jobStore = useShellJobs();
+  const { tx, locale } = useStore();
   const navigate = useNavigate();
+  const can = useCan();
   const [params, setParams] = useSearchParams();
-  const { nameOf, customers } = useCustomerLookup();
+  const { nameOf } = useCustomerLookup();
   const { nameOf: userName } = useUserLookup();
-
-  // Live: keep the list API's next-milestone fields alongside the mapped job.
-  const liveQuery = useQuery({
-    queryKey: [...queryKeys.jobs.all, "list-with-next"],
-    queryFn: async () => {
-      const items = await fetchJobs();
-      return items.map((r): JobListRow => {
-        const job = mapJobRowToShell(r);
-        const pending = (r as { milestonePendingCount?: number | null }).milestonePendingCount;
-        return {
-        ...job,
-        stage: stageFromNext(job, r.nextMilestoneCode ?? null, pending === 0),
-        next: r.nextMilestoneCode
-          ? {
-              code: r.nextMilestoneCode,
-              label: r.nextMilestoneLabel ?? r.nextMilestoneCode,
-              plannedAt: r.nextMilestonePlannedAt,
-            }
-          : null,
-        };
-      });
-    },
-    enabled: live,
-  });
-
-  const rows: JobListRow[] = useMemo(() => {
-    // Live owners are user ids — resolve them to people's names.
-    if (!shell)
-      return (liveQuery.data ?? []).map((j) => ({ ...j, salesOwner: userName(j.salesOwner), opsOwner: userName(j.opsOwner) }));
-    return jobStore.jobs.map((j) => {
-      const m = j.milestones.find((x) => !x.actualAt);
-      return { ...j, stage: stageFromMilestones(j, j.milestones), next: m ? { code: m.code, label: m.label } : null };
-    });
-  }, [shell, jobStore.jobs, liveQuery.data, userName]);
-  const loading = live && liveQuery.isLoading;
 
   const initialTab = (): StatusTab => {
     const s = params.get("status");
@@ -89,13 +62,11 @@ export function JobsPageV2() {
     return s === "OPEN" || s === "IN_PROGRESS" || s === "CLOSED" ? s : "all";
   };
   const [tab, setTab] = useState<StatusTab>(initialTab);
-  const [billing, setBilling] = useState<string>(
-    () => params.get("billing") ?? "",
-  );
-  const [customerId, setCustomerId] = useState<string | undefined>(
-    () => params.get("customer") ?? undefined,
-  );
+  const [billing, setBilling] = useState<string>(() => params.get("billing") ?? "");
+  const [customerId, setCustomerId] = useState<string | undefined>(() => params.get("customer") ?? undefined);
+  const [customerLabel, setCustomerLabel] = useState<string | undefined>();
   const [search, setSearch] = useState("");
+  const q = useDebounced(search.trim(), 300);
   const stageParam = params.get("stage");
   const stageFilter: StageKey | null = isStageKey(stageParam) ? stageParam : null;
   const setStage = (k: StageKey | null) => {
@@ -109,38 +80,102 @@ export function JobsPageV2() {
     setViewState(v);
     writeView("jobs", v);
   };
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<string[]>([]);
+  /** Board "load more": extra cards fetched per stage column. */
+  const [extra, setExtra] = useState<Partial<Record<StageKey, JobListRow[]>>>({});
+  const [moreBusy, setMoreBusy] = useState<StageKey | null>(null);
+
+  const filters: JobListParams = { q, status: tab, billing: billing || undefined, customerId };
+  const filterKey = JSON.stringify(filters);
+  useEffect(() => {
+    setPage(1);
+    setSelected([]);
+    setExtra({});
+  }, [filterKey, stageFilter, view]);
 
   useEffect(() => {
-    const selected = params.get("selected");
-    if (selected && rows.some((j) => j.id === selected))
-      navigate(`/jobs/${selected}`, { replace: true });
-  }, [params, navigate, rows]);
+    const sel = params.get("selected");
+    if (sel) navigate(`/jobs/${sel}`, { replace: true });
+  }, [params, navigate]);
 
-  const q = search.trim().toLowerCase();
-  const base = rows.filter((j) => {
-    if (billing && j.billingStatus !== billing) return false;
-    if (customerId && j.customerId !== customerId) return false;
-    if (!q) return true;
-    return `${j.jobNumber} ${nameOf(j.customerId, "")} ${j.shipper} ${j.consignee} ${j.carrier} ${j.vessel} ${j.origin} ${j.destination} ${j.pol} ${j.pod}`
-      .toLowerCase()
-      .includes(q);
+  const serverName = (r: JobPageRow) =>
+    (locale === "th" ? r.customerNameTh : locale === "en" ? r.customerNameEn : r.customerNameZh) ||
+    r.customerNameEn ||
+    r.customerNameTh ||
+    r.customerNameZh ||
+    "";
+  const toRow = (r: JobPageRow): JobListRow => {
+    const job = mapJobRowToShell(r);
+    return {
+      ...job,
+      // Live owners are user ids — resolve them to people's names.
+      salesOwner: userName(job.salesOwner),
+      opsOwner: userName(job.opsOwner),
+      stage: typeof r.stage === "number" ? r.stage : stageFromNext(job, r.nextMilestoneCode ?? null, r.milestonePendingCount === 0),
+      next: r.nextMilestoneCode
+        ? { code: r.nextMilestoneCode, label: r.nextMilestoneLabel ?? r.nextMilestoneCode, plannedAt: r.nextMilestonePlannedAt }
+        : null,
+      customerLabel: nameOf(r.customerId, "") || serverName(r) || undefined,
+    };
+  };
+
+  const boardMode = view === "cards" && !stageFilter;
+  const gridMode = view === "cards" && Boolean(stageFilter);
+  const boardQ = useQuery({
+    queryKey: ["jobs", "page", "board", filterKey],
+    queryFn: () => fetchJobsPage({ ...filters, perStage: PER_STAGE }),
+    enabled: live && boardMode,
+    placeholderData: keepPreviousData,
   });
-  const inTab = (j: JobListRow, t: StatusTab) =>
-    t === "all" ? true : t === "delayed" ? Boolean(j.delayed) : j.status === t;
-  const inTabRows = base.filter((j) => inTab(j, tab));
-  const stageCount = (k: StageKey) => inTabRows.filter((j) => STAGE_KEYS[rowStage(j)] === k).length;
-  const filtered = stageFilter ? inTabRows.filter((j) => STAGE_KEYS[rowStage(j)] === stageFilter) : inTabRows;
-  const count = (t: StatusTab) => base.filter((j) => inTab(j, t)).length;
-  const lateTotal = rows.filter((j) => j.delayed).length;
+  const gridQ = useInfiniteQuery({
+    queryKey: ["jobs", "page", "grid", filterKey, stageFilter],
+    queryFn: ({ pageParam }) => fetchJobsPage({ ...filters, stage: stageFilter, sort: "board", limit: GRID, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => {
+      const n = all.reduce((s, p) => s + p.items.length, 0);
+      return n < last.total ? n : undefined;
+    },
+    enabled: live && gridMode,
+  });
+  const listQ = useQuery({
+    queryKey: ["jobs", "page", "list", filterKey, stageFilter, page],
+    queryFn: () => fetchJobsPage({ ...filters, stage: stageFilter, limit: PAGE, offset: (page - 1) * PAGE }),
+    enabled: live && view === "list",
+    placeholderData: keepPreviousData,
+  });
+
+  const active: JobPage | undefined = view === "list" ? listQ.data : gridMode ? gridQ.data?.pages[0] : boardQ.data;
+  const activeQ = view === "list" ? listQ : gridMode ? gridQ : boardQ;
+  const loading = live && activeQ.isLoading;
+  const counts = active?.counts;
+  const stageCounts = active?.stageCounts;
+  const count = (t: StatusTab) => counts?.[t];
+  const stageCount = (k: StageKey) => stageCounts?.[k] ?? 0;
+  const matched = active?.total ?? 0;
+  const anyJobs = (counts?.all ?? 0) > 0 || Boolean(q || billing || customerId);
+
+  const boardRows = useMemo(() => (boardQ.data?.items ?? []).map(toRow), [boardQ.data, nameOf, userName, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gridRows = useMemo(() => (gridQ.data?.pages ?? []).flatMap((p) => p.items).map(toRow), [gridQ.data, nameOf, userName, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listRows = useMemo(() => (listQ.data?.items ?? []).map(toRow), [listQ.data, nameOf, userName, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadMoreStage(key: StageKey, shown: number) {
+    setMoreBusy(key);
+    try {
+      const res = await fetchJobsPage({ ...filters, stage: key, sort: "board", limit: PER_STAGE, offset: shown });
+      setExtra((e) => ({ ...e, [key]: [...(e[key] ?? []), ...res.items.map(toRow)] }));
+    } finally {
+      setMoreBusy(null);
+    }
+  }
 
   const fleetFacts = {
-    visibleJobs: filtered.length,
-    delayed: filtered.filter((j) => j.delayed).length,
-    open: filtered.filter((j) => j.status === "OPEN").length,
-    inProgress: filtered.filter((j) => j.status === "IN_PROGRESS").length,
-    unbilled: filtered.filter((j) => j.billingStatus === "UNBILLED").length,
+    visibleJobs: matched,
+    delayed: counts?.delayed ?? 0,
+    open: counts?.OPEN ?? 0,
+    inProgress: counts?.IN_PROGRESS ?? 0,
   };
-  const fleetLocal = `Fleet view: ${filtered.length} jobs shown, ${fleetFacts.delayed} delayed, ${fleetFacts.unbilled} unbilled.`;
+  const fleetLocal = `Fleet view: ${matched} jobs shown, ${fleetFacts.delayed} delayed.`;
 
   const newButton = (
     <Link to="/quotations?tab=accepted">
@@ -150,7 +185,7 @@ export function JobsPageV2() {
     </Link>
   );
 
-  if (!shell && !live) {
+  if (!live) {
     return (
       <>
         <PageHeader title={tx("jobs_title")} />
@@ -186,11 +221,15 @@ export function JobsPageV2() {
     </Popover>
   );
 
+  const exportAll = jobsCsvUrl({ ...filters, stage: stageFilter, lang: locale });
+  const emptyText = anyJobs ? tx("jobs_noMatch") : tx("jobs_emptyDesc");
+  const emptyAction = anyJobs ? undefined : newButton;
+
   return (
     <>
       <PageHeader
         title={tx("jobs_title")}
-        subtitle={tx("jobs_sub", { n: rows.length, late: lateTotal })}
+        subtitle={counts ? tx("jobs_sub", { n: counts.all.toLocaleString(), late: counts.delayed.toLocaleString() }) : undefined}
         extra={
           <>
             <AiBriefCard
@@ -198,6 +237,7 @@ export function JobsPageV2() {
               facts={fleetFacts}
               localFallback={fleetLocal}
             />
+            <ImportButton entity="jobs" />
             {newButton}
           </>
         }
@@ -209,26 +249,10 @@ export function JobsPageV2() {
               onChange: (v) => setTab(v as StatusTab),
               options: [
                 { value: "all", label: tx("filterAll"), count: count("all") },
-                {
-                  value: "OPEN",
-                  label: tx("jobs_tabOpen"),
-                  count: count("OPEN"),
-                },
-                {
-                  value: "IN_PROGRESS",
-                  label: tx("jobs_tabInProgress"),
-                  count: count("IN_PROGRESS"),
-                },
-                {
-                  value: "CLOSED",
-                  label: tx("jobs_tabClosed"),
-                  count: count("CLOSED"),
-                },
-                {
-                  value: "delayed",
-                  label: tx("jobs_tabDelayed"),
-                  count: count("delayed"),
-                },
+                { value: "OPEN", label: tx("jobs_tabOpen"), count: count("OPEN") },
+                { value: "IN_PROGRESS", label: tx("jobs_tabInProgress"), count: count("IN_PROGRESS") },
+                { value: "CLOSED", label: tx("jobs_tabClosed"), count: count("CLOSED") },
+                { value: "delayed", label: tx("jobs_tabDelayed"), count: count("delayed") },
               ],
             }}
             search={{
@@ -236,19 +260,6 @@ export function JobsPageV2() {
               onChange: setSearch,
               placeholder: tx("jobs_search"),
             }}
-            selects={[
-              {
-                key: "customer",
-                placeholder: tx("jobs_allCustomers"),
-                value: customerId,
-                onChange: setCustomerId,
-                options: customers.map((c) => ({
-                  value: c.id,
-                  label: nameOf(c.id),
-                })),
-                width: 190,
-              },
-            ]}
             onClear={
               billing || customerId || search || tab !== "all" || stageFilter
                 ? () => {
@@ -262,20 +273,33 @@ export function JobsPageV2() {
             }
             extra={
               <>
+                <CustomerFilter
+                  value={customerId}
+                  label={customerLabel ?? (customerId ? nameOf(customerId, "") : undefined)}
+                  placeholder={tx("jobs_allCustomers")}
+                  onChange={(id, name) => {
+                    setCustomerId(id);
+                    setCustomerLabel(name);
+                  }}
+                  width={190}
+                />
                 {filterPopover}
+                {can("shipment.view") ? (
+                  <Button href={exportAll} icon={<DownloadSimple size={16} aria-hidden />} aria-label={tx("sc_exportFiltered")} title={tx("sc_exportFiltered")} />
+                ) : null}
                 <ViewSwitch value={view} onChange={setView} labels={{ cards: tx("jobs_viewBoard"), list: tx("viewList") }} />
               </>
             }
-            count={filtered.length}
+            count={active ? matched : undefined}
           />
         </div>
       </PageHeader>
 
-      {live && liveQuery.isError ? (
+      {activeQ.isError ? (
         <ErrorState
           title={tx("jobs_loadFailed")}
           action={
-            <Button onClick={() => void liveQuery.refetch()}>
+            <Button onClick={() => void activeQ.refetch()}>
               {tx("jobs_retry")}
             </Button>
           }
@@ -286,43 +310,62 @@ export function JobsPageV2() {
             <StagePicker value={stageFilter} onChange={setStage} count={stageCount} />
           ) : null}
           {view === "list" ? (
-            <JobsProTable
-              rows={filtered}
-              loading={loading}
-              emptyText={rows.length ? tx("jobs_noMatch") : tx("jobs_emptyDesc")}
-              emptyAction={rows.length ? undefined : newButton}
-            />
+            <>
+              {selected.length ? (
+                <JobsBulkBar ids={selected} onClear={() => setSelected([])} exportHref={jobsCsvUrl({ ids: selected, lang: locale })} />
+              ) : null}
+              <JobsProTable
+                rows={listRows}
+                loading={loading || (listQ.isFetching && listQ.isPlaceholderData)}
+                emptyText={emptyText}
+                emptyAction={emptyAction}
+                rowSelection={{
+                  selectedRowKeys: selected,
+                  preserveSelectedRowKeys: true,
+                  onChange: (keys) => setSelected(keys as string[]),
+                }}
+                paging={{ page, pageSize: PAGE, total: matched, onChange: setPage }}
+              />
+            </>
           ) : loading ? (
             <LoadingState />
-          ) : !filtered.length ? (
-            <EmptyState description={rows.length ? tx("jobs_noMatch") : tx("jobs_emptyDesc")} action={rows.length ? undefined : newButton} />
-          ) : stageFilter ? (
-            <CardGrid min={300}>
-              {sortForBoard(filtered).map((r) => (
-                <JobCard key={r.id} row={r} customer={nameOf(r.customerId)} />
-              ))}
-            </CardGrid>
+          ) : !matched ? (
+            <EmptyState description={emptyText} action={emptyAction} />
+          ) : gridMode ? (
+            <>
+              <CardGrid min={300}>
+                {gridRows.map((r) => (
+                  <JobCard key={r.id} row={r} customer={r.customerLabel ?? nameOf(r.customerId)} />
+                ))}
+              </CardGrid>
+              <LoadMore left={matched - gridRows.length} loading={gridQ.isFetchingNextPage} onClick={() => void gridQ.fetchNextPage()} />
+            </>
           ) : (
             <div
               className="jobs-board"
               style={{
                 ["--jobs-cols" as string]: SHIPMENT_STAGES.map((st) =>
-                  filtered.some((r) => STAGE_KEYS[rowStage(r)] === st.key) ? "minmax(264px, 1fr)" : "minmax(150px, 0.45fr)",
+                  stageCount(st.key) ? "minmax(264px, 1fr)" : "minmax(150px, 0.45fr)",
                 ).join(" "),
               }}
             >
               <Board
                 columns={SHIPMENT_STAGES.map((st) => {
-                  const list = sortForBoard(filtered.filter((r) => STAGE_KEYS[rowStage(r)] === st.key));
-                  const late = list.filter((r) => r.delayed && rowStage(r) < 5).length;
+                  const idx = STAGE_KEYS.indexOf(st.key);
+                  const list = [...boardRows.filter((r) => rowStage(r) === idx), ...(extra[st.key] ?? [])];
+                  const total = stageCount(st.key);
+                  const late = list.some((r) => r.delayed && rowStage(r) < 5);
                   return {
                     key: st.key,
                     icon: st.icon,
                     tone: late ? "danger" : STAGE_TONE[st.key],
                     title: tx(`stage_${st.key}`),
-                    count: list.length,
+                    count: total,
                     children: list.length ? (
-                      list.map((r) => <JobCard key={r.id} row={r} customer={nameOf(r.customerId)} />)
+                      <>
+                        {list.map((r) => <JobCard key={r.id} row={r} customer={r.customerLabel ?? nameOf(r.customerId)} />)}
+                        <LoadMore left={total - list.length} loading={moreBusy === st.key} onClick={() => void loadMoreStage(st.key, list.length)} />
+                      </>
                     ) : (
                       <span className="jobs-board-empty" aria-hidden>
                         —
@@ -347,15 +390,6 @@ const STAGE_TONE: Record<StageKey, "neutral" | "info" | "primary" | "success"> =
   customs: "info",
   delivered: "success",
 };
-
-/** Late first, then soonest arrival. */
-function sortForBoard(list: JobListRow[]): JobListRow[] {
-  const t = (v: string) => {
-    const d = known(v) ? new Date(v).getTime() : NaN;
-    return Number.isNaN(d) ? Infinity : d;
-  };
-  return [...list].sort((a, b) => Number(Boolean(b.delayed)) - Number(Boolean(a.delayed)) || t(a.eta) - t(b.eta));
-}
 
 /** Six stage buttons (icon + count) — filters both views, mirrors /jobs?stage=<key>. */
 function StagePicker({ value, onChange, count }: { value: StageKey | null; onChange: (k: StageKey | null) => void; count: (k: StageKey) => number }) {

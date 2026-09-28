@@ -9,7 +9,7 @@ import { useIsShellMode, useShellSession } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { Donut, PageHeader, Panel, StatusTag, Tile, TileRow } from "../v2/components";
 import type { Tone } from "../v2/components/Graphics.tsx";
-import { BoxPortrait, BoxRoof, daysInYard, FREE_DAYS, FreeTimeBar, freeTimeOf, isLongBox } from "../v2/pages/ops/BoxVisuals.tsx";
+import { BoxPortrait, BoxRoof, daysInYard, FreeTimeBar, freeTimeOf, isLongBox } from "../v2/pages/ops/BoxVisuals.tsx";
 import { useCustomerName } from "../v2/pages/ops/opsHooks.ts";
 import { boxMeta, boxStatusLabel, fmtOpsDate } from "../v2/pages/ops/opsShared.ts";
 import { placeName } from "../v2/lib/places.ts";
@@ -309,7 +309,8 @@ export function YardPage() {
                 <FreeTimeBar
                   daysLeft={focusFree.daysLeft}
                   labels={freeLabels(focusFree.daysLeft)}
-                  hint={focusFree.estimated ? tx("ops_bx_freeEst", { n: FREE_DAYS }) : undefined}
+                  total={focusFree.total}
+                  hint={focusFree.estimated ? tx("ops_bx_freeEst", { n: focusFree.total }) : undefined}
                 />
               ) : null}
               <ul className="yd-detail-facts">

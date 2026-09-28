@@ -17,7 +17,7 @@ import {
 import { App, Button, Checkbox, Input, Modal, Space, Tabs, Tooltip, Upload } from "antd";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Mail } from "../../data";
 import type { ShellJob } from "../../ports/job.port.ts";
 import { useShellJobs } from "../../shell/jobStore.tsx";
@@ -46,9 +46,15 @@ import {
   type StageKey,
 } from "../components";
 import { AiMailPanel } from "../components/AiMailPanel.tsx";
-import { useJobCharges, useJobFinancials, useJobMilestones, useJobTasks, useCreateJobTask, usePatchJobMilestone, usePatchJobTask } from "../hooks/useJobs.ts";
-import { useCustomerDocs, useCustomerMails, useJobContainers, useLiveInvoices } from "../hooks/useCommercial.ts";
+import { useJobCharges, useJobFinancials, useJobMilestones, useJobTasks, usePatchJobMilestone, usePatchJobTask } from "../hooks/useJobs.ts";
+import { useCustomerDocs, useCustomerMails, useJobContainers } from "../hooks/useCommercial.ts";
+import { fetchInvoicesPage } from "../../api/lists.ts";
 import { useAppMode } from "../hooks/useAppMode.ts";
+import { useCan } from "../hooks/useCan.ts";
+import { useTaskActions, useTasks } from "../hooks/useTasks.ts";
+import { fetchJob } from "../../api/commercial.ts";
+import type { Cutoffs } from "../../api/bookings.ts";
+import { JobCutoffsPanel } from "./ops/Cutoffs.tsx";
 import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../hooks/useUserLookup.ts";
 import { fmtMailTime } from "../lib/time.ts";
@@ -67,7 +73,7 @@ type Props = {
 type MsRow = { code: string; label: string; actualAt: string | null; plannedAt?: string | null };
 
 export function JobDetailLiveV2({ job }: Props) {
-  const { tx, locale, tasks: storeTasks } = useStore();
+  const { tx, locale } = useStore();
   const { message } = App.useApp();
   const { live } = useAppMode();
   const qc = useQueryClient();
@@ -96,12 +102,30 @@ export function JobDetailLiveV2({ job }: Props) {
   const milestones = useJobMilestones(job.id);
   const patchMilestone = usePatchJobMilestone(job.id);
   const jobTasksQuery = useJobTasks(job.id);
-  const createTask = useCreateJobTask(job.id);
   const patchTask = usePatchJobTask(job.id);
+  const can = useCan();
+  // Org to-dos linked to this job (also listed on /tasks); the legacy job checklist (job_tasks) is merged in below.
+  const orgTasks = useTasks({ jobId: job.id, scope: "all", status: "all", limit: 200 });
+  const taskActions = useTaskActions();
+  // Cut-offs live on the raw job row; keyed under the job detail key so the panel's invalidation refreshes it.
+  const cutoffQuery = useQuery({
+    queryKey: [...queryKeys.jobs.detail(job.id), "cutoffs"],
+    queryFn: async (): Promise<Cutoffs> => {
+      const row = (await fetchJob(job.id)) as Record<string, unknown>;
+      const pick = (k: string) => (typeof row[k] === "string" ? (row[k] as string) : null);
+      return { siCutoff: pick("siCutoff"), cyCutoff: pick("cyCutoff"), vgmCutoff: pick("vgmCutoff") };
+    },
+    enabled: live,
+  });
   const containers = useJobContainers(job.id);
   const docs = useCustomerDocs(job.customerId);
   const mails = useCustomerMails(job.customerId);
-  const invoices = useLiveInvoices(job.customerId);
+  // This job's invoices only (paged list filtered by jobId), not the customer's whole history.
+  const invoices = useQuery({
+    queryKey: [...queryKeys.invoices.list(job.customerId), "job", job.id],
+    queryFn: async () => (await fetchInvoicesPage({ jobId: job.id, limit: 200 })).items,
+    enabled: live && can("invoice.view"),
+  });
 
   const invalidateMails = () => void qc.invalidateQueries({ queryKey: queryKeys.mails.byCustomer(job.customerId) });
 
@@ -187,13 +211,27 @@ export function JobDetailLiveV2({ job }: Props) {
   }
 
   /* ── Tasks ── */
-  const shellJobTasks = storeTasks.filter((t) => t.customerId === job.customerId && !t.done);
-  const liveJobTasks = jobTasksQuery.data ?? [];
+  // Shell-only branch (unused): org to-dos now come from /api/tasks.
+  const shellJobTasks: { id: string; title: string; priority: string; due: string }[] = [];
+  type MergedTask = { id: string; source: "org" | "job"; title: string; done: boolean; priority: string; dueAt: string | null };
+  const liveJobTasks: MergedTask[] = [
+    ...(orgTasks.data?.items ?? []).map((t) => ({ id: t.id, source: "org" as const, title: t.title, done: t.done, priority: t.priority, dueAt: t.dueAt })),
+    ...(jobTasksQuery.data ?? []).map((t) => ({ id: t.id, source: "job" as const, title: t.title, done: t.done, priority: t.priority, dueAt: t.dueAt })),
+  ].sort((a, b) => Number(a.done) - Number(b.done) || (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999"));
+
+  function toggleTask(t: MergedTask, done: boolean) {
+    if (t.source === "org") taskActions.toggle.mutate({ id: t.id, done }, { onError: (e: Error) => message.error(e.message) });
+    else patchTask.mutate({ taskId: t.id, patch: { done } });
+  }
 
   function addTask() {
     const title = newTaskTitle.trim();
     if (!title) return;
-    createTask.mutate({ title }, { onSuccess: () => setNewTaskTitle(""), onError: (e: Error) => message.error(e.message) });
+    // New to-dos go through /api/tasks so they also show on /tasks and the owner's badge.
+    taskActions.create.mutate(
+      { title, jobId: job.id, customerId: job.customerId || null },
+      { onSuccess: () => setNewTaskTitle(""), onError: (e: Error) => message.error(e.message) },
+    );
   }
 
   /* ── Money ── */
@@ -335,18 +373,25 @@ export function JobDetailLiveV2({ job }: Props) {
       key: "overview",
       label: tx("jobs_tabOverview"),
       children: (
-        <div className="cz-split">
-          <Panel title={tx("jobs_shipment")}>
-            <dl className="jobs-dl">
-              {facts.map((f) => (
-                <div key={f.label}>
-                  <dt>{f.label}</dt>
-                  <dd>{f.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </Panel>
-          {moneyPanel}
+        <div className="cz-stack">
+          <div className="cz-split">
+            <Panel title={tx("jobs_shipment")}>
+              <dl className="jobs-dl">
+                {facts.map((f) => (
+                  <div key={f.label}>
+                    <dt>{f.label}</dt>
+                    <dd>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Panel>
+            {moneyPanel}
+          </div>
+          {live && cutoffQuery.data ? (
+            <Panel>
+              <JobCutoffsPanel jobId={job.id} values={cutoffQuery.data} canEdit={can("shipment.edit")} />
+            </Panel>
+          ) : null}
         </div>
       ),
     },
@@ -553,12 +598,12 @@ export function JobDetailLiveV2({ job }: Props) {
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 onPressEnter={addTask}
               />
-              <Button type="primary" icon={<Plus size={16} aria-hidden />} loading={createTask.isPending} onClick={addTask}>
+              <Button type="primary" icon={<Plus size={16} aria-hidden />} loading={taskActions.create.isPending} onClick={addTask}>
                 {tx("jobs_taskAdd")}
               </Button>
             </div>
           ) : null}
-          {live && jobTasksQuery.isLoading ? (
+          {live && (jobTasksQuery.isLoading || orgTasks.isLoading) ? (
             <LoadingState />
           ) : (live ? liveJobTasks.length : shellJobTasks.length) === 0 ? (
             emptyLine(tx("jobs_taskEmpty"))
@@ -566,11 +611,11 @@ export function JobDetailLiveV2({ job }: Props) {
             <ul className="jobs-list">
               {live
                 ? liveJobTasks.map((t) => (
-                    <li key={t.id}>
+                    <li key={`${t.source}-${t.id}`}>
                       <Checkbox
                         checked={t.done}
                         aria-label={localizeDemo(t.title, locale)}
-                        onChange={(e) => patchTask.mutate({ taskId: t.id, patch: { done: e.target.checked } })}
+                        onChange={(e) => toggleTask(t, e.target.checked)}
                       />
                       <span className="grow">{localizeDemo(t.title, locale)}</span>
                       {t.priority === "high" ? <StatusTag status="OVERDUE" label={tx("jobs_prio_high")} /> : null}

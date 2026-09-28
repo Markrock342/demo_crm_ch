@@ -2,6 +2,7 @@ import { Badge, Dropdown } from "antd";
 import {
   Bell,
   CaretDown,
+  Compass,
   EnvelopeSimple,
   List,
   MagnifyingGlass,
@@ -19,10 +20,13 @@ import { CommandPalette } from "../CommandPalette";
 import { AppRoutes } from "../AppRoutes.tsx";
 import { LangPicker } from "../ui/LangPicker";
 import { useMedia } from "../ui/useMedia";
-import { useShellNotifications } from "../shell/notificationStore.tsx";
-import { useIsShellMode, useShellSession } from "../shell/session.tsx";
+import { useUnreadCount } from "./hooks/useNotifications.ts";
+import { useTasks } from "./hooks/useTasks.ts";
+import { useShellSession } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { initialOf } from "./components/Visuals.tsx";
+import { startOnboardingTour } from "./components/HelpButton.tsx";
+import { OnboardingTour } from "./components/OnboardingTour.tsx";
 import { localizedUserName } from "./lib/demoText.ts";
 import { activeNavItem, departmentFromRoles, v2NavForDepartment, v2NavPathAllowed } from "./navConfig.ts";
 import "./shell.css";
@@ -42,8 +46,6 @@ export function V2AppShell() {
   const { user, logout } = useAuth();
   const orgName = user?.organizationName?.trim() || "";
   const { shellUser, leave } = useShellSession();
-  const shellMode = useIsShellMode();
-  const shellNotes = useShellNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const mobile = useMedia("(max-width: 1024px)");
@@ -52,7 +54,9 @@ export function V2AppShell() {
   const displayName = localizedUserName(shellUser ?? user, locale) || tx("userName");
   const displayRole = shellUser?.roles[0] ?? user?.roles[0] ?? tx("userRole");
   const unread = mails.filter((m) => m.unread && m.state === "open").length;
-  const hot = shellMode ? shellNotes.unreadCount : 0;
+  const hot = useUnreadCount();
+  // My open to-dos (limit 1: only the total is needed for the badge).
+  const myOpenTasks = useTasks({ scope: "mine", status: "open", limit: 1 }).data?.total ?? 0;
 
   const [cmd, setCmd] = useState(false);
   const [gemini, setGemini] = useState<boolean | null>(null);
@@ -112,7 +116,7 @@ export function V2AppShell() {
     can("/leads") && { key: "/leads?new=1", label: tx("quickNewLead") },
   ].filter(Boolean) as { key: string; label: string }[];
 
-  const badgeFor = (path: string) => (path === "/inbox" ? unread : path === "/tasks" || path === "/notifications" ? hot : 0);
+  const badgeFor = (path: string) => (path === "/inbox" ? unread : path === "/notifications" ? hot : path === "/tasks" ? myOpenTasks : 0);
 
   const sidebar = (
     <aside className={`cz-side${narrow ? " is-narrow" : ""}${mobile ? " is-drawer" : ""}${drawer ? " is-open" : ""}`} aria-label={tx("mobileMenu")}>
@@ -243,6 +247,7 @@ export function V2AppShell() {
                   { key: "role", label: <span className="cz-menu-meta">{displayRole}</span>, disabled: true },
                   { type: "divider" },
                   { key: "settings", icon: <Gear size={16} />, label: tx("navSettings"), onClick: () => navigate("/settings") },
+                  { key: "tour", icon: <Compass size={16} />, label: tx("hp_menuTour"), onClick: startOnboardingTour },
                   { key: "logout", icon: <SignOut size={16} />, label: tx("logout"), danger: true, onClick: onLeave },
                 ],
               }}
@@ -268,6 +273,7 @@ export function V2AppShell() {
       </div>
 
       <CommandPalette open={cmd} onClose={() => setCmd(false)} />
+      <OnboardingTour />
       {toast ? (
         <div className="toast" role="status">
           {toast}

@@ -1,11 +1,12 @@
 import { ArrowClockwise, Boat, CheckCircle, ClipboardText, MapTrifold, Plus, Stamp, Timer, Warehouse, WarningCircle, type Icon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Tooltip } from "antd";
+import { App, Button, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Tooltip } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { snapshotStatusToShell, trackingMock } from "../../adapters/mock/tracking.mock.ts";
-import { createContainerApi, fetchContainers, type ContainerDto } from "../../api/operations.ts";
+import { createContainerApi, fetchContainers, patchContainerApi, type ContainerDto } from "../../api/operations.ts";
 import { SHELL_BOX_STATUSES, type ShellBoxStatus, type ShellDemurrageRisk } from "../../ports/ops.port.ts";
 import { canEditLogistics } from "../../shell/nav.ts";
 import { useShellOps, YARD_SLOTS } from "../../shell/opsStore.tsx";
@@ -29,6 +30,7 @@ import {
 } from "../components";
 import type { Tone } from "../components/Graphics.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
+import { useCan } from "../hooks/useCan.ts";
 import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
 import { fmtLane } from "../lib/format.ts";
 import { placeName } from "../lib/places.ts";
@@ -36,12 +38,13 @@ import { queryKeys } from "../queries/keys.ts";
 import { useCustomerName, useJobNumbers } from "./ops/opsHooks.ts";
 import { boxMeta, boxStatusLabel, daysFromToday, fmtOpsDate, parseOpsDate, type BoxGroup } from "./ops/opsShared.ts";
 import { OpsMobileList, useIsNarrow } from "./ops/OpsMobileList.tsx";
-import { BoxPortrait, BoxStrip, boxTone, FREE_DAYS, FreeTimeBar, freeTimeOf, PlaceChip, seaProgress } from "./ops/BoxVisuals.tsx";
+import { BoxPortrait, BoxStrip, boxTone, FreeTimeBar, freeTimeOf, PlaceChip, seaProgress } from "./ops/BoxVisuals.tsx";
 import "./ops/ops.css";
+import "./ops/fields.css";
 
 type Row = ContainerDto & {
   location: string;
-  lastFreeDay?: string;
+  lastFreeDay?: string | null;
   risk?: ShellDemurrageRisk;
   etaChanged?: boolean;
   carrier?: string;
@@ -66,6 +69,8 @@ export function ContainersPageV2() {
   const { jobNumberOf } = useJobNumbers();
   const [params, setParams] = useSearchParams();
   const canEdit = shell ? canEditLogistics(shellUser?.department ?? null) : live;
+  const can = useCan();
+  const canEditFree = can("container.edit");
 
   const tab = (TABS.includes(params.get("tab") as Tab) ? params.get("tab") : "all") as Tab;
   const jobIdFilter = params.get("jobId") ?? "";
@@ -309,6 +314,11 @@ export function ContainersPageV2() {
     return { left: tx("ops_bx_daysLeft", { n }), over: tx("ops_bx_daysOver", { n: -n }), last: tx("ops_bx_lastDay") };
   }
 
+  /** Estimated free time says so; real free time shows its last free day. */
+  function freeHint(ft: { estimated: boolean; lfd: Date; total: number }) {
+    return ft.estimated ? tx("ops_bx_freeEst", { n: ft.total }) : tx("fd_freeReal", { d: fmtOpsDate(ft.lfd.toISOString(), locale) });
+  }
+
   /** Red first, then amber, then the rest — so problems sit at the top of each group. */
   function severity(r: Row) {
     const a = alertOf(r);
@@ -364,7 +374,7 @@ export function ContainersPageV2() {
               <PlaceChip name={r.location} />
             )}
           </div>
-          {ft ? <FreeTimeBar daysLeft={ft.daysLeft} labels={freeLabels(ft.daysLeft)} hint={ft.estimated ? tx("ops_bx_freeEst", { n: FREE_DAYS }) : undefined} /> : null}
+          {ft ? <FreeTimeBar daysLeft={ft.daysLeft} total={ft.total} labels={freeLabels(ft.daysLeft)} hint={freeHint(ft)} /> : null}
           <div className="bx-card-foot">
             <span className="bx-card-cust">{customer}</span>
             <span className="bx-card-job">{jobNo ?? ""}</span>
@@ -531,7 +541,7 @@ export function ContainersPageV2() {
               ) : (
                 <PlaceChip name={open.location} />
               )}
-              {openFree ? <FreeTimeBar daysLeft={openFree.daysLeft} labels={freeLabels(openFree.daysLeft)} hint={openFree.estimated ? tx("ops_bx_freeEst", { n: FREE_DAYS }) : undefined} /> : null}
+              {openFree ? <FreeTimeBar daysLeft={openFree.daysLeft} total={openFree.total} labels={freeLabels(openFree.daysLeft)} hint={freeHint(openFree)} /> : null}
             </div>
             {openAlert ? <div className={`ops-callout is-${openAlert.tone}`}>{openAlert.text}</div> : null}
             <Descriptions
@@ -555,14 +565,15 @@ export function ContainersPageV2() {
                       { key: "lane", label: tx("ops_col_lane"), children: open.pol || open.pod ? fmtLane(open.pol, open.pod) : "—" },
                       { key: "eta", label: "ETA", children: fmtOpsDate(open.eta, locale) },
                     ]),
-                ...(open.lastFreeDay && open.lastFreeDay !== "—"
-                  ? [{ key: "lfd", label: tx("ops_lastFreeDay"), children: fmtOpsDate(open.lastFreeDay, locale) }]
+                ...(open.lastFreeDay && open.lastFreeDay !== "—" && !(live && canEditFree)
+                  ? [{ key: "lfd", label: tx("ops_lastFreeDay"), children: `${fmtOpsDate(open.lastFreeDay, locale)}${open.freeDays ? ` · ${tx("fd_freeDays")} ${open.freeDays}` : ""}` }]
                   : []),
                 { key: "bl", label: "B/L", children: <span className="cz-mono">{open.bl || "—"}</span> },
                 ...(open.seal ? [{ key: "seal", label: tx("ops_seal"), children: <span className="cz-mono">{open.seal}</span> }] : []),
                 ...(open.commodity ? [{ key: "com", label: tx("ops_commodity"), children: open.commodity }] : []),
               ]}
             />
+            {live && canEditFree ? <FreeTimeEditor key={`${open.id}|${open.freeDays ?? ""}|${open.lastFreeDay ?? ""}`} box={open} /> : null}
             {shell && canEdit ? (
               <div className="ops-field">
                 <label htmlFor="ops-box-status">{tx("ops_changeStatus")}</label>
@@ -600,6 +611,55 @@ export function ContainersPageV2() {
 
       <CreateContainerDrawer open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
+  );
+}
+
+/** Free days + last free day for one container (PATCH /api/containers/:id). */
+function FreeTimeEditor({ box }: { box: Row }) {
+  const { tx } = useStore();
+  const { message } = App.useApp();
+  const qc = useQueryClient();
+  const [days, setDays] = useState<number | null>(box.freeDays ?? null);
+  const [lfd, setLfd] = useState<Dayjs | null>(box.lastFreeDay ? dayjs(box.lastFreeDay) : null);
+  const save = useMutation({
+    mutationFn: () => patchContainerApi(box.id, { freeDays: days, lastFreeDay: lfd ? lfd.format("YYYY-MM-DD") : null }),
+    onSuccess: async () => {
+      message.success(tx("fd_saved"));
+      await qc.invalidateQueries({ queryKey: queryKeys.containers.all });
+    },
+    onError: () => message.error(tx("fd_saveFailed")),
+  });
+  const dirty = (days ?? null) !== (box.freeDays ?? null) || (lfd ? lfd.format("YYYY-MM-DD") : null) !== (box.lastFreeDay ?? null);
+  return (
+    <section className="fd-panel" aria-label={tx("fd_freeTime")}>
+      <h3 className="ops-drawer-h">{tx("fd_freeTime")}</h3>
+      <div className="fd-free-editor">
+        <label>
+          {tx("fd_freeDays")}
+          <InputNumber
+            min={0}
+            max={365}
+            value={days}
+            style={{ width: "100%" }}
+            onChange={(v) => {
+              const n = typeof v === "number" ? v : null;
+              setDays(n);
+              // last free day follows ETA + free days until someone sets it by hand
+              if (n !== null && box.eta) setLfd(dayjs(box.eta).add(n, "day"));
+            }}
+          />
+        </label>
+        <label>
+          <Tooltip title={box.eta ? tx("fd_lfdAuto") : undefined}>
+            <span>{tx("fd_lfd")}</span>
+          </Tooltip>
+          <DatePicker value={lfd} onChange={setLfd} style={{ width: "100%" }} />
+        </label>
+        <Button type="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>
+          {tx("fd_save")}
+        </Button>
+      </div>
+    </section>
   );
 }
 

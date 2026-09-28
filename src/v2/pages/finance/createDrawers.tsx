@@ -6,7 +6,7 @@ import {
   createInvoice,
   createVendor,
   createVendorBill,
-  fetchJobs,
+  fetchJob,
   fetchVendors,
   vendorDisplayName,
   type ManualLine,
@@ -15,6 +15,8 @@ import { useStore } from "../../../store";
 import { useCrmBundle } from "../../hooks/useCommercial.ts";
 import { useCustomerLookup } from "../../hooks/useCustomerLookup.ts";
 import { fmtMoney } from "../../lib/format.ts";
+import { JobSelect } from "./financeKit.tsx";
+import { useEffect } from "react";
 
 /**
  * Live-mode "create from scratch" drawers for finance (invoice, vendor bill, vendor).
@@ -153,10 +155,19 @@ export function LiveInvoiceDrawer({ open, onClose, defaultJobId }: { open: boole
   const { nameOf } = useCustomerLookup();
   // Live customers only (the demo store's customers don't exist on the server).
   const customers = useCrmBundle().data?.customers ?? [];
-  const jobs = useQuery({ queryKey: ["fin", "jobs-lookup"], queryFn: () => fetchJobs(), enabled: open, staleTime: 60_000 });
   const customerId = Form.useWatch("customerId", form) as string | undefined;
   const currency = (Form.useWatch("currency", form) as string | undefined) ?? "USD";
-  const defaultJob = defaultJobId ? jobs.data?.find((j) => j.id === defaultJobId) : undefined;
+  // Pre-fill customer / job / currency when opened from a job (?jobId=).
+  const defaultJob = useQuery({
+    queryKey: ["fin", "job-label", defaultJobId ?? ""],
+    queryFn: () => fetchJob(defaultJobId!),
+    enabled: open && Boolean(defaultJobId),
+    staleTime: 300_000,
+  }).data;
+  useEffect(() => {
+    if (!open || !defaultJob || form.getFieldValue("customerId")) return;
+    form.setFieldsValue({ customerId: defaultJob.customerId, jobId: defaultJob.id, currency: defaultJob.currency ?? "USD" });
+  }, [open, defaultJob, form]);
 
   const mut = useMutation({
     mutationFn: createInvoice,
@@ -168,10 +179,6 @@ export function LiveInvoiceDrawer({ open, onClose, defaultJobId }: { open: boole
     },
     onError: (e) => message.error(tx("fin_actionFailed", { err: errText(e) })),
   });
-
-  const jobOptions = (jobs.data ?? [])
-    .filter((j) => !customerId || j.customerId === customerId)
-    .map((j) => ({ value: j.id, label: `${j.jobNumber} · ${j.pol} → ${j.pod}` }));
 
   return (
     <Drawer
@@ -210,7 +217,7 @@ export function LiveInvoiceDrawer({ open, onClose, defaultJobId }: { open: boole
           />
         </Form.Item>
         <Form.Item name="jobId" label={tx("fin_colJob")} extra={customerId ? tx("be_jobForCustomer") : undefined}>
-          <Select allowClear showSearch optionFilterProp="label" placeholder={tx("fin_optional")} options={jobOptions} loading={jobs.isLoading} />
+          <JobSelect customerId={customerId} placeholder={tx("fin_optional")} />
         </Form.Item>
         <div className="fin-form-row" style={{ gridTemplateColumns: "minmax(0,1fr) 120px" }}>
           <Form.Item name="dueDate" label={tx("be_dueDate")} extra={tx("be_dueDateHint")}>
@@ -230,12 +237,10 @@ export function LiveInvoiceDrawer({ open, onClose, defaultJobId }: { open: boole
 export function LiveVendorBillDrawer({
   open,
   onClose,
-  jobs,
   defaultVendorId,
 }: {
   open: boolean;
   onClose: () => void;
-  jobs: { value: string; label: string }[];
   defaultVendorId?: string;
 }) {
   const { tx, locale } = useStore();
@@ -292,7 +297,7 @@ export function LiveVendorBillDrawer({
           />
         </Form.Item>
         <Form.Item name="jobId" label={tx("fin_colJob")}>
-          <Select allowClear showSearch optionFilterProp="label" placeholder={tx("fin_optional")} options={jobs} />
+          <JobSelect placeholder={tx("fin_optional")} />
         </Form.Item>
         <div className="fin-form-row" style={{ gridTemplateColumns: "minmax(0,1fr) 120px" }}>
           <Form.Item name="dueDate" label={tx("be_dueDate")} extra={tx("be_dueDateHint")}>

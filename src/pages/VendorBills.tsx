@@ -37,7 +37,6 @@ export function VendorBillsPage() {
   const { message } = App.useApp();
   const qc = useQueryClient();
   const support = useShellSupport();
-  const { numberOf, options: jobOptions } = useJobLookup();
   const modeNote = useModeNote();
   const [view, setView] = useState<View>("all");
   const [q, setQ] = useState("");
@@ -51,6 +50,7 @@ export function VendorBillsPage() {
   };
 
   const liveBills = useQuery({ queryKey: ["fin", "vendor-bills"], queryFn: () => fetchVendorBills(), enabled: live });
+  const { numberOf, options: jobOptions } = useJobLookup(liveBills.data);
   const liveVendors = useQuery({ queryKey: ["fin", "vendors"], queryFn: fetchVendors, enabled: live });
 
   const vendorName = useMemo(() => {
@@ -383,7 +383,7 @@ export function VendorBillsPage() {
       </>
       )}
 
-      {live ? <LiveVendorBillDrawer open={open} onClose={() => setOpen(false)} jobs={jobOptions} defaultVendorId={vendorFilter} /> : null}
+      {live ? <LiveVendorBillDrawer open={open} onClose={() => setOpen(false)} defaultVendorId={vendorFilter} /> : null}
 
       {shell ? (
         <NewBillDrawer

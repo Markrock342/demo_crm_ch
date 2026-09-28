@@ -178,22 +178,50 @@ export function commsRoutes() {
         confirm: z.literal(true),
       })
       .parse(await c.req.json());
-    const { createMailTransport } = await import("../mail/transport.js");
-    const transport = createMailTransport();
-    const draftBody = body.body || existing.draftEn || existing.draftZh || existing.bodyEn;
-    const result = await transport.send({
-      to: body.to || existing.from || "sandbox@local",
-      subject: body.subject || existing.subjectEn || existing.subjectZh,
-      body: draftBody,
-      mailId: id,
-      customerId: existing.customerId,
-      jobId: body.jobId,
+    const { extractAddress, normalizeRecipients, sendAndRecord, textToHtml } = await import("../services/outbound-mail.service.js");
+    const requested = body.to ? body.to.split(/[,;]/) : [];
+    const { ok: to, bad } = normalizeRecipients(requested.length ? requested : [extractAddress(existing.from) ?? ""]);
+    if (bad.length) return c.json({ error: "invalid_body", issues: [{ path: "to", message: `invalid e-mail: ${bad.join(", ")}` }] }, 400);
+    if (!to.length) return c.json({ error: "invalid_body", issues: [{ path: "to", message: "recipient required" }] }, 400);
+    const draftBody = body.body || existing.draftEn || existing.draftTh || existing.draftZh || "";
+    if (!draftBody.trim()) return c.json({ error: "invalid_body", issues: [{ path: "body", message: "empty reply" }] }, 400);
+    const baseSubject = body.subject || existing.subjectEn || existing.subjectTh || existing.subjectZh;
+    const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`;
+    const sent = await sendAndRecord(db, {
+      organizationId: orgId(c),
+      userId: c.get("user")!.id,
+      to,
+      subject,
+      text: draftBody,
+      html: textToHtml(draftBody),
+      customerId: existing.customerId || null,
+      entityType: body.jobId ? "job" : "mail",
+      entityId: body.jobId || id,
+      inReplyTo: id,
     });
+    if (sent.status === "failed") {
+      return c.json({ error: "send_failed", detail: sent.error, outbound: sent }, 502);
+    }
     if (!mailTransitionAllowed(existing.state, "sent")) {
       return c.json({ error: "invalid_status" }, 409);
     }
     const row = await updateMail(db, orgId(c), id, { state: "sent", unread: false });
-    return c.json({ mail: row, sandbox: result });
+    return c.json({ mail: row, outbound: sent, sandbox: { status: sent.transport === "sandbox" ? "sandbox_queued" : "sent", transport: sent.transport, sandboxId: sent.id } });
+  });
+
+  /** Mail we sent (direction "out"), newest first; filter by entityType+entityId or customerId. */
+  r.get("/mails/outbound", ...tenantGate, requirePermission("customer.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const { listOutbound } = await import("../services/outbound-mail.service.js");
+    return c.json({
+      items: await listOutbound(db, orgId(c), {
+        entityType: c.req.query("entityType") || undefined,
+        entityId: c.req.query("entityId") || undefined,
+        customerId: c.req.query("customerId") || undefined,
+        limit: Number(c.req.query("limit")) || undefined,
+      }),
+    });
   });
 
   r.get("/mails/sandbox/outbox", requireAuth(), requirePermission("customer.view"), async (c) => {

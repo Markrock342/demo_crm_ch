@@ -20,6 +20,8 @@ export type ContainerDto = {
   vessel: string | null;
   seal: string | null;
   commodity: string | null;
+  lastFreeDay: string | null;
+  freeDays: number | null;
 };
 
 function toDto(row: typeof containers.$inferSelect): ContainerDto {
@@ -40,8 +42,13 @@ function toDto(row: typeof containers.$inferSelect): ContainerDto {
     vessel: row.vessel,
     seal: row.seal,
     commodity: row.commodity,
+    lastFreeDay: row.lastFreeDay ? String(row.lastFreeDay) : null,
+    freeDays: row.freeDays ?? null,
   };
 }
+
+/** Row → API shape (shared with the paged list in container-list.service.ts). */
+export const containerDto = (row: typeof containers.$inferSelect): ContainerDto => toDto(row);
 
 export async function listContainers(
   db: Db,
@@ -89,6 +96,8 @@ export async function createContainer(
     vessel?: string;
     seal?: string;
     commodity?: string;
+    lastFreeDay?: string | null;
+    freeDays?: number | null;
   },
 ) {
   const containerNo = input.containerNo.trim().toUpperCase();
@@ -120,6 +129,8 @@ export async function createContainer(
       vessel: input.vessel ?? null,
       seal: input.seal ?? null,
       commodity: input.commodity ?? null,
+      lastFreeDay: input.lastFreeDay ?? null,
+      freeDays: input.freeDays ?? null,
     })
     .returning();
   return toDto(row);
@@ -135,6 +146,8 @@ export async function updateContainer(
     eta?: string | null;
     vessel?: string | null;
     jobId?: string | null;
+    lastFreeDay?: string | null;
+    freeDays?: number | null;
   },
 ) {
   const [row] = await db

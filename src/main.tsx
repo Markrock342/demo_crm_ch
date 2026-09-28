@@ -11,16 +11,18 @@ import { ShellOpsProvider } from "./shell/opsStore.tsx";
 import { ShellQuoteProvider } from "./shell/quoteStore.tsx";
 import { ShellSessionProvider } from "./shell/session.tsx";
 import { ShellSupportProvider } from "./shell/supportStore.tsx";
-import { ShellNotificationProvider } from "./shell/notificationStore.tsx";
-import { ShellAutomationProvider } from "./shell/automationStore.tsx";
 import { PortalSessionProvider } from "./shell/portalSession.tsx";
-import { StoreProvider } from "./store.tsx";
+import { StoreProvider, initialLocale } from "./store.tsx";
+import { loadPageLocale } from "./i18n-ui.ts";
 import { ThemedApp } from "./v2/ThemedApp.tsx";
 import "antd/dist/reset.css";
 import "./index.css";
 import "./ui/kit.css";
 
-createRoot(document.getElementById("root")!).render(
+// Fetch the starting language's page strings before first paint (other languages load on switch).
+const ready = loadPageLocale(initialLocale()).catch(() => undefined);
+
+void ready.then(() => createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
       <ShellSessionProvider>
@@ -31,18 +33,14 @@ createRoot(document.getElementById("root")!).render(
                 <ShellJobProvider>
                   <ShellBillingProvider>
                     <ShellSupportProvider>
-                      <ShellNotificationProvider>
-                        <ShellAutomationProvider>
-                          <StoreProvider>
-                            <CrmSync />
-                            <BrowserRouter>
-                              <ThemedApp>
-                                <App />
-                              </ThemedApp>
-                            </BrowserRouter>
-                          </StoreProvider>
-                        </ShellAutomationProvider>
-                      </ShellNotificationProvider>
+                      <StoreProvider>
+                        <CrmSync />
+                        <BrowserRouter>
+                          <ThemedApp>
+                            <App />
+                          </ThemedApp>
+                        </BrowserRouter>
+                      </StoreProvider>
                     </ShellSupportProvider>
                   </ShellBillingProvider>
                 </ShellJobProvider>
@@ -53,4 +51,4 @@ createRoot(document.getElementById("root")!).render(
       </ShellSessionProvider>
     </AuthProvider>
   </StrictMode>,
-);
+));

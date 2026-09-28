@@ -44,7 +44,7 @@ import {
   parseLooseDate,
   useAttentionItems,
   useModeInvoices,
-  useModeJobs,
+  useActiveJobs,
 } from "./home/attention.ts";
 import { useModeTasks } from "./home/tasks.ts";
 import "./home/home.css";
@@ -109,7 +109,7 @@ export function OverviewPageV2() {
   const { enabled } = useAppMode();
   const { user } = useAuth();
   const { shellUser } = useShellSession();
-  const { jobs, loading } = useModeJobs();
+  const { jobs, loading } = useActiveJobs();
   const invoices = useModeInvoices();
   const { items } = useAttentionItems();
   const { tasks, toggle } = useModeTasks();

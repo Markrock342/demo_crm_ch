@@ -1,11 +1,12 @@
 import { Boat, CaretRight, Coins, Package } from "@phosphor-icons/react";
-import { demoSearchText, localizeDemo } from "../lib/demoText.ts";
+import { localizeDemo } from "../lib/demoText.ts";
 import { Button } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useMemo, useState } from "react";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { cityName, customerName, laneName, type Customer } from "../../data";
-import { useShellCrm } from "../../shell/crmStore.tsx";
+import { cityName, customerName, laneName } from "../../data";
+import { fetchCustomersPage, type CustomerPageRow } from "../../api/lists.ts";
 import { useStore } from "../../store";
 import { useMedia } from "../../ui/useMedia";
 import {
@@ -23,29 +24,31 @@ import {
   readView,
   writeView,
 } from "../components";
-import { useAppMode } from "../hooks/useAppMode.ts";
 import { useUserLookup } from "../hooks/useUserLookup.ts";
 import { fmtDate } from "../lib/format.ts";
 import { CompanyMark, LaneRoute, SalesLane, SalesMobileList } from "./SalesMobileList.tsx";
-import { useCustomerMoney, type CustomerMoney } from "./salesData.ts";
-import { crmDate, fmtCompact, matches, uniqueSorted } from "./salesUtil.ts";
+import type { CustomerMoney } from "./salesData.ts";
+import { crmDate, fmtCompact } from "./salesUtil.ts";
+import { ListPager, LoadMore } from "./scale/ListPager.tsx";
+import { useDebounced } from "./scale/useDebounced.ts";
 import { CustomerFormDrawer } from "./CustomerForm.tsx";
 import "./sales.css";
+import { ImportButton } from "./ImportButton.tsx";
 
-type Row = Customer & { boxes?: number; arDays?: number; ownerUserId?: string | null };
+type Row = CustomerPageRow;
 type Tab = "all" | "active" | "ar";
 
 const AR_WARN = 30;
+/** Server-side paging: table page size / cards per "load more". */
+const PAGE = 50;
+const CARDS = 36;
 
 export function CustomersPageV2() {
   const store = useStore();
   const { tx, locale } = store;
-  const crm = useShellCrm();
-  const { shell } = useAppMode();
   const people = useUserLookup();
   const navigate = useNavigate();
   const mobile = useMedia("(max-width: 640px)");
-  const customers = (shell ? crm.customers : store.customers) as Row[];
   /** Owner in the UI language (staff directory), falling back to the stored name. */
   const ownerName = (c: Row) => (c.ownerUserId ? people.nameOf(c.ownerUserId, c.owner) : c.owner);
 
@@ -58,7 +61,6 @@ export function CustomersPageV2() {
     setParams(next, { replace: true });
   };
 
-  const money = useCustomerMoney();
   const [view, setViewState] = useState(() => readView("customers"));
   const setView = (v: "cards" | "list") => {
     setViewState(v);
@@ -66,24 +68,44 @@ export function CustomersPageV2() {
   };
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState(params.get("q") ?? "");
+  const dq = useDebounced(q.trim(), 300);
   const [owner, setOwner] = useState<string | undefined>();
+  const [page, setPage] = useState(1);
+  const filters = { q: dq, tab, owner };
+  const filterKey = JSON.stringify(filters);
+  useEffect(() => setPage(1), [filterKey, view]);
 
-  const isActive = (c: Row) => (c.boxes ?? 0) > 0;
-  const isArRisk = (c: Row) => (c.arDays ?? 0) >= AR_WARN;
-
-  const rows = useMemo(
-    () =>
-      customers.filter(
-        (c) =>
-          (tab === "all" || (tab === "active" ? isActive(c) : isArRisk(c))) &&
-          (!owner || c.owner === owner) &&
-          matches(q, c.nameZh, c.nameTh, c.nameEn, c.cityZh, c.cityTh, c.cityEn, c.laneZh, c.laneTh, c.laneEn, demoSearchText(c.owner)),
-      ),
-    [customers, tab, owner, q],
+  // Search / tabs / owner / paging + money per row all come from the server (GET /api/customers?stats=1).
+  const listQ = useQuery({
+    queryKey: ["customers", "page", "list", filterKey, page],
+    queryFn: () => fetchCustomersPage({ ...filters, limit: PAGE, offset: (page - 1) * PAGE }),
+    enabled: view === "list",
+    placeholderData: keepPreviousData,
+  });
+  const cardsQ = useInfiniteQuery({
+    queryKey: ["customers", "page", "cards", filterKey],
+    queryFn: ({ pageParam }) => fetchCustomersPage({ ...filters, limit: CARDS, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => {
+      const n = all.reduce((s, p) => s + p.items.length, 0);
+      return n < last.total ? n : undefined;
+    },
+    enabled: view === "cards",
+  });
+  const head = view === "list" ? listQ.data : cardsQ.data?.pages[0];
+  const rows: Row[] = useMemo(
+    () => (view === "list" ? (listQ.data?.items ?? []) : (cardsQ.data?.pages ?? []).flatMap((p) => p.items)),
+    [view, listQ.data, cardsQ.data],
   );
-  const owners = useMemo(() => uniqueSorted(customers.map((c) => c.owner)), [customers]);
-  const activeCount = customers.filter(isActive).length;
-  const arCount = customers.filter(isArRisk).length;
+  const money: Record<string, CustomerMoney> = useMemo(() => Object.fromEntries(rows.map((r) => [r.id, r.money])), [rows]);
+  const counts = head?.counts ?? { all: 0, active: 0, ar: 0 };
+  const total = head?.total ?? 0;
+  const owners = head?.owners ?? [];
+  const activeCount = counts.active;
+  const arCount = counts.ar;
+  const hasAny = counts.all > 0 || Boolean(dq || owner);
+
+  const isArRisk = (c: Row) => (c.arDays ?? 0) >= AR_WARN;
 
   const open360 = (c: Row) => navigate(`/customers/${c.id}`);
 
@@ -186,32 +208,32 @@ export function CustomersPageV2() {
     </Button>
   );
   const empty =
-    customers.length === 0 ? (
+    !hasAny ? (
       <EmptyState title={tx("sales_customersEmpty")} description={tx("sales_customersEmptyHint")} action={newButton} />
     ) : (
       <EmptyState description={tx("noResults")} />
     );
 
   const facts = {
-    customers: customers.length,
+    customers: counts.all,
     withBoxesMoving: activeCount,
     arOver30Days: arCount,
-    lanes: new Set(customers.map((c) => c.laneZh)).size,
   };
 
   return (
     <div className="cz-stack sales-page">
       <PageHeader
         title={tx("sales_customersTitle")}
-        subtitle={tx("sales_customersSub", { n: customers.length, b: activeCount })}
+        subtitle={head ? tx("sales_customersSub", { n: counts.all.toLocaleString(), b: activeCount.toLocaleString() }) : undefined}
         extra={
           <>
             <ViewSwitch value={view} onChange={setView} labels={{ cards: tx("viewCards"), list: tx("viewList") }} />
             <AiBriefCard
               title={tx("aiMgmtReport")}
               facts={facts}
-              localFallback={`${customers.length} customers, ${activeCount} with boxes moving, ${arCount} with AR over 30 days.`}
+              localFallback={`${counts.all} customers, ${activeCount} with boxes moving, ${arCount} with AR over 30 days.`}
             />
+            <ImportButton entity="customers" />
             {newButton}
           </>
         }
@@ -221,7 +243,7 @@ export function CustomersPageV2() {
             value: tab,
             onChange: (v) => setTab(v as Tab),
             options: [
-              { value: "all", label: tx("sales_tabAll"), count: customers.length },
+              { value: "all", label: tx("sales_tabAll"), count: counts.all },
               { value: "active", label: tx("sales_tabActive"), count: activeCount },
               { value: "ar", label: tx("sales_tabArRisk"), count: arCount },
             ],
@@ -242,7 +264,7 @@ export function CustomersPageV2() {
             setQ("");
             setOwner(undefined);
           }}
-          count={rows.length}
+          count={head ? total : undefined}
         />
       </PageHeader>
 
@@ -250,7 +272,10 @@ export function CustomersPageV2() {
         rows.length === 0 ? (
           empty
         ) : (
-          <CardGrid min={300}>{rows.map(customerCard)}</CardGrid>
+          <>
+            <CardGrid min={300}>{rows.map(customerCard)}</CardGrid>
+            <LoadMore left={total - rows.length} loading={cardsQ.isFetchingNextPage} onClick={() => void cardsQ.fetchNextPage()} />
+          </>
         )
       ) : mobile ? (
         <SalesMobileList
@@ -274,16 +299,23 @@ export function CustomersPageV2() {
             onClick: () => open360(c),
           }))}
         />
-      ) : (
+      ) : null}
+      {view === "list" && mobile ? <ListPager page={page} pageSize={PAGE} total={total} onChange={setPage} /> : null}
+      {view === "list" && !mobile ? (
+        <>
         <DataTable<Row>
           rowKey="id"
           columns={columns}
           dataSource={rows}
+          loading={listQ.isLoading || (listQ.isFetching && listQ.isPlaceholderData)}
+          pagination={false}
           onRowClick={open360}
-          emptyText={customers.length === 0 ? tx("sales_customersEmptyHint") : undefined}
-          emptyAction={customers.length === 0 ? newButton : undefined}
+          emptyText={!hasAny ? tx("sales_customersEmptyHint") : undefined}
+          emptyAction={!hasAny ? newButton : undefined}
         />
-      )}
+        <ListPager page={page} pageSize={PAGE} total={total} onChange={setPage} />
+        </>
+      ) : null}
 
       <CustomerFormDrawer
         open={open}

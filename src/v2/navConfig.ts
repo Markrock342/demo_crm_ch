@@ -24,6 +24,7 @@ import {
   Users,
   WarningCircle,
   Invoice,
+  FileXls,
 } from "@phosphor-icons/react";
 
 export type NavItem = {
@@ -93,6 +94,7 @@ export const v2NavGroups: NavGroup[] = [
     items: [
       { path: "/automation", labelKey: "navAutomation", icon: Lightning },
       { path: "/notifications", labelKey: "navNotifications", icon: Bell },
+      { path: "/import", labelKey: "im_title", icon: FileXls },
       { path: "/settings", labelKey: "navSettings", icon: Gear },
     ],
   },
@@ -164,6 +166,7 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/calendar",
     "/reports",
     "/automation",
+    "/import",
     "/settings",
   ]),
 };

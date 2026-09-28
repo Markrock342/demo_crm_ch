@@ -9,6 +9,14 @@ import { crmRoutes } from "./routes/crm.js";
 import { systemRoutes } from "./routes/system.js";
 import { trackingRoutes } from "./routes/tracking.js";
 import { usersRoutes } from "./routes/users.js";
+import { notificationsRoutes } from "./routes/notifications.js";
+import { tasksRoutes } from "./routes/tasks.js";
+import { onboardingRoutes } from "./routes/onboarding.js";
+import { ratesRoutes } from "./routes/rates.js";
+import { bookingRoutes } from "./routes/bookings.js";
+import { importRoutes } from "./routes/import.js";
+import { secmailRoutes } from "./routes/secmail.js";
+import { bulkRoutes } from "./routes/bulk.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
@@ -19,12 +27,20 @@ export function createApp() {
   app.route("/", systemRoutes());
   app.route("/auth", authRoutes());
   app.route("/", crmRoutes());
+  app.route("/", ratesRoutes()); // before commercialRoutes: tenant-scoped rate endpoints
   app.route("/", commercialRoutes());
   app.route("/", commsRoutes());
   app.route("/portal", portalRoutes());
   app.route("/", trackingRoutes());
   app.route("/", usersRoutes());
+  app.route("/", secmailRoutes());
+  app.route("/", importRoutes());
+  app.route("/", tasksRoutes());
+  app.route("/onboarding", onboardingRoutes());
+  app.route("/", bookingRoutes());
+  app.route("/", notificationsRoutes());
   app.route("/public", publicQuoteRoutes());
+  app.route("/", bulkRoutes());
 
   app.get("/ai/health", (c) => {
     return c.json({ ok: hasGeminiKey(), model: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash" });

@@ -5,6 +5,7 @@ import { createJobTaskApi, fetchJobMilestones, fetchJobTasks, patchJobMilestone,
 import { mapJobRowToShell } from "../../adapters/api/jobMapper.ts";
 import type { ShellJob } from "../../ports/job.port.ts";
 import { queryKeys } from "../queries/keys.ts";
+import { useCan } from "./useCan.ts";
 
 export function usePatchJobMilestone(jobId: string) {
   const qc = useQueryClient();
@@ -60,18 +61,21 @@ export function useLiveJobDetail(id: string | undefined) {
 }
 
 export function useJobFinancials(jobId: string | undefined) {
+  const can = useCan();
   return useQuery({
     queryKey: queryKeys.jobs.financials(jobId ?? ""),
     queryFn: () => fetchJobFinancials(jobId!),
-    enabled: Boolean(jobId),
+    // Same permission as GET /api/jobs/:id/financials — skip the call (no 403) for ops / CS.
+    enabled: Boolean(jobId) && can("finance.revenue.view"),
   });
 }
 
 export function useJobCharges(jobId: string | undefined) {
+  const can = useCan();
   return useQuery({
     queryKey: queryKeys.jobs.charges(jobId ?? ""),
     queryFn: () => fetchJobCharges(jobId!),
-    enabled: Boolean(jobId),
+    enabled: Boolean(jobId) && (can("finance.revenue.view") || can("finance.cost.view")),
   });
 }
 

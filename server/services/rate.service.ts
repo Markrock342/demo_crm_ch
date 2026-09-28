@@ -95,17 +95,22 @@ export async function searchRates(
     containerType?: string;
     validOn?: Date;
     roles: RoleCode[];
+    /** Only rates whose vendor belongs to this organization (tenant boundary). */
+    organizationId?: string;
+    /** Also list rates that start later (validFrom in the future). */
+    includeUpcoming?: boolean;
   },
 ) {
   const validOn = opts.validOn ?? new Date();
   const where = and(
+    opts.organizationId ? eq(vendors.organizationId, opts.organizationId) : undefined,
     opts.origin ? ilike(rateLanes.origin, `%${opts.origin}%`) : undefined,
     opts.destination ? ilike(rateLanes.destination, `%${opts.destination}%`) : undefined,
     opts.pol ? ilike(rateLanes.pol, `%${opts.pol}%`) : undefined,
     opts.pod ? ilike(rateLanes.pod, `%${opts.pod}%`) : undefined,
     opts.mode ? eq(rateLanes.mode, opts.mode) : undefined,
     opts.containerType ? eq(rateLanes.containerType, opts.containerType) : undefined,
-    lte(rateSheets.validFrom, validOn),
+    opts.includeUpcoming && !opts.validOn ? undefined : lte(rateSheets.validFrom, validOn),
     gte(rateSheets.validUntil, validOn),
   );
 
@@ -207,8 +212,9 @@ export async function createRateSheetWithLane(
     charges: ChargeInput[];
   },
 ) {
-  const sheetId = `rs${Date.now()}`;
-  const laneId = `rl${Date.now()}`;
+  const stamp = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+  const sheetId = `rs${stamp}`;
+  const laneId = `rl${stamp}`;
   await db.insert(rateSheets).values({
     id: sheetId,
     vendorId: input.vendorId,
@@ -230,7 +236,7 @@ export async function createRateSheetWithLane(
   });
   for (const [i, c] of input.charges.entries()) {
     await db.insert(rateCharges).values({
-      id: `rc${Date.now()}${i}`,
+      id: `rc${stamp}${i}`,
       rateLaneId: laneId,
       chargeCode: c.chargeCode,
       description: c.description,
@@ -242,4 +248,93 @@ export async function createRateSheetWithLane(
     });
   }
   return { sheetId, laneId };
+}
+
+// ---------------------------------------------------------------------------
+// Tenant-scoped rate management (Rates page "add / edit / expire rate").
+// A rate lane belongs to an organization through its sheet's vendor.
+
+async function laneInOrg(db: Db, organizationId: string, laneId: string) {
+  const [row] = await db
+    .select({ lane: rateLanes, sheet: rateSheets, vendor: vendors })
+    .from(rateLanes)
+    .innerJoin(rateSheets, eq(rateLanes.rateSheetId, rateSheets.id))
+    .innerJoin(vendors, eq(rateSheets.vendorId, vendors.id))
+    .where(and(eq(rateLanes.id, laneId), eq(vendors.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Lane + sheet + charges for editing; BUY prices hidden unless the role may see them. */
+export async function getRateLaneForOrg(db: Db, organizationId: string, laneId: string, roles: RoleCode[]) {
+  const row = await laneInOrg(db, organizationId, laneId);
+  if (!row) return null;
+  const charges = await db.select().from(rateCharges).where(eq(rateCharges.rateLaneId, laneId));
+  const showBuy = canViewBuyRate(roles);
+  return {
+    lane: row.lane,
+    sheet: row.sheet,
+    vendor: { id: row.vendor.id, company: row.vendor.company },
+    charges: charges.map((c) => ({ ...c, unitPrice: c.side === "BUY" && !showBuy ? null : c.unitPrice })),
+  };
+}
+
+export async function vendorInOrg(db: Db, organizationId: string, vendorId: string) {
+  const [v] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(and(eq(vendors.id, vendorId), eq(vendors.organizationId, organizationId)))
+    .limit(1);
+  return Boolean(v);
+}
+
+export type RateLanePatch = {
+  vendorId?: string;
+  name?: string;
+  carrier?: string | null;
+  validFrom?: Date;
+  validUntil?: Date;
+  currency?: string;
+  containerType?: string | null;
+  charges?: ChargeInput[];
+  /** Ends the rate now (validUntil = now). */
+  expire?: boolean;
+};
+
+/** Update a lane and its sheet (sheets created from the Rates page hold exactly one lane). Null if not in the org. */
+export async function updateRateLane(db: Db, organizationId: string, laneId: string, patch: RateLanePatch) {
+  const row = await laneInOrg(db, organizationId, laneId);
+  if (!row) return null;
+  const sheetSet: Partial<typeof rateSheets.$inferInsert> = {};
+  if (patch.vendorId !== undefined) sheetSet.vendorId = patch.vendorId;
+  if (patch.name !== undefined) sheetSet.name = patch.name;
+  if (patch.carrier !== undefined) sheetSet.carrier = patch.carrier;
+  if (patch.validFrom !== undefined) sheetSet.validFrom = patch.validFrom;
+  if (patch.validUntil !== undefined) sheetSet.validUntil = patch.validUntil;
+  if (patch.currency !== undefined) sheetSet.currency = patch.currency;
+  if (patch.expire) {
+    const now = new Date();
+    sheetSet.validUntil = now;
+    if (row.sheet.validFrom > now) sheetSet.validFrom = now;
+  }
+  const from = sheetSet.validFrom ?? row.sheet.validFrom;
+  const until = sheetSet.validUntil ?? row.sheet.validUntil;
+  if (until < from) throw new Error("valid_range");
+
+  await db.transaction(async (tx) => {
+    if (Object.keys(sheetSet).length) {
+      await tx.update(rateSheets).set({ ...sheetSet, updatedAt: new Date() }).where(eq(rateSheets.id, row.sheet.id));
+    }
+    if (patch.containerType !== undefined) {
+      await tx.update(rateLanes).set({ containerType: patch.containerType }).where(eq(rateLanes.id, laneId));
+    }
+    if (patch.charges) {
+      await tx.delete(rateCharges).where(eq(rateCharges.rateLaneId, laneId));
+      const stamp = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+      for (const [i, c] of patch.charges.entries()) {
+        await tx.insert(rateCharges).values({ id: `rc${stamp}${i}`, rateLaneId: laneId, ...c });
+      }
+    }
+  });
+  return { laneId, sheetId: row.sheet.id, before: { sheet: row.sheet, lane: row.lane } };
 }

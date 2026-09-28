@@ -1,5 +1,5 @@
 import { crmEn, crmTh, crmZh } from "./i18n-crm";
-import { uiEn, uiTh, uiZh } from "./i18n-ui";
+import { pageDicts, uiEn, uiTh, uiZh } from "./i18n-ui";
 
 export type Locale = "zh" | "th" | "en";
 
@@ -1503,7 +1503,7 @@ const books: Record<Locale, Dict> = {
 };
 
 export function t(locale: Locale, key: string, vars?: Record<string, string | number>) {
-  let s = books[locale][key] ?? books.zh[key] ?? key;
+  let s = pageDicts[locale][key] ?? books[locale][key] ?? pageDicts.zh[key] ?? books.zh[key] ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
       s = s.replaceAll(`{${k}}`, String(v));

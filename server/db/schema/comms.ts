@@ -30,6 +30,21 @@ export const mails = pgTable("mails", {
   docsMissing: jsonb("docs_missing").$type<string[]>().notNull().default([]),
   suggestedStatus: text("suggested_status"),
   needsHuman: boolean("needs_human").notNull().default(false),
+  /** "in" = inbox, "out" = mail we sent (0014). */
+  direction: text("direction").notNull().default("in"),
+  toAddr: text("to_addr"),
+  ccAddr: text("cc_addr"),
+  /** Outbound only: "sent" | "failed". */
+  deliveryStatus: text("delivery_status"),
+  deliveryError: text("delivery_error"),
+  transport: text("transport"),
+  messageId: text("message_id"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  sentBy: uuid("sent_by"),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  inReplyTo: text("in_reply_to"),
+  attachments: jsonb("attachments").$type<{ filename: string; size: number }[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

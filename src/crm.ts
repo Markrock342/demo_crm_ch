@@ -131,11 +131,6 @@ function closeIn(days: number) {
   return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** "MM-DD HH:mm", `days` from today — task due times and activity stamps. */
-function stampAt(days: number, time: string) {
-  return `${closeIn(days)} ${time}`;
-}
-
 export const leads: Lead[] = [
   { id: "l1", company: "春武里木业", city: "春武里", lane: "林查班 → 南沙", contact: "นภา ไม้ดี", source: "协会", stage: "working", teu: 12, owner: "周可", updated: closeIn(-2) },
   { id: "l2", company: "罗勇石化包装", city: "罗勇", lane: "林查班 → 青岛", contact: "李卫东", source: "转介", stage: "new", teu: 6, owner: "陈一宁", updated: closeIn(-3) },
@@ -167,41 +162,7 @@ export const deals: Deal[] = [
   { id: "d13", customerId: "c9", title: "冷冻虾旺季包舱", lane: "林查班 → 盐田", stage: "quote", value: 210000, teu: 16, close: closeIn(14), owner: "林晓衡" },
 ];
 
-/** Due dates relative to today: a few overdue, several due today, the rest later. */
-export const tasks: TaskItem[] = [
-  { id: "t1", title: "催 TCLU3308812 产地证扫描件", due: stampAt(0, "16:00"), owner: "林晓衡", priority: "high", done: false, customerId: "c9", boxId: "TCLU3308812" },
-  { id: "t2", title: "回南沙两柜补件邮件", due: stampAt(-1, "16:00"), owner: "周可", priority: "high", done: false, customerId: "c4" },
-  { id: "t3", title: "青岛中泰八月对账回执", due: closeIn(1), owner: "马思远", priority: "mid", done: false, customerId: "c3" },
-  { id: "t4", title: "北榄胶加柜报价两只 40HC", due: closeIn(2), owner: "陈一宁", priority: "mid", done: false, customerId: "c10" },
-  { id: "t5", title: "空箱回运宁波舱位", due: closeIn(4), owner: "马思远", priority: "low", done: false, customerId: "c8" },
-  { id: "t6", title: "协会见面纪要归档", due: closeIn(-3), owner: "周可", priority: "low", done: true, customerId: "c9" },
-  { id: "t7", title: "催收华运六月运费尾款", due: closeIn(-3), owner: "诗丽蓬·旺萨功", priority: "high", done: false, customerId: "c1" },
-  { id: "t8", title: "预约南沙到港两柜海关查验", due: stampAt(0, "10:00"), owner: "马思远", priority: "high", done: false, customerId: "c4", boxId: "CSNU6620418" },
-  { id: "t9", title: "上海东盟对账单寄出", due: closeIn(-2), owner: "诗丽蓬·旺萨功", priority: "mid", done: false, customerId: "c7" },
-  { id: "t10", title: "罗勇冷冻柜预冷确认", due: stampAt(1, "09:00"), owner: "纳帕·西苏", priority: "high", done: false, customerId: "c9" },
-  { id: "t11", title: "义乌周班舱位锁定", due: closeIn(3), owner: "陈一宁", priority: "mid", done: false, customerId: "c5" },
-  { id: "t12", title: "蛇口家具柜安排派送", due: stampAt(0, "14:00"), owner: "纳帕·西苏", priority: "mid", done: false, customerId: "c1", boxId: "ONEU0417736" },
-  { id: "t13", title: "青岛化工 MSDS 归档", due: closeIn(6), owner: "马思远", priority: "low", done: false, customerId: "c3" },
-  { id: "t14", title: "东莞电子旺季报价复核", due: closeIn(-1), owner: "陈一宁", priority: "mid", done: false, customerId: "c6" },
-  { id: "t15", title: "北榄胶提单确认", due: closeIn(-2), owner: "陈一宁", priority: "mid", done: true, customerId: "c10", boxId: "OOLU8844011" },
-];
-
-export const activities: Activity[] = [
-  { id: "a1", type: "mail", at: stampAt(0, "09:10"), user: "林晓衡", customerId: "c9", body: "罗勇来信：TCLU3308812 产地证未到，问盐田周五班。" },
-  { id: "a2", type: "call", at: stampAt(-1, "11:20"), user: "周可", customerId: "c4", body: "吴南确认两柜产地证下午补扫。" },
-  { id: "a3", type: "note", at: stampAt(-1, "18:40"), user: "陈一宁", customerId: "c10", body: "北榄胶要加两只 40HC，周三截关。" },
-  { id: "a4", type: "meet", at: stampAt(-3, "14:00"), user: "林晓衡", customerId: "c9", body: "春武里协会见面，谈林查班直航盐田。" },
-  { id: "a5", type: "task", at: stampAt(-5, "09:40"), user: "马思远", customerId: "c3", body: "重发八月对账单，账龄 41 天。" },
-  { id: "a6", type: "note", at: stampAt(-6, "16:00"), user: "周可", customerId: "c1", body: "盐田家具加柜超重，改 9 日班。" },
-  { id: "a7", type: "call", at: stampAt(0, "10:30"), user: "周可", customerId: "c1", body: "华运确认六月尾款本周五安排付款。" },
-  { id: "a8", type: "mail", at: stampAt(0, "08:45"), user: "马思远", customerId: "c4", body: "南沙两柜到港，海关抽中查验，已约明早。" },
-  { id: "a9", type: "note", at: stampAt(-1, "15:20"), user: "陈一宁", customerId: "c6", body: "东莞电子十月旺季要加 6 柜，报价需复核。" },
-  { id: "a10", type: "meet", at: stampAt(-2, "10:00"), user: "林晓衡", customerId: "c9", body: "罗勇冷冻食品年度合约面谈，意向 16 柜。" },
-  { id: "a11", type: "task", at: stampAt(-2, "17:05"), user: "诗丽蓬·旺萨功", customerId: "c7", body: "上海东盟八月账款部分到账，余款催收中。" },
-  { id: "a12", type: "mail", at: stampAt(-1, "13:50"), user: "纳帕·西苏", customerId: "c1", body: "蛇口家具柜清关放行，安排明天派送。" },
-  { id: "a13", type: "call", at: stampAt(-2, "11:15"), user: "陈一宁", customerId: "c5", body: "义乌确认厦门瓷砖柜已开船，预计五天到曼谷。" },
-  { id: "a14", type: "note", at: stampAt(-4, "16:30"), user: "马思远", customerId: "c8", body: "空箱回运年度协议已签，按月结算。" },
-];
+// Tasks and activities are stored in the database (server/db/seed-tasks.ts) and served by /api/tasks, /api/activities.
 
 export const docs: CrmDoc[] = [
   { id: "f1", customerId: "c9", boxId: "TCLU3308812", kind: "CO", name: "C/O TCLU3308812", status: "wait", updated: closeIn(0) },

@@ -18,18 +18,16 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { App, Button, Segmented } from "antd";
 import { useMemo, useState } from "react";
-import { fetchJobs, fetchVendorBills } from "../../api/commercial.ts";
-import { useShellBilling } from "../../shell/billingStore.tsx";
-import { useShellJobs } from "../../shell/jobStore.tsx";
-import { useShellQuotes } from "../../shell/quoteStore.tsx";
-import { useShellSupport } from "../../shell/supportStore.tsx";
+import { fetchInvoices, fetchJobReportSummary, fetchVendorBills } from "../../api/commercial.ts";
+import { fetchInvoicesPage } from "../../api/lists.ts";
 import { useStore } from "../../store";
 import { AiBriefCard, BarList, Donut, Flag, Legend, PageHeader, Panel, PersonAvatar, SegmentBar, Tile, TileRow } from "../components";
 import { useAppMode } from "../hooks/useAppMode.ts";
-import { useLiveInvoices, useLiveQuotations } from "../hooks/useCommercial.ts";
+import { useLiveQuotations } from "../hooks/useCommercial.ts";
+import { useCan } from "../hooks/useCan.ts";
 import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
 import { fmtMoney, fmtNumber } from "../lib/format.ts";
-import { daysUntil, fmtTotals, noCents, sumByCurrency, useModeNote } from "./finance/financeKit.tsx";
+import { fmtTotals, noCents, useModeNote } from "./finance/financeKit.tsx";
 import { CurrencyPick, type Tone } from "./finance/financeVisuals.tsx";
 
 const depts = ["finance", "sales", "ops"] as const;
@@ -40,8 +38,6 @@ type Datum = { label: string; value: number; tone: Tone };
 /** A metric tile that also feeds the CSV export. */
 type Metric = { label: string; value: string; icon: Icon; tone: Tone; to?: string; hint?: string };
 
-type Inv = { number: string; customerId: string; total: number; balance: number; currency: string; status: string; dueDate: string | null };
-type Job = { status: string; billingStatus: string; customerId: string; lane: string; pol: string; pod: string; containers: number };
 type Quote = { status: string; customerId: string };
 
 function countBy<T>(list: T[], key: (t: T) => string, weight: (t: T) => number = () => 1) {
@@ -97,21 +93,21 @@ function DonutBlock({ data, caption }: { data: Datum[]; caption: string }) {
 }
 
 export function ReportsPageV2() {
-  const { shell, live } = useAppMode();
+  const { live } = useAppMode();
   const { tx, locale } = useStore();
   const { message } = App.useApp();
-  const billing = useShellBilling();
-  const shellJobs = useShellJobs();
-  const shellQuotes = useShellQuotes();
-  const support = useShellSupport();
-  const liveInv = useLiveInvoices();
+  const can = useCan();
   const liveQuotes = useLiveQuotations();
-  const liveJobs = useQuery({ queryKey: ["fin", "jobs-lookup"], queryFn: () => fetchJobs(), enabled: live, staleTime: 60_000 });
-  const liveBills = useQuery({ queryKey: ["fin", "vendor-bills"], queryFn: () => fetchVendorBills(), enabled: live });
+  const canInv = live && can("invoice.view");
+  // Server-side aggregates — nothing here downloads the full job / invoice lists.
+  const invPage = useQuery({ queryKey: ["reports", "invoice-summary"], queryFn: () => fetchInvoicesPage({ limit: 1 }), enabled: canInv });
+  const openInv = useQuery({ queryKey: ["reports", "open-invoices"], queryFn: () => fetchInvoicesPage({ view: "open", limit: 500 }), enabled: canInv });
+  const jobSum = useQuery({ queryKey: ["reports", "jobs-summary"], queryFn: fetchJobReportSummary, enabled: live });
   const { nameOf } = useCustomerLookup();
   const modeNote = useModeNote();
   const [dept, setDept] = useState<Dept>("finance");
   const [curPick, setCurPick] = useState<string | undefined>();
+  const [packBusy, setPackBusy] = useState(false);
 
   const statusLabel = (s: string) => {
     const k = `status_${s.toUpperCase()}`;
@@ -119,86 +115,34 @@ export function ReportsPageV2() {
     return v === k ? s.replace(/_/g, " ").toLowerCase() : v;
   };
 
-  const invoices: Inv[] = useMemo(
-    () =>
-      shell
-        ? billing.invoices.map((i) => ({
-            number: i.invoiceNumber,
-            customerId: i.customerId,
-            total: i.total,
-            balance: i.balanceDue,
-            currency: i.currency,
-            status: i.status,
-            dueDate: i.dueDate ?? null,
-          }))
-        : (liveInv.data ?? []).map((i) => ({
-            number: i.invoiceNumber,
-            customerId: i.customerId,
-            total: parseFloat(i.total) || 0,
-            balance: parseFloat(i.balanceDue) || 0,
-            currency: i.currency,
-            status: i.status,
-            dueDate: i.dueDate || null,
-          })),
-    [shell, billing.invoices, liveInv.data],
-  );
-
-  const jobs: Job[] = useMemo(
-    () =>
-      shell
-        ? shellJobs.jobs.map((j) => ({
-            status: j.status,
-            billingStatus: j.billingStatus,
-            customerId: j.customerId,
-            lane: `${j.pol || j.origin}|${j.pod || j.destination}`,
-            pol: j.pol || j.origin,
-            pod: j.pod || j.destination,
-            containers: j.quantity || 1,
-          }))
-        : (liveJobs.data ?? []).map((j) => ({
-            status: j.status,
-            billingStatus: j.billingStatus ?? "UNBILLED",
-            customerId: j.customerId,
-            lane: `${j.pol || j.origin}|${j.pod || j.destination}`,
-            pol: j.pol || j.origin,
-            pod: j.pod || j.destination,
-            containers: j.containerCount ?? 1,
-          })),
-    [shell, shellJobs.jobs, liveJobs.data],
-  );
-
-  const quotes: Quote[] = useMemo(
-    () =>
-      shell
-        ? shellQuotes.quotations.map((q) => ({ status: q.status, customerId: q.customerId }))
-        : (liveQuotes.data ?? []).map((q) => ({ status: q.status, customerId: q.customerId })),
-    [shell, shellQuotes.quotations, liveQuotes.data],
-  );
+  const quotes: Quote[] = useMemo(() => (liveQuotes.data ?? []).map((q) => ({ status: q.status, customerId: q.customerId })), [liveQuotes.data]);
 
   // ── Finance ──
-  const open = invoices.filter((i) => i.balance > 0 && i.status !== "DRAFT" && i.status !== "VOID");
-  const currencies = [...countBy(invoices, (i) => i.currency).entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
+  const summary = invPage.data?.summary;
+  const currencies = (summary?.currencies ?? []).map((c) => c.currency);
   const mainCurrency = curPick && currencies.includes(curPick) ? curPick : (currencies[0] ?? "USD");
-  const agingBuckets: { key: string; tone: Tone; test: (d: number) => boolean }[] = [
-    { key: "notDue", tone: "primary", test: (d: number) => d >= 0 },
-    { key: "d1_30", tone: "warning", test: (d: number) => d < 0 && d >= -30 },
-    { key: "d31_60", tone: "accent", test: (d: number) => d < -30 && d >= -60 },
-    { key: "d60", tone: "danger", test: (d: number) => d < -60 },
+  const agingBuckets: { key: "notDue" | "d1_30" | "d31_60" | "d60"; tone: Tone }[] = [
+    { key: "notDue", tone: "primary" },
+    { key: "d1_30", tone: "warning" },
+    { key: "d31_60", tone: "accent" },
+    { key: "d60", tone: "danger" },
   ];
-  const aging: Datum[] = agingBuckets.map((b) => ({
-    label: tx(`fin_age_${b.key}`),
-    tone: b.tone,
-    value: open
-      .filter((i) => i.currency === mainCurrency && b.test(daysUntil(i.dueDate) ?? 0))
-      .reduce((n, i) => n + i.balance, 0),
-  }));
+  const mainAging = summary?.currencies.find((c) => c.currency === mainCurrency)?.aging;
+  const aging: Datum[] = agingBuckets.map((b) => ({ label: tx(`fin_age_${b.key}`), tone: b.tone, value: mainAging?.[b.key] ?? 0 }));
   const billingOrder = ["UNBILLED", "INVOICED", "PARTIAL", "PAID"];
-  const billingCounts = countBy(jobs, (j) => j.billingStatus);
+  const billingCounts = new Map(Object.entries(jobSum.data?.byBilling ?? {}));
   const byBilling: Datum[] = billingOrder.map((s, i) => ({ label: statusLabel(s), value: billingCounts.get(s) ?? 0, tone: statusTone(s, i) }));
-  const topDebtors = [...countBy(open.filter((i) => i.currency === mainCurrency), (i) => i.customerId, (i) => i.balance).entries()]
+  const topDebtors = [
+    ...countBy(
+      (openInv.data?.items ?? []).filter((i) => i.currency === mainCurrency),
+      (i) => i.customerId,
+      (i) => parseFloat(i.balanceDue) || 0,
+    ).entries(),
+  ]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
-  const overdue = open.filter((i) => (daysUntil(i.dueDate) ?? 0) < 0);
+  const moneyMap = (list: { currency: string; amount: number }[] | undefined) => new Map((list ?? []).map((m) => [m.currency, m.amount]));
+  const overdueCount = summary?.overdue.count ?? 0;
   const moneyFmt = (n: number) => fmtMoney(n, mainCurrency, locale).replace(/\.00$/, "");
 
   // ── Sales ──
@@ -214,9 +158,9 @@ export function ReportsPageV2() {
   const winRate = decided ? Math.round((accepted / decided) * 100) : null;
 
   // ── Ops ──
-  const jCounts = countBy(jobs, (j) => j.status);
+  const jCounts = new Map(Object.entries(jobSum.data?.byStatus ?? {}).filter(([s]) => s));
   const byJobStatus: Datum[] = [...jCounts.entries()].sort((a, b) => b[1] - a[1]).map(([s, n], i) => ({ label: statusLabel(s), value: n, tone: statusTone(s, i) }));
-  const lanes = [...countBy(jobs, (j) => j.lane, (j) => j.containers).entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const lanes: [string, number][] = (jobSum.data?.lanes ?? []).map((l) => [`${l.pol}|${l.pod}`, l.containers]);
   const laneLabel = (key: string) => {
     const [pol, pod] = key.split("|");
     return (
@@ -238,28 +182,29 @@ export function ReportsPageV2() {
       </span>
     );
   };
-  const containers = jobs.reduce((n, j) => n + j.containers, 0);
-  const closedJobs = jobs.filter((j) => ["CLOSED", "DELIVERED", "COMPLETED"].includes(j.status.toUpperCase())).length;
+  const jobTotal = jobSum.data?.total ?? 0;
+  const containers = jobSum.data?.containers ?? 0;
+  const closedJobs = [...jCounts.entries()].filter(([s]) => ["CLOSED", "DELIVERED", "COMPLETED"].includes(s.toUpperCase())).reduce((n, [, c]) => n + c, 0);
 
   const statsByDept: Record<Dept, Metric[]> = {
     finance: [
       {
         label: tx("fin_statOutstanding"),
-        value: fmtTotals(sumByCurrency(open, (i) => i.balance, (i) => i.currency), locale, moneyFmt(0)),
+        value: fmtTotals(moneyMap(summary?.open.balance), locale, moneyFmt(0)),
         icon: Wallet,
         tone: "primary",
         to: "/invoices?view=open",
       },
       {
         label: tx("fin_statOverdue"),
-        value: fmtTotals(sumByCurrency(overdue, (i) => i.balance, (i) => i.currency), locale, moneyFmt(0)),
-        hint: overdue.length ? tx("fin_nInvoices", { n: overdue.length }) : undefined,
+        value: fmtTotals(moneyMap(summary?.overdue.balance), locale, moneyFmt(0)),
+        hint: overdueCount ? tx("fin_nInvoices", { n: overdueCount }) : undefined,
         icon: WarningCircle,
-        tone: overdue.length ? "danger" : "neutral",
+        tone: overdueCount ? "danger" : "neutral",
         to: "/invoices?view=overdue",
       },
       { label: tx("fin_repUnbilledJobs"), value: fmtNumber(billingCounts.get("UNBILLED") ?? 0, locale), icon: Receipt, tone: "warning", to: "/jobs" },
-      { label: tx("fin_statDrafts"), value: fmtNumber(invoices.filter((i) => i.status === "DRAFT").length, locale), icon: FileText, tone: "neutral", to: "/invoices?view=draft" },
+      { label: tx("fin_statDrafts"), value: fmtNumber(invPage.data?.counts.draft ?? 0, locale), icon: FileText, tone: "neutral", to: "/invoices?view=draft" },
     ],
     sales: [
       { label: tx("fin_repQuotes"), value: fmtNumber(quotes.length, locale), icon: FileText, tone: "primary", to: "/quotations" },
@@ -268,10 +213,10 @@ export function ReportsPageV2() {
       { label: tx("fin_repActiveCustomers"), value: fmtNumber(new Set(quotes.map((q) => q.customerId)).size, locale), icon: UsersThree, tone: "info", to: "/customers" },
     ],
     ops: [
-      { label: tx("fin_repJobs"), value: fmtNumber(jobs.length, locale), icon: Truck, tone: "primary", to: "/jobs" },
-      { label: tx("fin_repOpenJobs"), value: fmtNumber(jobs.length - closedJobs, locale), icon: Boat, tone: "info" },
+      { label: tx("fin_repJobs"), value: fmtNumber(jobTotal, locale), icon: Truck, tone: "primary", to: "/jobs" },
+      { label: tx("fin_repOpenJobs"), value: fmtNumber(jobTotal - closedJobs, locale), icon: Boat, tone: "info" },
       { label: tx("fin_repContainers"), value: fmtNumber(containers, locale), icon: Cube, tone: "accent", to: "/containers" },
-      { label: tx("fin_repLanes"), value: fmtNumber(new Set(jobs.map((j) => j.lane)).size, locale), icon: Path, tone: "neutral" },
+      { label: tx("fin_repLanes"), value: fmtNumber(jobSum.data?.laneCount ?? 0, locale), icon: Path, tone: "neutral" },
     ],
   };
 
@@ -289,17 +234,32 @@ export function ReportsPageV2() {
     message.success(tx("fin_csvDone"));
   }
 
-  function exportAccountingPack() {
-    const bills = shell
-      ? support.vendorBills.map((b) => ["vendor_bill", b.billNumber, b.vendorName, b.amount, b.currency, b.status, b.createdAt])
-      : (liveBills.data ?? []).map((b) => ["vendor_bill", b.billNumber, b.vendorId, b.total, b.currency, b.status, b.dueDate]);
-    const lines = [
-      ["type", "number", "customerOrVendor", "amount", "balance", "currency", "status", "dueOrDate"],
-      ...invoices.map((i) => ["invoice", i.number, nameOf(i.customerId, i.customerId), i.total, i.balance, i.currency, i.status, i.dueDate ?? ""]),
-      ...bills.map(([t, n, v, a, c, s, d]) => [t, n, v, a, "", c, s, d ?? ""]),
-    ];
-    downloadCsv("cangzhan-accounting-pack.csv", lines.map((l) => l.map((x) => csvCell(x as string | number)).join(",")).join("\n"));
-    message.success(tx("fin_csvDone"));
+  /** Full invoice + vendor-bill list, fetched only when the pack is exported. */
+  async function exportAccountingPack() {
+    setPackBusy(true);
+    try {
+      const [invoices, bills] = await Promise.all([canInv ? fetchInvoices() : Promise.resolve([]), fetchVendorBills().catch(() => [])]);
+      const lines = [
+        ["type", "number", "customerOrVendor", "amount", "balance", "currency", "status", "dueOrDate"],
+        ...invoices.map((i) => [
+          "invoice",
+          i.invoiceNumber,
+          nameOf(i.customerId, i.customerId),
+          parseFloat(i.total) || 0,
+          parseFloat(i.balanceDue) || 0,
+          i.currency,
+          i.status,
+          i.dueDate || "",
+        ]),
+        ...bills.map((b) => ["vendor_bill", b.billNumber, b.vendorId, b.total, "", b.currency, b.status, b.dueDate ?? ""]),
+      ];
+      downloadCsv("cangzhan-accounting-pack.csv", lines.map((l) => l.map((x) => csvCell(x as string | number)).join(",")).join("\n"));
+      message.success(tx("fin_csvDone"));
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPackBusy(false);
+    }
   }
 
   const count = (n: number) => fmtNumber(n, locale);
@@ -314,7 +274,7 @@ export function ReportsPageV2() {
         extra={
           <>
             <AiBriefCard title={tx("fin_aiTitle")} facts={facts} localFallback={localFallback} context="reports" />
-            <Button icon={<DownloadSimple size={16} />} onClick={exportAccountingPack}>
+            <Button icon={<DownloadSimple size={16} />} loading={packBusy} onClick={() => void exportAccountingPack()}>
               {tx("fin_exportPack")}
             </Button>
             <Button type="primary" icon={<DownloadSimple size={16} />} onClick={exportCsv}>

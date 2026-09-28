@@ -153,7 +153,7 @@ export function DocumentTemplatesPageV2() {
         q.isLoading ? (
           <LoadingState />
         ) : rows.length === 0 ? (
-          <EmptyState description={tx("ops_tpl_empty")} />
+          <EmptyState description={tx("hp_emptyTemplates")} />
         ) : (
           <CardGrid min={260}>
             {rows.map((r) => {
@@ -204,7 +204,7 @@ export function DocumentTemplatesPageV2() {
             line2: <span className="ops-code">{r.code}</span>,
             onClick: () => openStudio(r),
           }))}
-          emptyText={tx("ops_tpl_empty")}
+          emptyText={tx("hp_emptyTemplates")}
         />
       ) : (
         <DataTable<TemplateRow>
@@ -213,7 +213,7 @@ export function DocumentTemplatesPageV2() {
           dataSource={rows}
           columns={columns}
           onRowClick={openStudio}
-          emptyText={tx("ops_tpl_empty")}
+          emptyText={tx("hp_emptyTemplates")}
         />
       )}
 

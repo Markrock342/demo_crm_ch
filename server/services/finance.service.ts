@@ -353,11 +353,11 @@ export async function listVendorBills(db: Db, organizationId: string, opts?: { v
   if (opts?.vendorId) clauses.push(eq(vendorBills.vendorId, opts.vendorId));
   if (opts?.jobId) clauses.push(eq(vendorBills.jobId, opts.jobId));
   const rows = await db
-    .select({ bill: vendorBills })
+    .select({ bill: vendorBills, jobNumber: jobs.jobNumber })
     .from(vendorBills)
     .leftJoin(jobs, eq(vendorBills.jobId, jobs.id))
     .where(and(...clauses));
-  return rows.map((r) => r.bill);
+  return rows.map((r) => ({ ...r.bill, jobNumber: r.jobNumber ?? null }));
 }
 
 export async function getVendorBill(db: Db, organizationId: string, id: string) {

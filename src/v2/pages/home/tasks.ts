@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from "react";
-import { useShellSupport } from "../../../shell/supportStore.tsx";
-import { useIsShellMode } from "../../../shell/session.tsx";
+import type { TaskDto, TaskInput, TaskListParams, TaskPriority } from "../../../api/tasks.ts";
 import { useStore } from "../../../store";
-import { daysAgo, parseLooseDate } from "./attention.ts";
+import { useTaskActions, useTasks } from "../../hooks/useTasks.ts";
 import { localizeDemo } from "../../lib/demoText.ts";
+import { daysAgo } from "./attention.ts";
 
 export type DueBucket = "overdue" | "today" | "later";
 
@@ -13,82 +13,82 @@ export type TaskRow = {
   title: string;
   /** Title as stored — kept for search. */
   titleRaw: string;
+  notes: string | null;
   done: boolean;
   due: Date | null;
-  /** Legacy due strings may carry a time ("09-02 16:00"). */
+  /** False when the task is due "some time that day" (stored at 00:00 local). */
   hasTime: boolean;
   bucket: DueBucket;
+  priority: TaskPriority;
+  high: boolean;
   customerId?: string;
   jobId?: string;
+  jobNumber?: string;
   boxId?: string;
+  /** Owner's user id (resolve with useUserLookup). */
   owner?: string;
-  high: boolean;
+  createdBy?: string;
 };
 
-/** Tasks for the current mode (shell support store or the legacy local store), normalized. */
-export function useModeTasks() {
-  const shell = useIsShellMode();
-  const store = useStore();
-  const support = useShellSupport();
+export function toTaskRow(t: TaskDto, locale: string): TaskRow {
+  const due = t.dueAt ? new Date(t.dueAt) : null;
+  const ago = daysAgo(due);
+  const bucket: DueBucket = ago === null ? "later" : ago > 0 ? "overdue" : ago === 0 ? "today" : "later";
+  return {
+    id: t.id,
+    title: localizeDemo(t.title, locale),
+    titleRaw: t.title,
+    notes: t.notes,
+    done: t.done,
+    due,
+    hasTime: Boolean(due && (due.getHours() !== 0 || due.getMinutes() !== 0)),
+    bucket,
+    priority: t.priority,
+    high: t.priority === "high",
+    customerId: t.customerId ?? undefined,
+    jobId: t.jobId ?? undefined,
+    jobNumber: t.jobNumber ?? undefined,
+    boxId: t.containerNo ?? undefined,
+    owner: t.ownerUserId ?? undefined,
+    createdBy: t.createdBy ?? undefined,
+  };
+}
 
-  const tasks: TaskRow[] = useMemo(() => {
-    if (shell) {
-      return support.tasks.map((t) => ({
-        id: t.id,
-        title: localizeDemo(t.title, store.locale),
-        titleRaw: t.title,
-        done: t.done,
-        due: null,
-        hasTime: false,
-        bucket: "later" as const,
-        customerId: t.customerId,
-        jobId: t.jobId,
-        high: t.priority === "high",
-      }));
-    }
-    return store.tasks.map((t) => {
-      const due = parseLooseDate(t.due);
-      const ago = daysAgo(due);
-      const bucket: DueBucket = ago === null ? "later" : ago > 0 ? "overdue" : ago === 0 ? "today" : "later";
-      return {
-        id: t.id,
-        title: localizeDemo(t.title, store.locale),
-        titleRaw: t.title,
-        done: t.done,
-        due,
-        hasTime: /\d{2}:\d{2}/.test(t.due),
-        bucket,
-        customerId: t.customerId,
-        boxId: t.boxId,
-        owner: t.owner,
-        high: t.priority === "high",
-      };
-    });
-  }, [shell, store.tasks, store.locale, support.tasks]);
+/**
+ * To-dos from the API (GET /api/tasks), normalized for the home screens.
+ * Default: the signed-in user's own tasks, open and done.
+ */
+export function useModeTasks(params: TaskListParams = { scope: "mine", status: "all" }) {
+  const { locale } = useStore();
+  const query = useTasks(params);
+  const actions = useTaskActions();
+
+  const tasks: TaskRow[] = useMemo(() => (query.data?.items ?? []).map((t) => toTaskRow(t, locale)), [query.data, locale]);
 
   const toggle = useCallback(
     (id: string) => {
-      if (shell) support.toggleTask(id);
-      else store.toggleTask(id);
+      const row = query.data?.items.find((t) => t.id === id);
+      actions.toggle.mutate({ id, done: !row?.done });
     },
-    [shell, store, support],
+    [actions.toggle, query.data],
   );
 
   const add = useCallback(
-    (input: { title: string; customerId?: string; jobId?: string; high?: boolean }) => {
-      if (shell) {
-        support.addTask({
-          title: input.title,
-          customerId: input.customerId,
-          jobId: input.jobId,
-          priority: input.high ? "high" : "normal",
-        });
-      } else {
-        store.addTask(input.title, input.customerId);
-      }
+    (input: TaskInput & { high?: boolean }) => {
+      const { high, ...rest } = input;
+      return actions.create.mutateAsync({ ...rest, priority: rest.priority ?? (high ? "high" : "mid") });
     },
-    [shell, store, support],
+    [actions.create],
   );
 
-  return { tasks, toggle, add, shell };
+  return {
+    tasks,
+    total: query.data?.total ?? 0,
+    loading: query.isLoading,
+    error: query.error,
+    toggle,
+    add,
+    actions,
+    shell: false as const,
+  };
 }

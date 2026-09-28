@@ -10,7 +10,7 @@ import "./boxesVisual.css";
  * Page-local on purpose: other ops pages keep using opsShared only.
  */
 
-/** Days of free time after arrival (matches the tracking service convention: LFD = ETA + 5). */
+/** Fallback free time after arrival when a box has no real last free day yet (tracking convention: LFD = ETA + 5). */
 export const FREE_DAYS = 5;
 /** Nominal China ⇄ Thailand sailing time, used to place the vessel on the route line. */
 const TRANSIT_DAYS = 8;
@@ -20,20 +20,25 @@ export type BoxLike = {
   direction?: string | null;
   eta?: string | null;
   lastFreeDay?: string | null;
+  freeDays?: number | null;
 };
 
-/** Last free day: real value when known, else an estimate for inbound boxes that have arrived. */
-export function freeTimeOf(b: BoxLike): { lfd: Date; daysLeft: number; estimated: boolean } | null {
+/**
+ * Last free day: the real value (container.last_free_day) when known; otherwise an estimate
+ * (ETA + free days, default 5) for inbound boxes that have arrived. `total` = free days for the bar.
+ */
+export function freeTimeOf(b: BoxLike): { lfd: Date; daysLeft: number; estimated: boolean; total: number } | null {
   const group = boxMeta(b.status).group;
   if (group !== "yard" && group !== "customs") return null;
-  const real = parseOpsDate(b.lastFreeDay ?? null);
-  if (real) return { lfd: real, daysLeft: daysFromToday(b.lastFreeDay) ?? 0, estimated: false };
+  const total = b.freeDays && b.freeDays > 0 ? b.freeDays : FREE_DAYS;
+  const real = b.lastFreeDay && b.lastFreeDay !== "—" ? parseOpsDate(b.lastFreeDay) : null;
+  if (real) return { lfd: real, daysLeft: daysFromToday(b.lastFreeDay) ?? 0, estimated: false, total };
   if (b.direction === "out") return null;
   const eta = parseOpsDate(b.eta ?? null);
   const since = daysFromToday(b.eta ?? null);
   if (!eta || since === null || since > 0) return null;
-  const lfd = new Date(eta.getTime() + FREE_DAYS * 86_400_000);
-  return { lfd, daysLeft: since + FREE_DAYS, estimated: true };
+  const lfd = new Date(eta.getTime() + total * 86_400_000);
+  return { lfd, daysLeft: since + total, estimated: true, total };
 }
 
 /** Whole days a box has been on the ground (from its arrival), when we can tell. */
@@ -191,13 +196,16 @@ export function FreeTimeBar({
   daysLeft,
   labels,
   hint,
+  total = FREE_DAYS,
 }: {
   daysLeft: number;
   labels: { left: string; over: string; last: string };
   hint?: string;
+  /** Free days in the contract (bar length). */
+  total?: number;
 }) {
   const tone: Tone = daysLeft < 0 ? "danger" : daysLeft <= 3 ? "warning" : "success";
-  const pct = daysLeft < 0 ? 100 : Math.max(4, Math.min(100, (daysLeft / FREE_DAYS) * 100));
+  const pct = daysLeft < 0 ? 100 : Math.max(4, Math.min(100, (daysLeft / Math.max(1, total)) * 100));
   const text = daysLeft < 0 ? labels.over : daysLeft === 0 ? labels.last : labels.left;
   const body = (
     <span className={`bx-free is-${tone}`}>

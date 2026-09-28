@@ -16,6 +16,7 @@ import { useStore } from "../../store";
 import { useMedia } from "../../ui/useMedia";
 import { AiBriefCard, PageHeader, Panel } from "../components";
 import { useAppMode } from "../hooks/useAppMode.ts";
+import { useActivities, useTasks } from "../hooks/useTasks.ts";
 import { localizeDemo } from "../lib/demoText.ts";
 import { useModeJobs } from "./home/attention.ts";
 import "./home/home.css";
@@ -51,7 +52,9 @@ const INTL = { th: "th-TH-u-ca-gregory", zh: "zh-CN", en: "en-GB" } as const;
 const FC_LOCALE = { th: thLocale, zh: zhLocale, en: enLocale } as const;
 
 export function CalendarPageV2() {
-  const { tx, tasks, activities, locale } = useStore();
+  const { tx, locale } = useStore();
+  const tasksQ = useTasks({ scope: "mine", status: "open", limit: 500 });
+  const actsQ = useActivities({ limit: 300 });
   const { enabled } = useAppMode();
   const { jobs } = useModeJobs();
   const navigate = useNavigate();
@@ -85,30 +88,30 @@ export function CalendarPageV2() {
           ...cls("eta"),
         });
     }
-    for (const t of tasks) {
-      if (t.due && !t.done)
+    for (const t of tasksQ.data?.items ?? []) {
+      if (t.dueAt && !t.done)
         list.push({
           id: `task-${t.id}`,
           kind: "task",
           title: localizeDemo(t.title, locale),
-          date: normalizeDate(t.due),
+          date: localDay(t.dueAt),
           url: "/tasks",
           ...cls("task"),
         });
     }
-    for (const a of activities) {
-      if (a.at)
+    for (const a of actsQ.data?.items ?? []) {
+      if (a.occurredAt)
         list.push({
           id: `act-${a.id}`,
           kind: "act",
           title: localizeDemo(a.body, locale).slice(0, 40),
-          date: normalizeDate(a.at),
+          date: localDay(a.occurredAt),
           url: a.customerId ? `/customers/${a.customerId}` : undefined,
           ...cls("act"),
         });
     }
     return list;
-  }, [activities, jobs, tasks, locale]);
+  }, [actsQ.data, jobs, tasksQ.data, locale]);
 
   const count = (k: Kind) => events.filter((e) => e.kind === k).length;
   const shown = kind === "all" ? events : events.filter((e) => e.kind === kind);
@@ -265,6 +268,12 @@ export function CalendarPageV2() {
 }
 
 /** Accept MM-DD, "MM-DD HH:mm" or YYYY-MM-DD for the calendar feed. */
+/** ISO timestamp → the viewer's local YYYY-MM-DD. */
+function localDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function normalizeDate(raw: string): string {
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
   const year = new Date().getFullYear();

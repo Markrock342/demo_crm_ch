@@ -34,14 +34,20 @@ export async function enrichJobsForList(db: Db, jobIds: string[]): Promise<Map<s
     db.select().from(invoices).where(inArray(invoices.jobId, jobIds)),
   ]);
 
+  // Group once (was a filter per job → O(jobs × rows)).
+  const chargesByJob = new Map<string, typeof charges>();
+  for (const c of charges) (chargesByJob.get(c.jobId) ?? chargesByJob.set(c.jobId, []).get(c.jobId)!).push(c);
+  const invByJob = new Map<string, typeof invRows>();
+  for (const i of invRows) if (i.jobId) (invByJob.get(i.jobId) ?? invByJob.set(i.jobId, []).get(i.jobId)!).push(i);
+
   for (const id of jobIds) {
-    const jobCharges = charges.filter((c) => c.jobId === id);
+    const jobCharges = chargesByJob.get(id) ?? [];
     const revenue = jobCharges.filter((c) => c.chargeType === "REVENUE");
     const cost = jobCharges.filter((c) => c.chargeType === "COST");
     const totalRevenue = revenue.length ? add(...revenue.map((c) => c.actualAmount ?? c.totalAmount)) : d(0);
     const totalCost = cost.length ? add(...cost.map((c) => c.actualAmount ?? c.totalAmount)) : d(0);
     const gp = jobCharges.length ? toDb(grossProfit(totalRevenue, totalCost)) : null;
-    const jobInvs = invRows.filter((i) => i.jobId === id);
+    const jobInvs = invByJob.get(id) ?? [];
     map.set(id, {
       grossProfit: gp,
       billingStatus: deriveBillingStatus(jobInvs),

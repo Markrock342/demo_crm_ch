@@ -1,6 +1,7 @@
 import { ArrowLeft } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { HelpButton } from "./HelpButton.tsx";
 import "./kit.css";
 
 type Props = {
@@ -15,9 +16,11 @@ type Props = {
   extra?: ReactNode;
   /** Rendered under the title row: tabs, filter bar, stat strip. */
   children?: ReactNode;
+  /** "?" help drawer: route whose help to show (default: current route); false hides it. */
+  helpKey?: string | false;
 };
 
-export function PageHeader({ title, subtitle, back, breadcrumbs, extra, children }: Props) {
+export function PageHeader({ title, subtitle, back, breadcrumbs, extra, children, helpKey }: Props) {
   const crumb = back ?? (() => {
     const b = breadcrumbs?.filter((x) => x.href).at(-1);
     return b?.href ? { to: b.href, label: b.title } : undefined;
@@ -36,7 +39,10 @@ export function PageHeader({ title, subtitle, back, breadcrumbs, extra, children
           <h1 className="cz-page-title">{title}</h1>
           {subtitle ? <div className="cz-page-sub">{subtitle}</div> : null}
         </div>
-        {extra ? <div className="cz-page-actions">{extra}</div> : null}
+        <div className="cz-page-actions">
+          {helpKey === false ? null : <HelpButton helpKey={helpKey} />}
+          {extra}
+        </div>
       </div>
       {children ? <div className="cz-page-below">{children}</div> : null}
     </header>

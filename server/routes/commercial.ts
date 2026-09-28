@@ -4,11 +4,13 @@ import { getDb, hasDatabase } from "../db/index.js";
 import { authMiddleware, requireAuth, requirePermission, requireTenant, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
 import { createInvoice, createInvoiceFromJob, createBillingNote, createVendorBill, createVendorBillFromJob, approveVendorBill, getArSummary, getInvoice, getVendorBill, issueInvoice, listBillingNotes, listInvoices, listPayments, listVendorBills, payVendorBill, recordPayment } from "../services/finance.service.js";
-import { createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
+import { containerDto, createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
+import { listContainersPage } from "../services/container-list.service.js";
 import { createJobTask, listJobTasks, updateJobTask } from "../services/job-tasks.service.js";
-import { ensureJobMilestones, listMilestonesForJobs, setMilestoneComplete, summarizeMilestones } from "../services/milestone.service.js";
-import { getJob, listBookingsByQuotation, listJobCharges, listJobs, updateChargeActual } from "../services/operations.service.js";
-import { enrichJobsForList } from "../services/job-enrichment.service.js";
+import { ensureJobMilestones, setMilestoneComplete } from "../services/milestone.service.js";
+import { getJob, listBookingsByQuotation, listJobCharges, updateChargeActual } from "../services/operations.service.js";
+import { jobReportSummary, listJobsPage, parseJobListQuery } from "../services/job-list.service.js";
+import { listInvoicesPage, parseInvoiceListQuery, wantsPagedInvoices } from "../services/invoice-list.service.js";
 import { generateBillingNotePdf, generateInvoicePdf, generateQuotationPdf } from "../services/pdf.service.js";
 import {
   createBookingFromQuotation,
@@ -23,7 +25,7 @@ import {
   signQuotation,
   submitForApproval,
 } from "../services/quotation.service.js";
-import { createRateSheetWithLane, createVendor, getRateLaneCharges, listVendors, searchRates, VENDOR_TYPES } from "../services/rate.service.js";
+import { createVendor, getRateLaneForOrg, listVendors, VENDOR_TYPES } from "../services/rate.service.js";
 import type { RoleCode } from "../domain/rbac.js";
 
 function dbOr503(c: { json: (body: unknown, status?: number) => Response }) {
@@ -134,74 +136,8 @@ export function commercialRoutes() {
     const body = await parseBody(c, createVendorSchema);
     if (body.error) return body.error;
     const row = await createVendor(db, orgId(c), body.data);
-    await writeAudit(db, { userId: user.id, action: "VENDOR_CREATED", entityType: "vendor", entityId: row.id, newValue: row });
+    await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "VENDOR_CREATED", entityType: "vendor", entityId: row.id, newValue: row });
     return c.json(row, 201);
-  });
-
-  r.get("/rates/search", requireAuth(), requirePermission("rate.view_sell"), async (c) => {
-    const db = dbOr503(c);
-    if (typeof db !== "object" || !("select" in db)) return db;
-    const items = await searchRates(db, {
-      origin: c.req.query("origin"),
-      destination: c.req.query("destination"),
-      pol: c.req.query("pol"),
-      pod: c.req.query("pod"),
-      mode: c.req.query("mode"),
-      containerType: c.req.query("containerType"),
-      roles: roles(c),
-    });
-    return c.json({ items });
-  });
-
-  r.get("/rates/lanes/:id", requireAuth(), requirePermission("rate.view_sell"), async (c) => {
-    const db = dbOr503(c);
-    if (typeof db !== "object" || !("select" in db)) return db;
-    const row = await getRateLaneCharges(db, c.req.param("id"), roles(c));
-    if (!row) return c.json({ error: "not_found" }, 404);
-    return c.json(row);
-  });
-
-  r.post("/rates", requireAuth(), requirePermission("rate.create"), async (c) => {
-    const db = dbOr503(c);
-    if (typeof db !== "object" || !("select" in db)) return db;
-    const user = c.get("user")!;
-    const body = z
-      .object({
-        vendorId: z.string(),
-        name: z.string(),
-        carrier: z.string().optional(),
-        validFrom: z.string(),
-        validUntil: z.string(),
-        currency: z.string(),
-        lane: z.object({
-          origin: z.string(),
-          destination: z.string(),
-          pol: z.string(),
-          pod: z.string(),
-          mode: z.string(),
-          containerType: z.string().optional(),
-        }),
-        charges: z.array(
-          z.object({
-            chargeCode: z.string(),
-            description: z.string(),
-            side: z.enum(["BUY", "SELL"]),
-            unit: z.string(),
-            quantity: z.string(),
-            unitPrice: z.string(),
-            currency: z.string(),
-          }),
-        ),
-      })
-      .parse(await c.req.json());
-
-    const result = await createRateSheetWithLane(db, {
-      ...body,
-      validFrom: new Date(body.validFrom),
-      validUntil: new Date(body.validUntil),
-    });
-    await writeAudit(db, { userId: user.id, action: "RATE_CREATED", entityType: "rate_lane", entityId: result.laneId, newValue: result });
-    return c.json(result, 201);
   });
 
   r.get("/quotations", ...tenantGate, requirePermission("quotation.view"), async (c) => {
@@ -236,57 +172,16 @@ export function commercialRoutes() {
   r.get("/jobs", ...tenantGate, requirePermission("shipment.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const customerId = c.req.query("customerId");
-    const milestoneFilter = c.req.query("milestoneFilter") as "all" | "at_risk" | "pending" | undefined;
-    const filter = milestoneFilter === "at_risk" || milestoneFilter === "pending" ? milestoneFilter : "all";
-    const limit = Math.min(Number(c.req.query("limit") || 200), 500);
-    const offset = Math.max(Number(c.req.query("offset") || 0), 0);
-    const rows = await listJobs(db, orgId(c), customerId, filter);
-    const page = rows.slice(offset, offset + limit);
-    const enrichment = await enrichJobsForList(
-      db,
-      page.map((j) => j.id),
-    );
-    const milestoneMap = await listMilestonesForJobs(
-      db,
-      page.map((j) => j.id),
-    );
-    const items = page.map((j) => {
-      const ms = milestoneMap.get(j.id) ?? [];
-      const summary = summarizeMilestones(ms);
-      const extra = enrichment.get(j.id);
-      return {
-        id: j.id,
-        jobNumber: j.jobNumber,
-        customerId: j.customerId,
-        origin: j.origin,
-        destination: j.destination,
-        pol: j.pol,
-        pod: j.pod,
-        mode: j.mode,
-        status: j.status,
-        teu: j.teu,
-        currency: j.currency,
-        carrier: j.carrier,
-        vessel: j.vessel,
-        voyage: j.voyage,
-        etd: j.etd,
-        eta: j.eta,
-        containerType: j.containerType,
-        containerCount: j.containerCount,
-        incoterm: j.incoterm,
-        assignedOperator: j.assignedOperator,
-        salesOwnerId: j.salesOwnerId,
-        nextMilestoneCode: summary.nextCode,
-        nextMilestoneLabel: summary.nextLabel,
-        nextMilestonePlannedAt: summary.nextPlannedAt,
-        milestoneAtRisk: summary.atRisk,
-        milestonePendingCount: summary.pendingCount,
-        grossProfit: extra?.grossProfit ?? null,
-        billingStatus: extra?.billingStatus ?? "UNBILLED",
-      };
-    });
-    return c.json({ items, total: rows.length, limit, offset });
+    // Search / tabs / billing / stage / paging run in SQL — see job-list.service.ts.
+    // Response keeps { items, total, limit, offset } and adds { counts, stageCounts }.
+    return c.json(await listJobsPage(db, orgId(c), parseJobListQuery((k) => c.req.query(k))));
+  });
+
+  /** Org-wide job aggregates (status / billing / lanes / containers) for the Reports page. */
+  r.get("/reports/jobs-summary", ...tenantGate, requirePermission("shipment.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    return c.json(await jobReportSummary(db, orgId(c)));
   });
 
   r.get("/jobs/:id", ...tenantGate, requirePermission("shipment.view"), async (c) => {
@@ -311,6 +206,7 @@ export function commercialRoutes() {
     const row = await updateChargeActual(db, orgId(c), c.req.param("id"), c.req.param("chargeId"), actualAmount);
     if (!row) return c.json({ error: "not_found" }, 404);
     await writeAudit(db, {
+      organizationId: orgId(c),
       userId: user.id,
       action: "SHIPMENT_CHARGE_UPDATED",
       entityType: "shipment_charge",
@@ -353,6 +249,7 @@ export function commercialRoutes() {
     const body = z.object({ customerId: z.string(), invoiceIds: z.array(z.string()).min(1) }).parse(await c.req.json());
     const result = await createBillingNote(db, orgId(c), body);
     await writeAudit(db, {
+      organizationId: orgId(c),
       userId: user.id,
       action: "BILLING_NOTE_CREATED",
       entityType: "billing_note",
@@ -412,9 +309,11 @@ export function commercialRoutes() {
         markupPct: z.string().optional(),
       })
       .parse(await c.req.json());
+    // The rate lane must belong to the caller's organization (its vendor's org), or it is "not found".
+    if (!(await getRateLaneForOrg(db, orgId(c), body.rateLaneId, roles(c)))) return c.json({ error: "not_found" }, 404);
     try {
       const result = await createQuotationFromRate(db, orgId(c), { ...body, createdBy: user.id, salesOwnerId: user.id });
-      await writeAudit(db, { userId: user.id, action: "QUOTE_CREATED", entityType: "quotation", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "QUOTE_CREATED", entityType: "quotation", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -430,7 +329,7 @@ export function commercialRoutes() {
     const id = c.req.param("id");
     try {
       const result = await submitForApproval(db, orgId(c), id, user.id);
-      await writeAudit(db, { userId: user.id, action: "QUOTE_APPROVAL_REQUESTED", entityType: "quotation", entityId: id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "QUOTE_APPROVAL_REQUESTED", entityType: "quotation", entityId: id, newValue: result });
       return c.json(result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -448,6 +347,7 @@ export function commercialRoutes() {
     try {
       const result = await decideApproval(db, orgId(c), id, user.id, body.decision, body.comment);
       await writeAudit(db, {
+        organizationId: orgId(c),
         userId: user.id,
         action: body.decision === "APPROVED" ? "QUOTE_APPROVED" : "QUOTE_REJECTED",
         entityType: "quotation",
@@ -468,9 +368,24 @@ export function commercialRoutes() {
     const user = c.get("user")!;
     const id = c.req.param("id");
     try {
+      // Optional body: { email?: boolean (default true), to?: string[] } — e-mails the acceptance link.
+      const opts = z
+        .object({ email: z.boolean().optional(), to: z.array(z.string().email()).max(10).optional() })
+        .catch({})
+        .parse(await c.req.json().catch(() => ({})));
       const result = await sendQuotation(db, orgId(c), id, user.id);
-      await writeAudit(db, { userId: user.id, action: "QUOTE_SENT", entityType: "quotation", entityId: id, newValue: result });
-      return c.json(result);
+      let email: { status: "sent" | "failed" | "skipped"; to?: string[]; error?: string | null; transport?: string | null; reason?: string } = {
+        status: "skipped",
+      };
+      if (opts.email !== false) {
+        const { emailQuotationLink, publicBaseUrl } = await import("../services/outbound-mail.service.js");
+        const link = `${publicBaseUrl(new URL(c.req.url).origin)}${result.publicUrl}`;
+        const sent = await emailQuotationLink(db, orgId(c), user.id, id, link, opts.to);
+        if (sent && "status" in sent) email = { status: sent.status, to: sent.to, error: sent.error, transport: sent.transport };
+        else if (sent && "skipped" in sent) email = { status: "skipped", reason: sent.skipped };
+      }
+      await writeAudit(db, { userId: user.id, organizationId: orgId(c), action: "QUOTE_SENT", entityType: "quotation", entityId: id, newValue: { email: email.status, to: email.to ?? [] } });
+      return c.json({ ...result, email });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
       if (msg === "not_found") return c.json({ error: "not_found" }, 404);
@@ -485,7 +400,7 @@ export function commercialRoutes() {
     const id = c.req.param("id");
     try {
       const result = await createBookingFromQuotation(db, orgId(c), id);
-      await writeAudit(db, { userId: user.id, action: "BOOKING_CREATED", entityType: "booking", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "BOOKING_CREATED", entityType: "booking", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -500,7 +415,7 @@ export function commercialRoutes() {
     const user = c.get("user")!;
     try {
       const result = await createJobFromBooking(db, orgId(c), c.req.param("id"));
-      await writeAudit(db, { userId: user.id, action: "SHIPMENT_CREATED", entityType: "job", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "SHIPMENT_CREATED", entityType: "job", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -542,6 +457,7 @@ export function commercialRoutes() {
     const row = await setMilestoneComplete(db, jobId, c.req.param("code"), complete);
     if (!row) return c.json({ error: "not_found" }, 404);
     await writeAudit(db, {
+      organizationId: orgId(c),
       userId: user.id,
       action: complete ? "MILESTONE_COMPLETED" : "MILESTONE_REOPENED",
       entityType: "job_milestone",
@@ -570,7 +486,7 @@ export function commercialRoutes() {
       })
       .parse(await c.req.json());
     const row = await createJobTask(db, orgId(c), { jobId: c.req.param("id"), ...body });
-    await writeAudit(db, { userId: user.id, action: "JOB_TASK_CREATED", entityType: "job_task", entityId: row.id, newValue: row });
+    await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "JOB_TASK_CREATED", entityType: "job_task", entityId: row.id, newValue: row });
     return c.json(row, 201);
   });
 
@@ -589,7 +505,7 @@ export function commercialRoutes() {
       .parse(await c.req.json());
     const row = await updateJobTask(db, orgId(c), c.req.param("id"), c.req.param("taskId"), patch);
     if (!row) return c.json({ error: "not_found" }, 404);
-    await writeAudit(db, { userId: user.id, action: "JOB_TASK_UPDATED", entityType: "job_task", entityId: row.id, newValue: row });
+    await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "JOB_TASK_UPDATED", entityType: "job_task", entityId: row.id, newValue: row });
     return c.json(row);
   });
 
@@ -601,6 +517,21 @@ export function commercialRoutes() {
     const jobId = c.req.query("jobId");
     const yard = c.req.query("yard");
     const statuses = yard === "1" ? ["yard", "empty", "hold"] : undefined;
+    if (["limit", "offset", "q"].some((k) => c.req.query(k) !== undefined)) {
+      // Paged mode: { items, total, limit, offset, counts: { all, yard, sail, … } }.
+      const limit = Math.min(Math.max(Number(c.req.query("limit") || 100) || 100, 1), 500);
+      const offset = Math.max(Number(c.req.query("offset") || 0) || 0, 0);
+      const page = await listContainersPage(db, orgId(c), {
+        q: c.req.query("q")?.slice(0, 60),
+        status: statuses ? undefined : status || undefined,
+        statuses,
+        customerId,
+        jobId,
+        limit,
+        offset,
+      });
+      return c.json({ items: page.rows.map(containerDto), total: page.total, limit, offset, counts: page.counts });
+    }
     return c.json({
       items: await listContainers(db, orgId(c), {
         status: statuses ? undefined : status,
@@ -632,11 +563,13 @@ export function commercialRoutes() {
         vessel: z.string().optional(),
         seal: z.string().optional(),
         commodity: z.string().optional(),
+        lastFreeDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        freeDays: z.number().int().min(0).max(365).nullable().optional(),
       })
       .parse(await c.req.json());
     try {
       const result = await createContainer(db, body);
-      await writeAudit(db, { userId: user.id, action: "CONTAINER_CREATED", entityType: "container", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "CONTAINER_CREATED", entityType: "container", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch {
       return c.json({ error: "duplicate_container" }, 409);
@@ -654,19 +587,29 @@ export function commercialRoutes() {
         bl: z.string().optional(),
         eta: z.string().nullable().optional(),
         vessel: z.string().nullable().optional(),
+        lastFreeDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "invalid_date").nullable().optional(),
+        freeDays: z.number().int().min(0).max(365).nullable().optional(),
       })
-      .parse(await c.req.json());
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      return c.json({ error: "invalid_body", issues: body.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })) }, 400);
+    }
     const existing = await getContainer(db, orgId(c), c.req.param("id"));
     if (!existing) return c.json({ error: "not_found" }, 404);
-    const result = await updateContainer(db, c.req.param("id"), body);
-    await writeAudit(db, { userId: user.id, action: "CONTAINER_UPDATED", entityType: "container", entityId: existing.id, newValue: result });
+    const result = await updateContainer(db, c.req.param("id"), body.data);
+    await writeAudit(db, { userId: user.id, organizationId: orgId(c), action: "CONTAINER_UPDATED", entityType: "container", entityId: existing.id, oldValue: existing, newValue: result });
     return c.json(result);
   });
 
   r.get("/invoices", ...tenantGate, requirePermission("invoice.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    return c.json({ items: await listInvoices(db, orgId(c), c.req.query("customerId")) });
+    const get = (k: string) => c.req.query(k);
+    // Paged mode (any of limit/offset/q/view/…): filters, counts and money summary run in SQL.
+    if (wantsPagedInvoices(get)) return c.json(await listInvoicesPage(db, orgId(c), parseInvoiceListQuery(get)));
+    // Legacy: every invoice (optionally for one customer), without the heavy snapshot column.
+    const items = (await listInvoices(db, orgId(c), c.req.query("customerId"))).map(({ snapshot: _s, ...rest }) => rest);
+    return c.json({ items });
   });
 
   r.post("/invoices", ...tenantGate, requirePermission("invoice.create"), async (c) => {
@@ -677,7 +620,7 @@ export function commercialRoutes() {
     if (body.error) return body.error;
     try {
       const result = await createInvoice(db, orgId(c), { ...body.data, createdBy: user.id });
-      await writeAudit(db, { userId: user.id, action: "INVOICE_CREATED", entityType: "invoice", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "INVOICE_CREATED", entityType: "invoice", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -696,7 +639,7 @@ export function commercialRoutes() {
       .parse(await c.req.json());
     try {
       const result = await createInvoiceFromJob(db, orgId(c), { ...body, createdBy: user.id });
-      await writeAudit(db, { userId: user.id, action: "INVOICE_CREATED", entityType: "invoice", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "INVOICE_CREATED", entityType: "invoice", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -712,7 +655,7 @@ export function commercialRoutes() {
     const id = c.req.param("id");
     try {
       const result = await issueInvoice(db, orgId(c), id, user.id);
-      await writeAudit(db, { userId: user.id, action: "INVOICE_ISSUED", entityType: "invoice", entityId: id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "INVOICE_ISSUED", entityType: "invoice", entityId: id, newValue: result });
       return c.json(result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -736,7 +679,7 @@ export function commercialRoutes() {
       })
       .parse(await c.req.json());
     const result = await recordPayment(db, body);
-    await writeAudit(db, { userId: user.id, action: "PAYMENT_RECORDED", entityType: "payment", entityId: result.id, newValue: result });
+    await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "PAYMENT_RECORDED", entityType: "payment", entityId: result.id, newValue: result });
     return c.json(result, 201);
   });
 
@@ -772,7 +715,7 @@ export function commercialRoutes() {
     if (body.error) return body.error;
     try {
       const result = await createVendorBill(db, orgId(c), body.data);
-      await writeAudit(db, { userId: user.id, action: "VENDOR_BILL_CREATED", entityType: "vendor_bill", entityId: result.id, newValue: result });
+      await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "VENDOR_BILL_CREATED", entityType: "vendor_bill", entityId: result.id, newValue: result });
       return c.json(result, 201);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
@@ -797,6 +740,7 @@ export function commercialRoutes() {
     try {
       const result = await createVendorBillFromJob(db, orgId(c), body);
       await writeAudit(db, {
+        organizationId: orgId(c),
         userId: user.id,
         action: "VENDOR_BILL_CREATED",
         entityType: "vendor_bill",
@@ -819,6 +763,7 @@ export function commercialRoutes() {
     try {
       const result = await approveVendorBill(db, orgId(c), id, user.id);
       await writeAudit(db, {
+        organizationId: orgId(c),
         userId: user.id,
         action: "VENDOR_BILL_APPROVED",
         entityType: "vendor_bill",
@@ -843,6 +788,7 @@ export function commercialRoutes() {
     try {
       const result = await payVendorBill(db, orgId(c), id, body);
       await writeAudit(db, {
+        organizationId: orgId(c),
         userId: user.id,
         action: "VENDOR_BILL_PAID",
         entityType: "vendor_bill",

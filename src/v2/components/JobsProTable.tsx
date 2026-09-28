@@ -1,6 +1,6 @@
 import { Warning } from "@phosphor-icons/react";
 import { Tooltip } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType, TableProps } from "antd/es/table";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ShellJob } from "../../ports/job.port.ts";
@@ -9,6 +9,7 @@ import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
 import { fmtDate } from "../lib/format.ts";
 import { fmtShortDate, known, milestoneLabel, personName, STAGE_KEYS, stageFromNext, useIsPhone } from "../pages/jobsShared.ts";
 import { JobsStackList } from "../pages/JobsStackList.tsx";
+import { ListPager } from "../pages/scale/ListPager.tsx";
 import { DataTable } from "./DataTable.tsx";
 import { progressBetween, RouteTrack, StageFlow, type StageKey } from "./Graphics.tsx";
 import { LaneCell, PeopleStack } from "./Visuals.tsx";
@@ -18,6 +19,8 @@ export type JobListRow = ShellJob & {
   next?: JobNextStep;
   /** 0 booked … 5 delivered (see jobsShared stage helpers). */
   stage?: number;
+  /** Customer name from the list API (the lookup only preloads the first customers). */
+  customerLabel?: string;
 };
 
 /** Stage of a list row: precomputed by the page, else derived from the next milestone. */
@@ -37,18 +40,24 @@ type Props = {
   loading?: boolean;
   emptyText?: string;
   emptyAction?: ReactNode;
+  /** Checkbox selection (bulk actions). */
+  rowSelection?: TableProps<JobListRow>["rowSelection"];
+  /** Server-side paging: rows are one page; the pager asks for another. */
+  paging?: { page: number; pageSize: number; total: number; onChange: (page: number) => void };
 };
 
 /**
  * Jobs list — at most 6 columns: Job no. + customer | stage icons | route picture (ETD/ETA) | vessel | next step | people.
  * Columns whose values are all unknown are hidden instead of showing a wall of "—". Phones get stacked rows.
  */
-export function JobsProTable({ rows, loading, emptyText, emptyAction }: Props) {
+export function JobsProTable({ rows, loading, emptyText, emptyAction, rowSelection, paging }: Props) {
   const { tx, locale } = useStore();
   const navigate = useNavigate();
   const { nameOf } = useCustomerLookup();
   const phone = useIsPhone();
 
+  const customer = (r: JobListRow) => r.customerLabel || nameOf(r.customerId);
+  const pager = paging ? <ListPager page={paging.page} pageSize={paging.pageSize} total={paging.total} onChange={paging.onChange} /> : null;
   const people = (r: ShellJob) => [...new Set([personName(r.salesOwner), personName(r.opsOwner)].filter(Boolean))];
   const vessel = (r: ShellJob) => [known(r.vessel), known(r.voyage)].filter(Boolean).join(" / ") || known(r.carrier);
   const has = (fn: (r: JobListRow) => unknown) => rows.some((r) => Boolean(fn(r)));
@@ -92,6 +101,7 @@ export function JobsProTable({ rows, loading, emptyText, emptyAction }: Props) {
 
   if (phone) {
     return (
+      <>
       <JobsStackList
         loading={loading}
         emptyText={emptyText}
@@ -102,13 +112,15 @@ export function JobsProTable({ rows, loading, emptyText, emptyAction }: Props) {
           status: stageCell(r),
           sub: (
             <>
-              <span>{nameOf(r.customerId)}</span>
+              <span>{customer(r)}</span>
               <LaneCell from={r.pol} to={r.pod} />
             </>
           ),
           onOpen: () => navigate(`/jobs/${r.id}`),
         }))}
       />
+      {pager}
+      </>
     );
   }
 
@@ -119,7 +131,7 @@ export function JobsProTable({ rows, loading, emptyText, emptyAction }: Props) {
       render: (_, r) => (
         <>
           <span className="cz-cell-main jobs-nowrap">{r.jobNumber}</span>
-          <span className="cz-cell-sub jobs-cell-clip">{nameOf(r.customerId)}</span>
+          <span className="cz-cell-sub jobs-cell-clip">{customer(r)}</span>
         </>
       ),
     },
@@ -159,14 +171,19 @@ export function JobsProTable({ rows, loading, emptyText, emptyAction }: Props) {
   }
 
   return (
-    <DataTable<JobListRow>
-      rowKey="id"
-      columns={columns}
-      dataSource={rows}
-      loading={loading}
-      emptyText={emptyText}
-      emptyAction={emptyAction}
-      onRowClick={(r) => navigate(`/jobs/${r.id}`)}
-    />
+    <>
+      <DataTable<JobListRow>
+        rowKey="id"
+        columns={columns}
+        dataSource={rows}
+        loading={loading}
+        emptyText={emptyText}
+        emptyAction={emptyAction}
+        rowSelection={rowSelection}
+        pagination={paging ? false : undefined}
+        onRowClick={(r) => navigate(`/jobs/${r.id}`)}
+      />
+      {pager}
+    </>
   );
 }

@@ -24,6 +24,7 @@ import {
 import { Alert, Button, Modal, Popconfirm, Tooltip, message } from "antd";
 import { useState, type ReactNode } from "react";
 import { issuePortalAccessCode, revokePortalAccess, type CustomerDetail } from "../../api/crm.ts";
+import { EmailPortalCodeButton } from "./EmailPortalCodeButton.tsx";
 import type { Contact } from "../../crm";
 import { useStore } from "../../store";
 import { Flag, IconBadge, Panel, PersonAvatar, RouteTrack, StatusTag } from "../components";
@@ -439,6 +440,7 @@ export function PortalAccessPanel({ c, canEdit, onChanged }: { c: CustomerDetail
               </Button>
             </div>
             <Alert type="warning" showIcon message={tx("cust_portalCodeOnce")} />
+            <EmailPortalCodeButton customerId={c.id} code={issued.code} count={issued.emails.length} />
             <div>
               <div className="cp-portal-hint" style={{ marginBottom: 6 }}>
                 {tx("cust_portalEmails")}

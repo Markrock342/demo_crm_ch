@@ -80,6 +80,8 @@ export const leads = pgTable("leads", {
   stage: text("stage").notNull(),
   teu: integer("teu").notNull().default(0),
   owner: text("owner").notNull(),
+  /** Staff owner; `owner` keeps the display name as a fallback for legacy rows. */
+  ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
   updated: text("updated").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -97,6 +99,8 @@ export const opportunities = pgTable("opportunities", {
   teu: integer("teu").notNull().default(0),
   close: text("close").notNull(),
   owner: text("owner").notNull(),
+  ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+  currency: text("currency").notNull().default("THB"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -57,6 +57,8 @@ export const userRoles = pgTable(
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  /** FK to organizations (0014); null on older rows — scoped via the user's memberships. */
+  organizationId: uuid("organization_id"),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id"),

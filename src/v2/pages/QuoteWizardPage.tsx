@@ -46,6 +46,9 @@ import "./sales.css";
 /** Demo-mode draft charges (see submitShell) — shown as the price breakdown before saving. */
 const SHELL_CHARGES = { ocean: 1200, thc: 150, currency: "USD" };
 
+/** `email` part of POST /api/quotations/:id/send. */
+type SendEmailResult = { status: "sent" | "failed" | "skipped"; to?: string[]; error?: string | null; transport?: string | null; reason?: string };
+
 type WorkflowState = {
   quotationId: string;
   quotationNumber?: string;
@@ -101,6 +104,7 @@ export function QuoteWizardPageV2() {
 
   const [step, setStep] = useState(0);
   const [workflow, setWorkflow] = useState<WorkflowState | null>(null);
+  const [mailResult, setMailResult] = useState<SendEmailResult | null>(null);
   const [existingTotal, setExistingTotal] = useState<{ amount: number; currency: string } | null>(null);
   // Pre-fill from links on other pages: Rates (?origin&destination&pol&pod&containerType&rateLaneId)
   // and customer detail (?customerId). Ignored when opening an existing quotation (?quote).
@@ -241,8 +245,9 @@ export function QuoteWizardPageV2() {
   const sendQuote = useMutation({
     mutationFn: () => sendQuotation(workflow!.quotationId),
     onSuccess: (data) => {
-      const result = data as { token: string; publicUrl?: string };
+      const result = data as { token: string; publicUrl?: string; email?: SendEmailResult };
       setWorkflow((w) => (w ? { ...w, status: "SENT", publicToken: result.token } : w));
+      setMailResult(result.email ?? null);
       void qc.invalidateQueries({ queryKey: queryKeys.quotations.list() });
       message.success(tx("jobs_wSent"));
     },
@@ -420,6 +425,18 @@ export function QuoteWizardPageV2() {
   const routeValid = Boolean(customerId && form.pol.trim() && form.pod.trim() && form.quantity >= 1);
 
   /* ── Step bodies + footer actions ── */
+  // Outcome of the e-mail sent with the quotation link (shown on the send step).
+  const mailTo = (mailResult?.to ?? []).join(", ");
+  const mailAlert: ReactNode = !mailResult ? null : mailResult.status === "sent" && mailResult.transport !== "sandbox" ? (
+    <Alert type="success" showIcon message={tx("jobs_wMailSent", { to: mailTo })} />
+  ) : mailResult.status === "sent" ? (
+    <Alert type="warning" showIcon message={tx("jobs_wMailSandbox", { to: mailTo })} />
+  ) : mailResult.status === "failed" ? (
+    <Alert type="error" showIcon message={tx("jobs_wMailFailed", { to: mailTo })} description={mailResult.error || undefined} />
+  ) : mailResult.reason === "no_recipient" ? (
+    <Alert type="warning" showIcon message={tx("jobs_wMailNoRecipient")} />
+  ) : null;
+
   let body: ReactNode = null;
   let back: ReactNode = null;
   let actions: ReactNode = null;
@@ -682,6 +699,7 @@ export function QuoteWizardPageV2() {
       <>
         {statusBox(tx("jobs_wSendHelp"))}
         {workflow.publicToken ? <Alert type="success" showIcon message={tx("jobs_wLinkReady")} /> : null}
+        {mailAlert}
       </>
     );
     back = ["DRAFT", "PENDING_APPROVAL", "APPROVED"].includes(status) ? backBtn(3) : allQuotes();

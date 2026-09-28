@@ -1,0 +1,88 @@
+/* Rates page — add / edit rate drawer. Tokens only. */
+.rt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-md);
+}
+.rt-section {
+  margin: var(--space-sm) 0 var(--space-xs);
+  font-weight: 600;
+  color: var(--ink);
+}
+.rt-alert {
+  margin-bottom: var(--space-md);
+}
+.rt-charges {
+  display: grid;
+  gap: var(--space-sm);
+}
+.rt-charge {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.rt-charge .rt-code,
+.rt-charge .rt-unit,
+.rt-charge .rt-price {
+  width: 100%;
+}
+.rt-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius);
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.rt-totals strong {
+  color: var(--ink);
+}
+.rt-totals .is-success strong {
+  color: var(--success);
+}
+.rt-totals .is-warning strong {
+  color: var(--warning-text);
+}
+.rt-totals .is-danger strong {
+  color: var(--danger);
+}
+.rt-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.rt-foot-end {
+  margin-inline-start: auto;
+}
+@media (max-width: 640px) {
+  .rt-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rt-charge {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: "side side del" "code code code" "price unit unit";
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--line);
+  }
+  .rt-charge .ant-segmented {
+    grid-area: side;
+    justify-self: start;
+  }
+  .rt-charge .rt-code {
+    grid-area: code;
+  }
+  .rt-charge .rt-price {
+    grid-area: price;
+  }
+  .rt-charge .rt-unit {
+    grid-area: unit;
+  }
+  .rt-charge > .ant-btn {
+    grid-area: del;
+  }
+}
+.rt-row-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }

@@ -1,0 +1,212 @@
+/* /import — Excel / CSV import. Tokens only. */
+
+.im-page { min-width: 0; }
+
+.im-entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}
+.im-entity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--dur-fast, 0.15s) var(--ease, ease), box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
+}
+.im-entity:hover { border-color: var(--line-strong); }
+.im-entity.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+  background: var(--primary-soft);
+}
+.im-entity:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Stepper */
+.im-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.im-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--ink-faint);
+}
+.im-step:not(:last-child)::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 2px;
+  min-width: 12px;
+  margin-inline: var(--space-xs);
+  background: var(--line);
+  border-radius: 1px;
+}
+.im-step.is-done:not(:last-child)::after { background: var(--success); }
+.im-step-dot {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fill);
+}
+.im-step.is-done { color: var(--success); }
+.im-step.is-done .im-step-dot { background: var(--success-soft); }
+.im-step.is-current { color: var(--primary); font-weight: 600; }
+.im-step.is-current .im-step-dot { background: var(--primary); color: var(--paper); }
+.im-step-label { white-space: nowrap; font-size: 13px; }
+
+/* File step */
+.im-file-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-md);
+  align-items: stretch;
+}
+.im-template { display: flex; flex-direction: column; gap: var(--space-sm); }
+.im-template .ant-btn { justify-content: flex-start; }
+.im-panel-title { display: inline-flex; align-items: center; gap: var(--space-sm); }
+
+.im-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 220px;
+  padding: var(--space-lg);
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-fast, 0.15s) var(--ease, ease), background var(--dur-fast, 0.15s) var(--ease, ease);
+}
+.im-drop:hover,
+.im-drop.is-drag { border-color: var(--primary); background: var(--primary-soft); }
+.im-drop.is-error { border-color: var(--danger); }
+.im-drop:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.im-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.im-drop-title { font-weight: 600; font-size: 16px; color: var(--ink); }
+.im-drop-hint { color: var(--ink-faint); font-size: 13px; }
+.im-drop-error { color: var(--danger); font-weight: 600; }
+
+/* Map step */
+.im-file-name { color: var(--ink-faint); font-size: 13px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-required { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-md); }
+.im-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+}
+.im-chip.is-ok { background: var(--success-soft); color: var(--success); }
+.im-chip.is-missing { background: var(--danger-soft); color: var(--danger); }
+.im-map { display: flex; flex-direction: column; }
+.im-map-head,
+.im-map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+}
+.im-map-head { color: var(--ink-faint); font-size: 12px; border-bottom: 1px solid var(--line); }
+.im-map-row + .im-map-row { border-top: 1px solid var(--line); }
+.im-map-src { display: flex; flex-direction: column; min-width: 0; }
+.im-map-src strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-map-src small { color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-map-arrow { color: var(--ink-faint); }
+.im-map-row.is-mapped .im-map-arrow { color: var(--success); }
+.im-map-select { width: 100%; }
+.im-skip { color: var(--ink-faint); }
+
+.im-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* Check step */
+.im-wait { display: flex; align-items: center; justify-content: center; gap: var(--space-sm); padding: var(--space-xl); color: var(--ink-soft); }
+.im-filter { margin: var(--space-md) 0 var(--space-sm); overflow-x: auto; }
+.im-table { max-width: 100%; }
+.im-table td.im-cell-error { background: var(--danger-soft) !important; }
+.im-table td.im-cell-warn { background: var(--warning-soft) !important; }
+.im-table tr.im-row-error > td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.im-table tr.im-row-dup > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.im-rownum { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.im-cell { display: inline-flex; flex-direction: column; max-width: 260px; }
+.im-cell > :first-child,
+.im-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-parsed { color: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.im-empty { color: var(--ink-faint); }
+.im-ic { display: block; }
+.im-ic.is-danger { color: var(--danger); }
+.im-ic.is-warning { color: var(--warning); }
+.im-ic.is-accent { color: var(--accent); }
+.im-ic.is-success { color: var(--success); }
+
+/* Done */
+.im-done { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: var(--space-md) 0; }
+.im-done .cz-tiles { width: 100%; }
+.im-done-title { margin: 0; font-size: 20px; }
+.im-done .im-actions { justify-content: center; }
+
+/* History */
+.im-history { list-style: none; margin: 0; padding: 0; }
+.im-history-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+.im-history-row + .im-history-row { border-top: 1px solid var(--line); }
+.im-history-row.is-undone { opacity: 0.6; }
+.im-history-main { display: flex; flex-direction: column; min-width: 0; }
+.im-history-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-history-main small { color: var(--ink-faint); }
+.im-history-counts { display: inline-flex; gap: var(--space-sm); font-variant-numeric: tabular-nums; font-weight: 600; }
+.im-count { display: inline-flex; align-items: center; gap: 3px; }
+.im-count.is-success { color: var(--success); }
+.im-count.is-warning { color: var(--warning-text); }
+.im-count.is-danger { color: var(--danger); }
+.im-history-empty { margin: 0; padding: var(--space-lg); text-align: center; color: var(--ink-faint); }
+
+@media (max-width: 760px) {
+  .im-file-grid { grid-template-columns: 1fr; }
+  .im-step-label { display: none; }
+  .im-step.is-current .im-step-label { display: inline; }
+  .im-entities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .im-entity { padding: var(--space-xs) var(--space-sm); font-size: 13px; }
+  .im-history-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .im-history-act { grid-column: 2 / -1; justify-self: start; }
+  .im-history-act:empty { display: none; }
+  .im-map-head { display: none; }
+  .im-map-row { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: var(--space-sm) 0; }
+  .im-map-arrow { display: none; }
+  .im-drop { min-height: 180px; }
+  .im-file-name { max-width: 50vw; }
+}

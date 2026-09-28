@@ -45,6 +45,10 @@ export const PERMISSIONS = [
   "report.finance.view",
   "user.manage",
   "audit.view",
+  /** See and edit everyone's to-dos (everyone manages their own without it). */
+  "task.view_all",
+  /** Log calls / mails / meetings / notes on customers and jobs. */
+  "activity.create",
   // legacy aliases
   "rate.buy.view",
   "rate.sell.view",
@@ -88,6 +92,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "rate.buy.view",
     "rate.sell.view",
     "billing.edit",
+    "task.view_all",
+    "activity.create",
   ],
   SALES: [
     "customer.view",
@@ -104,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "finance.revenue.view",
     "invoice.view",
     "report.sales.view",
+    "activity.create",
   ],
   PRICING: [
     "customer.view",
@@ -120,9 +127,10 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "quotation.approve",
     "quotation.send",
     "report.sales.view",
+    "activity.create",
   ],
-  CUSTOMER_SERVICE: ["customer.view", "customer.edit", "shipment.view", "shipment.edit", "container.edit"],
-  OPERATIONS: ["customer.view", "shipment.view", "shipment.edit", "container.edit", "finance.cost.view"],
+  CUSTOMER_SERVICE: ["customer.view", "customer.edit", "shipment.view", "shipment.edit", "container.edit", "activity.create"],
+  OPERATIONS: ["customer.view", "shipment.view", "shipment.edit", "container.edit", "finance.cost.view", "activity.create"],
   ACCOUNTING: [
     "customer.view",
     "shipment.view",
@@ -142,6 +150,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "vendor_bill.create",
     "vendor_bill.approve",
     "report.finance.view",
+    "activity.create",
   ],
   VIEWER: ["customer.view", "quotation.view", "shipment.view", "invoice.view"],
 };

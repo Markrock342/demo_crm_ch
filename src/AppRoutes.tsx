@@ -1,38 +1,49 @@
+import { Suspense, lazy, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { AccountPage } from "./pages/Account";
-import { AutomationPage } from "./pages/Automation";
-import { BoxesPage } from "./pages/Boxes";
-import { CalendarPage } from "./pages/Calendar";
-import { ContactsPage } from "./pages/Contacts";
-import { CustomersPage } from "./pages/Customers";
-import { DocsPage } from "./pages/Docs";
-import { DocumentTemplatesPageV2 } from "./v2/pages/DocumentTemplatesPage.tsx";
-import { ExceptionsPage } from "./pages/Exceptions";
-import { InboxPage } from "./pages/Inbox";
-import { InvoicesPage } from "./pages/Invoices";
-import { JobDetailPage } from "./pages/JobDetail";
-import { JobsPage } from "./pages/Jobs";
-import { LeadsPage } from "./pages/Leads";
-import { NotificationsPage } from "./pages/Notifications";
-import { OverviewPage } from "./pages/Overview";
-import { PipelinePage } from "./pages/Pipeline";
-import { QuoteWizardPage } from "./pages/QuoteWizard";
-import { QuotationsPage } from "./pages/Quotations";
-import { RatesPage } from "./pages/Rates";
-import { ReportsPage } from "./pages/Reports";
-import { SettingsPage } from "./pages/Settings";
-import { ShipmentsPage } from "./pages/Shipments";
-import { TasksPage } from "./pages/Tasks";
-import { VendorBillsPage } from "./pages/VendorBills";
-import { VendorsPage } from "./pages/Vendors";
-import { YardPage } from "./pages/Yard";
+import { LoadingState } from "./v2/components/LoadingState.tsx";
 import { homePathFor } from "./shell/nav.ts";
 import { useShellSession } from "./shell/session.tsx";
+
+/** Route-level code splitting: each page loads as its own chunk on first visit. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyPage<K extends string>(load: () => Promise<Record<K, ComponentType<any>>>, name: K) {
+  return lazy(() => load().then((m) => ({ default: m[name] })));
+}
+
+const AccountPage = lazyPage(() => import("./pages/Account"), "AccountPage");
+const AutomationPage = lazyPage(() => import("./pages/Automation"), "AutomationPage");
+const BoxesPage = lazyPage(() => import("./pages/Boxes"), "BoxesPage");
+const CalendarPage = lazyPage(() => import("./pages/Calendar"), "CalendarPage");
+const ContactsPage = lazyPage(() => import("./pages/Contacts"), "ContactsPage");
+const CustomersPage = lazyPage(() => import("./pages/Customers"), "CustomersPage");
+const DocsPage = lazyPage(() => import("./pages/Docs"), "DocsPage");
+const DocumentTemplatesPageV2 = lazyPage(() => import("./v2/pages/DocumentTemplatesPage.tsx"), "DocumentTemplatesPageV2");
+const ExceptionsPage = lazyPage(() => import("./pages/Exceptions"), "ExceptionsPage");
+const InboxPage = lazyPage(() => import("./pages/Inbox"), "InboxPage");
+const InvoicesPage = lazyPage(() => import("./pages/Invoices"), "InvoicesPage");
+const JobDetailPage = lazyPage(() => import("./pages/JobDetail"), "JobDetailPage");
+const JobsPage = lazyPage(() => import("./pages/Jobs"), "JobsPage");
+const LeadsPage = lazyPage(() => import("./pages/Leads"), "LeadsPage");
+const NotificationsPage = lazyPage(() => import("./pages/Notifications"), "NotificationsPage");
+const OverviewPage = lazyPage(() => import("./pages/Overview"), "OverviewPage");
+const PipelinePage = lazyPage(() => import("./pages/Pipeline"), "PipelinePage");
+const QuoteWizardPage = lazyPage(() => import("./pages/QuoteWizard"), "QuoteWizardPage");
+const QuotationsPage = lazyPage(() => import("./pages/Quotations"), "QuotationsPage");
+const RatesPage = lazyPage(() => import("./pages/Rates"), "RatesPage");
+const ReportsPage = lazyPage(() => import("./pages/Reports"), "ReportsPage");
+const SettingsPage = lazyPage(() => import("./pages/Settings"), "SettingsPage");
+const ShipmentsPage = lazyPage(() => import("./pages/Shipments"), "ShipmentsPage");
+const TasksPage = lazyPage(() => import("./pages/Tasks"), "TasksPage");
+const VendorBillsPage = lazyPage(() => import("./pages/VendorBills"), "VendorBillsPage");
+const VendorsPage = lazyPage(() => import("./pages/Vendors"), "VendorsPage");
+const YardPage = lazyPage(() => import("./pages/Yard"), "YardPage");
+const ImportPage = lazyPage(() => import("./v2/pages/ImportPage.tsx"), "ImportPage");
 
 export function AppRoutes() {
   const { shellUser } = useShellSession();
 
   return (
+    <Suspense fallback={<LoadingState />}>
     <Routes>
       <Route path="/" element={<OverviewPage />} />
       <Route path="/exceptions" element={<ExceptionsPage />} />
@@ -61,7 +72,9 @@ export function AppRoutes() {
       <Route path="/calendar" element={<CalendarPage />} />
       <Route path="/reports" element={<ReportsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/import" element={<ImportPage />} />
       <Route path="*" element={<Navigate to={shellUser ? homePathFor(shellUser.department) : "/"} replace />} />
     </Routes>
+    </Suspense>
   );
 }

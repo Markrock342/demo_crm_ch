@@ -1,0 +1,128 @@
+/* "?" page help + onboarding tour (agent G) — tokens only. */
+
+.cz-help-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.cz-help-btn:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.cz-help-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.cz-help-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--ink);
+}
+
+.cz-help-title svg {
+  color: var(--primary);
+}
+
+.cz-help-title em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.cz-help-list {
+  display: grid;
+  gap: var(--space-md);
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  list-style: none;
+}
+
+.cz-help-list li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-sm);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.cz-help-num {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.cz-help-video {
+  margin-bottom: var(--space-sm);
+}
+
+.cz-help-video video {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius);
+  background: var(--fill-strong);
+}
+
+.cz-help-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.cz-help-action.is-quiet {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.cz-help-action:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.cz-tour-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.cz-tour-skip.ant-btn {
+  margin-inline-end: auto;
+  color: var(--ink-soft);
+}

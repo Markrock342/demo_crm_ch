@@ -11,7 +11,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { mapJobRowToShell } from "../adapters/api/jobMapper.ts";
-import { fetchJobs } from "../api/commercial.ts";
+import { fetchInvoicesPage, fetchJobsPage } from "../api/lists.ts";
 import { apiDeleteContact, apiUpdateContact, fetchCustomer } from "../api/crm.ts";
 import { useAuth } from "../auth/AuthProvider";
 import type { Contact, CrmDoc } from "../crm";
@@ -56,13 +56,14 @@ import { useAppMode } from "../v2/hooks/useAppMode.ts";
 import {
   useCustomerDocs,
   useCustomerMails,
-  useLiveInvoices,
   useLiveQuotations,
 } from "../v2/hooks/useCommercial.ts";
+import { useCan } from "../v2/hooks/useCan.ts";
 import { useCustomerLookup } from "../v2/hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../v2/hooks/useUserLookup.ts";
 import { CustomerFormDrawer, customerDetailKey, useRefreshCrm } from "../v2/pages/CustomerForm.tsx";
 import { BillingPanel, CompanyPanel, ContactCards, PortalAccessPanel, ShippingPanel } from "../v2/pages/CustomerProfilePanels.tsx";
+import { CustomerActivityTab } from "../v2/pages/home/ActivityTimeline.tsx";
 import { fmtDate, fmtMoney } from "../v2/lib/format.ts";
 import { useDemoText } from "../v2/lib/useDemoText.ts";
 import { queryKeys } from "../v2/queries/keys.ts";
@@ -77,7 +78,7 @@ import { agingOf } from "../v2/pages/salesData.ts";
 import { fmtAmount, fmtCompact, fmtShortDate } from "../v2/pages/salesUtil.ts";
 import "../v2/pages/sales.css";
 
-type Tab = "jobs" | "quotes" | "invoices" | "docs" | "mail" | "contacts";
+type Tab = "jobs" | "activity" | "quotes" | "invoices" | "docs" | "mail" | "contacts";
 
 type CustomerRow = Customer & {
   arDays?: number;
@@ -162,13 +163,21 @@ export function AccountPage() {
   const detail = detailQ.data;
 
   const liveId = live ? id : undefined;
-  const jobsLive = useQuery({
-    queryKey: queryKeys.jobs.list(id),
-    queryFn: async () => (await fetchJobs(id)).map((r) => mapJobRowToShell(r)),
+  const can = useCan();
+  // This customer's jobs / invoices from the paged list APIs (newest 500 rows; counts come from SQL).
+  const jobsPage = useQuery({
+    queryKey: [...queryKeys.jobs.list(id), "page"],
+    queryFn: () => fetchJobsPage({ customerId: id, limit: 500 }),
     enabled: live && Boolean(id),
   });
+  const jobsLiveData = useMemo(() => jobsPage.data?.items.map((r) => mapJobRowToShell(r)), [jobsPage.data]);
+  const jobsLive = { data: jobsLiveData, isLoading: jobsPage.isLoading };
   const quotesLive = useLiveQuotations(id);
-  const invoicesLive = useLiveInvoices(id);
+  const invoicesLive = useQuery({
+    queryKey: [...queryKeys.invoices.list(id), "page"],
+    queryFn: async () => (await fetchInvoicesPage({ customerId: id, limit: 500 })).items,
+    enabled: live && Boolean(id) && can("invoice.view"),
+  });
   const docsLive = useCustomerDocs(liveId);
   const mailsLive = useCustomerMails(liveId);
 
@@ -325,6 +334,7 @@ export function AccountPage() {
   const lane = laneName(customer, locale);
   const city = cityName(customer, locale);
   const activeJobs = jobs.filter((j) => j.status !== "CLOSED");
+  const activeJobCount = jobsPage.data ? jobsPage.data.counts.OPEN + jobsPage.data.counts.IN_PROGRESS : activeJobs.length;
   const openQuotes = quotes.filter((q) => OPEN_QUOTE.has(q.status));
   const openInv = invoices.filter((i) => i.balance > 0);
   const overdueInv = openInv.filter((i) => i.overdue);
@@ -358,7 +368,7 @@ export function AccountPage() {
       <Tile
         icon={Boat}
         tone="primary"
-        value={activeJobs.length}
+        value={activeJobCount}
         label={tx("sales_statActiveJobs")}
       />
       <Tile
@@ -684,12 +694,20 @@ export function AccountPage() {
         live && jobsLive.isLoading ? (
           <LoadingState />
         ) : jobs.length === 0 ? (
-          <EmptyState description={tx("sales_emptyJobs")} />
+          <EmptyState
+            description={tx("sales_emptyJobs")}
+            action={<Button onClick={() => navigate(quoteHref)}>{tx("sales_newQuote")}</Button>}
+          />
         ) : (
           <div className="sales-tab-cards">
             <CardGrid min={280}>{jobs.map(jobCard)}</CardGrid>
           </div>
         ),
+    },
+    {
+      key: "activity",
+      label: <span className="cz-seg-label">{tx("tk_act_title")}</span>,
+      children: <CustomerActivityTab customerId={customer.id} />,
     },
     {
       key: "quotes",
@@ -877,7 +895,7 @@ export function AccountPage() {
   const facts = {
     customer: name,
     lane,
-    activeJobs: activeJobs.length,
+    activeJobs: activeJobCount,
     openQuotes: openQuotes.length,
     openInvoices: openInv.length,
     overdueInvoices: overdueInv.length,
@@ -919,7 +937,7 @@ export function AccountPage() {
             <AiBriefCard
               title={tx("aiMgmtReport")}
               facts={facts}
-              localFallback={`${name}: ${activeJobs.length} active jobs, ${openQuotes.length} open quotations, ${openInv.length} open invoices.`}
+              localFallback={`${name}: ${activeJobCount} active jobs, ${openQuotes.length} open quotations, ${openInv.length} open invoices.`}
             />
             {openEdit ? (
               <Button onClick={openEdit} data-testid="customer-edit">

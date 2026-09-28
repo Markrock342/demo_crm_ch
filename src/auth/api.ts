@@ -26,8 +26,8 @@ export async function fetchMe(): Promise<AuthUser | null> {
   return { ...user, organizationName: user.organizationName ?? tenant?.organizationName ?? null };
 }
 
-/** Error codes thrown by `login`: invalid_credentials · unreachable · server_error · no_organization. */
-export type LoginErrorCode = "invalid_credentials" | "unreachable" | "server_error" | "no_organization";
+/** Error codes thrown by `login`: invalid_credentials · too_many_attempts (429) · unreachable · server_error · no_organization. */
+export type LoginErrorCode = "invalid_credentials" | "too_many_attempts" | "unreachable" | "server_error" | "no_organization";
 
 export async function login(email: string, password: string): Promise<AuthUser> {
   let res: Response;
@@ -44,7 +44,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   const data = await readJson(res);
   if (!res.ok) {
     const code: LoginErrorCode =
-      res.status === 401 || res.status === 400
+      res.status === 429
+        ? "too_many_attempts"
+        : res.status === 401 || res.status === 400
         ? "invalid_credentials"
         : data.error === "no_organization"
           ? "no_organization"

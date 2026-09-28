@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import {
   approvalRequests,
@@ -41,14 +41,63 @@ function hashSnapshot(payload: unknown) {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
+type ChargeAmount = { sellAmount: string; currency: string; exchangeRate: string | null };
+
+/**
+ * Sell total of a quote's charges.
+ * `total` is in the quote currency: charges in another currency are converted with their exchange
+ * rate; a foreign charge with no real rate (1) can't be converted, so `total` is then null.
+ * `byCurrency` always has the raw sums per charge currency.
+ */
+export function quoteSellTotals(charges: ChargeAmount[], quoteCurrency: string) {
+  const qc = quoteCurrency.toUpperCase();
+  const byCurrency: Record<string, string> = {};
+  let convertible = true;
+  const parts = charges.map((c) => {
+    const cur = c.currency.toUpperCase();
+    byCurrency[cur] = toDb(add(byCurrency[cur] ?? "0", c.sellAmount));
+    if (cur === qc) return d(c.sellAmount);
+    if (!c.exchangeRate || d(c.exchangeRate).eq(1)) convertible = false;
+    return mul(c.sellAmount, c.exchangeRate || "1");
+  });
+  return { total: charges.length && convertible ? toDb(add(...parts)) : null, byCurrency };
+}
+
+/** Quotations with the current revision's sell total (in the quote currency) and charge count. */
 export async function listQuotations(db: Db, organizationId: string, customerId?: string) {
   const filters = [eq(quotations.organizationId, organizationId)];
   if (customerId) filters.push(eq(quotations.customerId, customerId));
-  return db
+  const rows = await db
     .select()
     .from(quotations)
     .where(and(...filters))
     .orderBy(desc(quotations.updatedAt));
+  if (!rows.length) return [];
+  const revs = await db
+    .select({ id: quotationRevisions.id, quotationId: quotationRevisions.quotationId, n: quotationRevisions.revisionNumber })
+    .from(quotationRevisions)
+    .where(inArray(quotationRevisions.quotationId, rows.map((q) => q.id)));
+  const revOf = new Map<string, { id: string; n: number }>();
+  const current = new Map(rows.map((q) => [q.id, q.currentRevision]));
+  for (const r of revs) {
+    const have = revOf.get(r.quotationId);
+    const want = current.get(r.quotationId);
+    // the current revision wins; otherwise keep the latest one
+    if (!have || r.n === want || (have.n !== want && r.n > have.n)) revOf.set(r.quotationId, { id: r.id, n: r.n });
+  }
+  const revIds = [...revOf.values()].map((r) => r.id);
+  const charges = revIds.length
+    ? await db
+        .select({ revisionId: quotationCharges.revisionId, sellAmount: quotationCharges.sellAmount, currency: quotationCharges.currency, exchangeRate: quotationCharges.exchangeRate })
+        .from(quotationCharges)
+        .where(inArray(quotationCharges.revisionId, revIds))
+    : [];
+  return rows.map((q) => {
+    const rev = revOf.get(q.id);
+    const mine = rev ? charges.filter((c) => c.revisionId === rev.id) : [];
+    const totals = quoteSellTotals(mine, q.currency);
+    return { ...q, totalSell: totals.total, totalsByCurrency: totals.byCurrency, chargeCount: mine.length };
+  });
 }
 
 export async function getQuotationDetail(db: Db, organizationId: string, id: string, roles: RoleCode[]) {
@@ -547,7 +596,16 @@ export async function createJobFromBooking(db: Db, organizationId: string, booki
     teu: b.quantity * (b.containerType?.includes("20") ? 1 : 2),
     commodity: b.commodity,
     salesOwnerId: b.salesOwnerId,
-    bookingNumber: b.bookingNumber,
+    bookingNumber: b.carrierBookingNo || b.bookingNumber,
+    carrier: b.carrier,
+    vessel: b.vessel,
+    voyage: b.voyage,
+    masterBl: b.bl,
+    etd: b.etd ? String(b.etd) : null,
+    eta: b.eta ? String(b.eta) : null,
+    siCutoff: b.siCutoff,
+    cyCutoff: b.cyCutoff,
+    vgmCutoff: b.vgmCutoff,
     status: "BOOKING",
   });
 

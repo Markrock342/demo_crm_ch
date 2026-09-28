@@ -9,18 +9,25 @@ import {
   createCustomer,
   CustomerInputError,
   deleteContact,
-  createLead,
-  createOpportunity,
   getCustomer,
   listContacts,
   listCustomers,
-  listLeads,
-  listOpportunities,
   updateContact,
   updateCustomer,
-  updateLeadStage,
-  updateOpportunityStage,
 } from "../services/crm.service.js";
+import { listCustomersPage, parseCustomerListQuery, wantsPagedCustomers } from "../services/customer-list.service.js";
+import {
+  createDealRow,
+  createLeadRow,
+  DEAL_STAGES,
+  LEAD_STAGES,
+  listDealRows,
+  listLeadRows,
+  PipelineInputError,
+  totalsByCurrency,
+  updateDealRow,
+  updateLeadRow,
+} from "../services/pipeline.service.js";
 
 const contactCreateSchema = contactInputSchema.omit({ id: true }).extend({ customerId: z.string().min(1) });
 const contactPatchSchema = contactInputSchema.omit({ id: true }).partial();
@@ -44,25 +51,43 @@ function inputError(c: { json: (b: unknown, s?: number) => Response }, e: unknow
   throw e;
 }
 
+const ownerUserId = z.string().uuid("invalid_user").nullable().optional();
+const shortText = (max = 200) => z.string().trim().max(max);
+
 const leadCreateSchema = z.object({
-  company: z.string().min(1),
-  city: z.string().min(1),
-  lane: z.string().min(1),
-  contact: z.string().min(1),
-  source: z.string().min(1),
-  teu: z.number().int().nonnegative(),
-  owner: z.string().min(1),
+  company: z.string().trim().min(1, "required").max(200),
+  city: shortText().optional(),
+  lane: shortText().optional(),
+  contact: shortText().optional(),
+  source: shortText().optional(),
+  teu: z.number().int().nonnegative().max(100000).optional(),
+  stage: z.enum(LEAD_STAGES).optional(),
+  ownerUserId,
+  owner: shortText(80).optional(),
 });
+const leadPatchSchema = leadCreateSchema.omit({ owner: true }).partial();
 
 const opportunityCreateSchema = z.object({
   customerId: z.string().min(1),
-  title: z.string().min(1),
-  lane: z.string().min(1),
-  value: z.number().int().nonnegative(),
-  teu: z.number().int().nonnegative(),
-  close: z.string().min(1),
-  owner: z.string().min(1),
+  title: z.string().trim().min(1, "required").max(200),
+  lane: shortText().optional(),
+  value: z.number().int().nonnegative().max(1_000_000_000_000).optional(),
+  currency: z.string().trim().regex(/^[A-Za-z]{3}$/, "currency must be a 3-letter code").optional(),
+  teu: z.number().int().nonnegative().max(100000).optional(),
+  close: shortText(20).optional(),
+  stage: z.enum(DEAL_STAGES).optional(),
+  ownerUserId,
+  owner: shortText(80).optional(),
 });
+const opportunityPatchSchema = opportunityCreateSchema.omit({ customerId: true, owner: true }).partial();
+
+function pipelineError(c: { json: (b: unknown, s?: number) => Response }, e: unknown) {
+  if (e instanceof PipelineInputError) {
+    if (e.status === 404) return c.json({ error: e.code }, 404);
+    return c.json({ error: "invalid_body", issues: [{ path: e.field ?? "", message: e.code }] }, 400);
+  }
+  throw e;
+}
 
 function dbOr503(c: { json: (body: unknown, status?: number) => Response }) {
   if (!hasDatabase()) return c.json({ error: "database_unconfigured" }, 503);
@@ -85,6 +110,9 @@ export function crmRoutes() {
   r.get("/customers", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
+    const get = (k: string) => c.req.query(k);
+    // Customers screen (tab / owner / stats): counts + money per row, all in SQL.
+    if (wantsPagedCustomers(get)) return c.json(await listCustomersPage(db, orgId(c), parseCustomerListQuery(get)));
     const q = c.req.query("q");
     const limit = Number(c.req.query("limit") ?? 100);
     const offset = Number(c.req.query("offset") ?? 0);
@@ -114,6 +142,7 @@ export function crmRoutes() {
     }
     const people = await listContacts(db, orgId(c), row.id);
     await writeAudit(db, {
+      organizationId: orgId(c),
       userId: user.id,
       action: "CUSTOMER_CREATED",
       entityType: "customer",
@@ -142,6 +171,7 @@ export function crmRoutes() {
     if (!row) return c.json({ error: "not_found" }, 404);
     const people = await listContacts(db, orgId(c), id);
     await writeAudit(db, {
+      organizationId: orgId(c),
       userId: user.id,
       action: "CUSTOMER_UPDATED",
       entityType: "customer",
@@ -179,6 +209,7 @@ export function crmRoutes() {
       primary: body.primary ?? false,
     });
     await writeAudit(db, {
+      organizationId: orgId(c),
       userId: user.id,
       action: "CONTACT_CREATED",
       entityType: "contact",
@@ -199,7 +230,7 @@ export function crmRoutes() {
     for (const [k, v] of Object.entries(parsed.data)) if (parsed.present(k)) patch[k] = v ?? "";
     const row = await updateContact(db, orgId(c), id, patch);
     if (!row) return c.json({ error: "not_found" }, 404);
-    await writeAudit(db, { userId: user.id, action: "CONTACT_UPDATED", entityType: "contact", entityId: id, newValue: row });
+    await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "CONTACT_UPDATED", entityType: "contact", entityId: id, newValue: row });
     return c.json(row);
   });
 
@@ -210,112 +241,82 @@ export function crmRoutes() {
     const id = c.req.param("id");
     const row = await deleteContact(db, orgId(c), id);
     if (!row) return c.json({ error: "not_found" }, 404);
-    await writeAudit(db, { userId: user.id, action: "CONTACT_DELETED", entityType: "contact", entityId: id, oldValue: row });
+    await writeAudit(db, { organizationId: orgId(c), userId: user.id, action: "CONTACT_DELETED", entityType: "contact", entityId: id, oldValue: row });
     return c.json({ ok: true });
   });
+
+  /* ── Leads & deals (owner = staff user, deal currency) ─────────── */
 
   r.get("/leads", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const stage = c.req.query("stage");
-    const items = await listLeads(db, orgId(c), stage);
+    const items = await listLeadRows(db, orgId(c), c.req.query("stage") || undefined);
     return c.json({ items });
   });
 
   r.post("/leads", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const user = c.get("user")!;
-    let body: z.infer<typeof leadCreateSchema>;
+    const parsed = await parseJson(c, leadCreateSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
     try {
-      body = leadCreateSchema.parse(await c.req.json());
-    } catch {
-      return c.json({ error: "invalid_body" }, 400);
+      const row = await createLeadRow(db, orgId(c), parsed.data);
+      await writeAudit(db, { userId: c.get("user")!.id, organizationId: orgId(c), action: "LEAD_CREATED", entityType: "lead", entityId: row.id, newValue: row });
+      return c.json(row, 201);
+    } catch (e) {
+      return pipelineError(c, e);
     }
-    const row = await createLead(db, orgId(c), body);
-    await writeAudit(db, {
-      userId: user.id,
-      action: "LEAD_CREATED",
-      entityType: "lead",
-      entityId: row.id,
-      newValue: row,
-    });
-    return c.json(row, 201);
   });
 
-  r.patch("/leads/:id", requireAuth(), async (c) => {
+  r.patch("/leads/:id", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    let stage: string;
+    const parsed = await parseJson(c, leadPatchSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
     try {
-      stage = z.object({ stage: z.string().min(1) }).parse(await c.req.json()).stage;
-    } catch {
-      return c.json({ error: "invalid_body" }, 400);
+      const res = await updateLeadRow(db, orgId(c), c.req.param("id"), parsed.data);
+      if (!res) return c.json({ error: "not_found" }, 404);
+      await writeAudit(db, { userId: c.get("user")!.id, organizationId: orgId(c), action: "LEAD_UPDATED", entityType: "lead", entityId: res.after.id, oldValue: res.before, newValue: res.after });
+      return c.json(res.after);
+    } catch (e) {
+      return pipelineError(c, e);
     }
-    const row = await updateLeadStage(db, id, stage);
-    if (!row) return c.json({ error: "not_found" }, 404);
-    await writeAudit(db, {
-      userId: user.id,
-      action: "LEAD_UPDATED",
-      entityType: "lead",
-      entityId: id,
-      newValue: row,
-    });
-    return c.json(row);
   });
 
-  r.get("/opportunities", requireAuth(), async (c) => {
+  r.get("/opportunities", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const customerId = c.req.query("customerId");
-    const items = await listOpportunities(db, customerId);
-    return c.json({ items });
+    const items = await listDealRows(db, orgId(c), c.req.query("customerId") || undefined);
+    return c.json({ items, totals: totalsByCurrency(items), openTotals: totalsByCurrency(items, true) });
   });
 
-  r.post("/opportunities", requireAuth(), async (c) => {
+  r.post("/opportunities", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const user = c.get("user")!;
-    let body: z.infer<typeof opportunityCreateSchema>;
+    const parsed = await parseJson(c, opportunityCreateSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
     try {
-      body = opportunityCreateSchema.parse(await c.req.json());
-    } catch {
-      return c.json({ error: "invalid_body" }, 400);
+      const row = await createDealRow(db, orgId(c), parsed.data);
+      await writeAudit(db, { userId: c.get("user")!.id, organizationId: orgId(c), action: "OPPORTUNITY_CREATED", entityType: "opportunity", entityId: row.id, newValue: row });
+      return c.json(row, 201);
+    } catch (e) {
+      return pipelineError(c, e);
     }
-    const row = await createOpportunity(db, body);
-    await writeAudit(db, {
-      userId: user.id,
-      action: "OPPORTUNITY_CREATED",
-      entityType: "opportunity",
-      entityId: row.id,
-      newValue: row,
-    });
-    return c.json(row, 201);
   });
 
-  r.patch("/opportunities/:id", requireAuth(), async (c) => {
+  r.patch("/opportunities/:id", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const user = c.get("user")!;
-    const id = c.req.param("id");
-    let stage: string;
+    const parsed = await parseJson(c, opportunityPatchSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
     try {
-      stage = z.object({ stage: z.string().min(1) }).parse(await c.req.json()).stage;
-    } catch {
-      return c.json({ error: "invalid_body" }, 400);
+      const res = await updateDealRow(db, orgId(c), c.req.param("id"), parsed.data);
+      if (!res) return c.json({ error: "not_found" }, 404);
+      await writeAudit(db, { userId: c.get("user")!.id, organizationId: orgId(c), action: "OPPORTUNITY_UPDATED", entityType: "opportunity", entityId: res.after.id, oldValue: res.before, newValue: res.after });
+      return c.json(res.after);
+    } catch (e) {
+      return pipelineError(c, e);
     }
-    const row = await updateOpportunityStage(db, id, stage);
-    if (!row) return c.json({ error: "not_found" }, 404);
-    await writeAudit(db, {
-      userId: user.id,
-      action: "OPPORTUNITY_UPDATED",
-      entityType: "opportunity",
-      entityId: id,
-      newValue: row,
-    });
-    return c.json(row);
   });
 
   return r;

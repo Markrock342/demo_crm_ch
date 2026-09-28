@@ -16,7 +16,7 @@ function dbConnectionError(e: unknown): string | null {
   return null;
 }
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
