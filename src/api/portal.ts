@@ -37,12 +37,42 @@ export type PortalDocRow = {
   customerId: string;
 };
 
-export async function portalLogin(customerId: string, pin?: string) {
-  return apiFetch("/api/portal/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ customerId, pin }),
-  }) as Promise<{ session: { customerId: string; organizationId: string } }>;
+export type PortalMe = {
+  customerId: string;
+  organizationId: string;
+  nameZh: string;
+  nameTh?: string | null;
+  nameEn: string;
+};
+
+/** Contact e-mail + access code. Throws Error("invalid_credentials" | "too_many_attempts" | "unreachable" | …). */
+export async function portalLogin(email: string, code: string) {
+  let res: Response;
+  try {
+    res = await fetch("/api/portal/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+  } catch {
+    throw new Error("unreachable");
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 400) throw new Error("invalid_credentials");
+    if (res.status === 429) throw new Error("too_many_attempts");
+    throw new Error(res.status >= 502 || !data.error ? "unreachable" : "server_error");
+  }
+  return data as { session: { customerId: string; organizationId: string } };
+}
+
+/** Current portal session, or null when not signed in. */
+export async function fetchPortalMe(): Promise<PortalMe | null> {
+  const res = await fetch("/api/portal/me", { credentials: "include" });
+  if (res.status === 401 || res.status === 404) return null;
+  if (!res.ok) throw new Error(`api_${res.status}`);
+  return (await res.json()) as PortalMe;
 }
 
 export async function portalLogout() {

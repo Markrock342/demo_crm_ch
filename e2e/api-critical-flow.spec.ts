@@ -89,8 +89,18 @@ test.describe("API critical workflow", () => {
       expect(invRes.status(), await invRes.text()).toBe(201);
     }
 
+    const issued = await request.post(`/api/portal/access-code/${CUSTOMER_ID}`);
+    expect(issued.ok(), await issued.text()).toBeTruthy();
+    const access = (await issued.json()) as { code: string; emails: string[] };
+    expect(access.emails.length).toBeGreaterThan(0);
+
+    const badLoginRes = await request.post("/api/portal/login", {
+      data: { email: access.emails[0], code: "WRONG-0000" },
+    });
+    expect(badLoginRes.status()).toBe(401);
+
     const portalLoginRes = await request.post("/api/portal/login", {
-      data: { customerId: CUSTOMER_ID, pin: "demo" },
+      data: { email: access.emails[0], code: access.code },
     });
     expect(portalLoginRes.ok(), await portalLoginRes.text()).toBeTruthy();
 

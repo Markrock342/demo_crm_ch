@@ -1,150 +1,517 @@
-import { Card, Col, List, Row, Statistic } from "antd";
+import {
+  Anchor,
+  Boat,
+  CheckSquare,
+  Receipt,
+  WarningCircle,
+  type Icon,
+} from "@phosphor-icons/react";
+import { Checkbox } from "antd";
+import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useMemo } from "react";
-import { jobDateIsToday, todayMonthDay, isBeforeToday } from "../../lib/dates.ts";
-import { jobGrossProfit } from "../../ports/job.port.ts";
-import { useShellBilling } from "../../shell/billingStore.tsx";
-import { useShellJobs } from "../../shell/jobStore.tsx";
-import { useShellOps } from "../../shell/opsStore.tsx";
-import { useShellSupport } from "../../shell/supportStore.tsx";
+import { useAuth } from "../../auth/AuthProvider";
+import type { Locale } from "../../i18n";
+import { useShellSession } from "../../shell/session.tsx";
 import { useStore } from "../../store";
-import { PageHeader } from "../components/PageHeader.tsx";
+import {
+  AiBriefCard,
+  CardGrid,
+  Donut,
+  EmptyState,
+  EntityCard,
+  IconBadge,
+  Legend,
+  LoadingState,
+  PageHeader,
+  Panel,
+  PersonAvatar,
+  RouteTrack,
+  SHIPMENT_STAGES,
+  StatusTag,
+  Tile,
+  TileRow,
+  progressBetween,
+} from "../components";
+import type { Tone } from "../components/Graphics.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
-import { useLiveInvoices } from "../hooks/useCommercial.ts";
-import { useLiveJobsList } from "../hooks/useJobs.ts";
-import { AiSpotlight } from "../components/AiSpotlight.tsx";
-import { AiBriefCard } from "../components/AiBriefCard.tsx";
+import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
+import { fmtNumber } from "../lib/format.ts";
+import { localizedUserName } from "../lib/demoText.ts";
+import { AttentionCard } from "./home/AttentionList.tsx";
+import {
+  daysAgo,
+  jobStage,
+  parseLooseDate,
+  useAttentionItems,
+  useModeInvoices,
+  useModeJobs,
+} from "./home/attention.ts";
+import { useModeTasks } from "./home/tasks.ts";
+import "./home/home.css";
+
+const INTL: Record<Locale, string> = {
+  zh: "zh-CN",
+  th: "th-TH-u-ca-gregory",
+  en: "en-GB",
+};
+
+function greetingKey(d = new Date()) {
+  const h = d.getHours();
+  return h < 12
+    ? "home_greet_morning"
+    : h < 17
+      ? "home_greet_afternoon"
+      : "home_greet_evening";
+}
+
+/** Section heading: icon badge + 1–2 words + count bubble. */
+export function SectionTitle({
+  icon,
+  tone,
+  label,
+  count,
+}: {
+  icon: Icon;
+  tone: Tone;
+  label: string;
+  count?: number;
+}) {
+  return (
+    <span className="hm-sec-title">
+      <IconBadge icon={icon} tone={tone} size={28} />
+      <span>{label}</span>
+      {count !== undefined ? (
+        <span className={`hm-count is-${tone}`}>{count}</span>
+      ) : null}
+    </span>
+  );
+}
+
+function Quiet({ icon: I, children }: { icon: Icon; children: ReactNode }) {
+  return (
+    <p className="hm-quiet-line">
+      <I size={18} aria-hidden />
+      {children}
+    </p>
+  );
+}
+
+const AGING: { key: string; tone: Tone }[] = [
+  { key: "current", tone: "success" },
+  { key: "d30", tone: "warning" },
+  { key: "d60", tone: "accent" },
+  { key: "d60p", tone: "danger" },
+];
 
 export function OverviewPageV2() {
-  const { tx } = useStore();
-  const { shell, enabled } = useAppMode();
-  const jobsShell = useShellJobs();
-  const ops = useShellOps();
-  const billing = useShellBilling();
-  const support = useShellSupport();
-  const liveJobs = useLiveJobsList();
-  const liveInv = useLiveInvoices();
+  const { tx, locale } = useStore();
+  const loc = locale as Locale;
+  const { enabled } = useAppMode();
+  const { user } = useAuth();
+  const { shellUser } = useShellSession();
+  const { jobs, loading } = useModeJobs();
+  const invoices = useModeInvoices();
+  const { items } = useAttentionItems();
+  const { tasks, toggle } = useModeTasks();
+  const { nameOf } = useCustomerLookup();
 
-  const jobs = shell ? jobsShell.jobs : (liveJobs.data ?? []);
-  const invoices = shell ? billing.invoices : (liveInv.data ?? []).map((i) => ({
-    balanceDue: parseFloat(i.balanceDue),
-    dueDate: i.dueDate,
-    status: i.status,
-    overdue: i.status !== "PAID" && parseFloat(i.balanceDue) > 0 && isBeforeToday(String(i.dueDate).slice(0, 10)),
-  }));
+  const name = localizedUserName(shellUser ?? user, locale);
+  const today = new Intl.DateTimeFormat(INTL[loc], {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
+  const dm = (d: Date | null) =>
+    d
+      ? new Intl.DateTimeFormat(INTL[loc], {
+          day: "numeric",
+          month: "short",
+        }).format(d)
+      : undefined;
 
-  const activeJobs = jobs.filter((j) => j.status !== "CLOSED");
-  const delayed = jobs.filter((j) => j.delayed);
-  const departing = jobs.filter((j) => jobDateIsToday(j.etd)).length;
-  const arriving = jobs.filter((j) => jobDateIsToday(j.eta)).length;
-  const gpTotal = jobs.reduce((n, j) => n + (j.listGrossProfit ?? jobGrossProfit(j)), 0);
-  const missingDocs = shell ? support.docs.filter((d) => d.status === "late" || d.status === "wait") : [];
-  const outstanding = invoices.filter((i) => i.balanceDue > 0);
-  const teu = shell ? ops.boxes.reduce((n, b) => n + b.teu, 0) : jobs.reduce((n, j) => n + (j.quantity ?? 1) * 2, 0);
+  const activeJobs = useMemo(
+    () => jobs.filter((j) => j.status !== "CLOSED"),
+    [jobs],
+  );
+  const urgent = items.filter((i) => i.severity === "high").length;
+  const overdueInv = invoices.filter((i) => i.overdue);
+  const openTasks = tasks.filter((t) => !t.done);
+  const dueTasks = openTasks.filter((t) => t.bucket !== "later");
+  const lateTasks = openTasks.filter((t) => t.bucket === "overdue").length;
 
-  const exceptions = useMemo(() => {
-    const rows: { id: string; label: string; meta: string; to: string }[] = [];
-    for (const j of delayed.slice(0, 5)) {
-      rows.push({ id: j.id, label: j.jobNumber, meta: "delayed", to: `/jobs/${j.id}` });
+  /** Every active job with its stage, dates and voyage progress. */
+  const board = useMemo(
+    () =>
+      activeJobs.map((j) => {
+        const etd = parseLooseDate(j.etd);
+        const eta = parseLooseDate(j.eta);
+        const stage = jobStage(j);
+        const etaIn = daysAgo(eta);
+        return {
+          job: j,
+          etd,
+          eta,
+          stage,
+          etaIn: etaIn === null ? null : -etaIn,
+          progress: progressBetween(etd, eta),
+        };
+      }),
+    [activeJobs],
+  );
+
+  const onWater = board
+    .filter((b) => b.stage === 2)
+    .sort(
+      (a, b) => (a.eta?.getTime() ?? Infinity) - (b.eta?.getTime() ?? Infinity),
+    );
+  const arriving = board.filter(
+    (b) => b.stage < 3 && b.etaIn !== null && b.etaIn >= 0 && b.etaIn <= 7,
+  );
+  const departing = board.filter(
+    (b) =>
+      b.stage < 2 &&
+      b.etd &&
+      (daysAgo(b.etd) ?? 1) <= 0 &&
+      (daysAgo(b.etd) ?? 0) >= -7,
+  );
+  const stageCounts = SHIPMENT_STAGES.map(
+    (_, i) => board.filter((b) => b.stage === i).length,
+  );
+
+  /** Open receivables by how late they are (invoice count). */
+  const aging = useMemo(() => {
+    const out: Record<string, number> = { current: 0, d30: 0, d60: 0, d60p: 0 };
+    for (const inv of invoices) {
+      if (
+        !(inv.balanceDue > 0) ||
+        inv.status === "PAID" ||
+        inv.status === "DRAFT" ||
+        inv.status === "VOID"
+      )
+        continue;
+      const late = inv.overdue
+        ? (daysAgo(parseLooseDate(inv.dueDate)) ?? 1)
+        : 0;
+      out[
+        late <= 0 ? "current" : late <= 30 ? "d30" : late <= 60 ? "d60" : "d60p"
+      ] += 1;
     }
-    for (const d of missingDocs.slice(0, 5)) {
-      rows.push({
-        id: d.id,
-        label: d.name,
-        meta: d.status,
-        to: d.jobId ? `/jobs/${d.jobId}` : "/docs",
-      });
-    }
-    return rows;
-  }, [delayed, missingDocs]);
+    return out;
+  }, [invoices]);
+  const openAr = Object.values(aging).reduce((a, n) => a + n, 0);
+
+  const facts = useMemo(
+    () => ({
+      activeJobs: activeJobs.length,
+      needsAttention: items.length,
+      urgent,
+      delayed: items.filter((i) => i.kind === "delay").length,
+      overdueInvoices: overdueInv.length,
+      onTheWater: onWater.length,
+      departingThisWeek: departing.length,
+      arrivingThisWeek: arriving.length,
+      openTasks: openTasks.length,
+    }),
+    [
+      activeJobs.length,
+      arriving.length,
+      departing.length,
+      items,
+      onWater.length,
+      openTasks.length,
+      overdueInv.length,
+      urgent,
+    ],
+  );
+  const localBrief = `${activeJobs.length} active jobs, ${onWater.length} on the water, ${items.length} items need attention (${urgent} urgent), ${overdueInv.length} overdue invoices, ${arriving.length} arrivals in the next 7 days, ${openTasks.length} open tasks.`;
 
   if (!enabled) {
     return (
-      <div style={{ padding: 24 }}>
-        <PageHeader title={tx("navOverview")} subtitle={tx("apiNotConfigured")} />
-        <Link to="/login">{tx("loginPickDept")}</Link>
-      </div>
+      <>
+        <PageHeader
+          title={tx("navOverview")}
+          subtitle={tx("home_not_connected")}
+        />
+        <EmptyState
+          description={tx("home_not_connected_desc")}
+          action={<Link to="/login">{tx("home_sign_in")}</Link>}
+        />
+      </>
     );
   }
 
-  const hint = shell ? tx("shellDataBadge") : tx("liveApiBadge");
-
-  const mgmtFacts = {
-    activeJobs: activeJobs.length,
-    delayed: delayed.length,
-    missingDocs: missingDocs.length,
-    outstanding: outstanding.length,
-    inTransitTeu: teu,
-    departingToday: departing,
-    arrivingToday: arriving,
-  };
-  const mgmtLocal = `Ops: ${activeJobs.length} active jobs, ${delayed.length} delayed, ${teu} TEU, ${missingDocs.length} doc issues, ${outstanding.length} open AR invoices.`;
+  const topItems = items.slice(0, 6);
+  const stageLabels = Object.fromEntries(
+    SHIPMENT_STAGES.map((s) => [s.key, tx(`stage_${s.key}`)]),
+  );
 
   return (
-    <div style={{ padding: "0 8px 24px" }}>
-      <AiSpotlight facts={mgmtFacts} localFallback={mgmtLocal} context="overview" />
-
+    <>
       <PageHeader
-        title={tx("navOverview")}
-        subtitle={`LogisticsOS · ${hint} · ${todayMonthDay()}`}
-        extra={
-          <>
-            <Link to="/exceptions">{tx("navActionCenter")}</Link>
-            {" · "}
-            <Link to="/jobs">{tx("navJobs")}</Link>
-          </>
+        title={
+          name ? tx(greetingKey(), { name }) : tx(`${greetingKey()}_plain`)
         }
-      />
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8} lg={4}>
-          <Card size="small"><Statistic title={tx("dashActiveJobs")} value={activeJobs.length} /></Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card size="small"><Statistic title={tx("dashDeparting")} value={departing} /></Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card size="small"><Statistic title={tx("dashArriving")} value={arriving} /></Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card size="small"><Statistic title="TEU" value={teu} /></Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card size="small"><Statistic title={tx("dashGpMonth")} value={Math.round(gpTotal)} prefix="$" /></Card>
-        </Col>
-        <Col xs={12} sm={8} lg={4}>
-          <Card size="small"><Statistic title="AR open" value={outstanding.length} /></Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24}>
-          <AiBriefCard title={tx("aiJobSummary")} buttonLabel={tx("runAiJobSummary")} facts={mgmtFacts} localFallback={mgmtLocal} compact />
-        </Col>
-      </Row>
-
-      <Row gutter={16}>
-        <Col xs={24} lg={12}>
-          <Card size="small" title={tx("navActionCenter")}>
-            <List
-              size="small"
-              dataSource={exceptions}
-              locale={{ emptyText: "—" }}
-              renderItem={(item) => (
-                <List.Item>
-                  <Link to={item.to}>{item.label}</Link>
-                  <span style={{ color: "#888", marginLeft: 8 }}>{item.meta}</span>
-                </List.Item>
-              )}
+        subtitle={today}
+      >
+        <div className="hm-tiles">
+          <TileRow>
+            <Tile
+              icon={WarningCircle}
+              tone={urgent ? "danger" : items.length ? "warning" : "success"}
+              value={fmtNumber(items.length, loc)}
+              label={tx("home_tile_attention")}
+              to="/exceptions"
             />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card size="small" title={tx("dashDocs")}>
-            <Statistic value={missingDocs.length} suffix={tx("docsMissingCount")} />
-          </Card>
-        </Col>
-      </Row>
-    </div>
+            <Tile
+              icon={Boat}
+              tone="primary"
+              value={fmtNumber(onWater.length, loc)}
+              label={tx("home_tile_water")}
+              to="/jobs?stage=sailed"
+            />
+            <Tile
+              icon={Anchor}
+              tone="info"
+              value={fmtNumber(arriving.length, loc)}
+              label={tx("home_tile_arriving")}
+              to="/calendar"
+            />
+            <Tile
+              icon={Receipt}
+              tone={overdueInv.length ? "warning" : "neutral"}
+              value={fmtNumber(overdueInv.length, loc)}
+              label={tx("home_tile_overdue_ar")}
+              to="/invoices?view=overdue"
+            />
+            <Tile
+              icon={CheckSquare}
+              tone={lateTasks ? "danger" : "accent"}
+              value={fmtNumber(openTasks.length, loc)}
+              label={tx("home_tile_tasks")}
+              to="/tasks"
+            />
+          </TileRow>
+        </div>
+      </PageHeader>
+
+      <div className="cz-split">
+        <div className="cz-stack">
+          <Panel
+            title={
+              <SectionTitle
+                icon={Boat}
+                tone="primary"
+                label={tx("home_sec_water")}
+                count={onWater.length}
+              />
+            }
+            extra={
+              onWater.length ? (
+                <Link to="/jobs?stage=sailed" className="cz-link-btn">
+                  {tx("home_all_tasks")}
+                </Link>
+              ) : null
+            }
+          >
+            {loading ? (
+              <LoadingState />
+            ) : onWater.length ? (
+              <CardGrid min={280}>
+                {onWater.slice(0, 6).map((b) => {
+                  const late = Boolean(b.job.delayed);
+                  return (
+                    <EntityCard
+                      key={b.job.id}
+                      to={`/jobs/${b.job.id}`}
+                      tone={late ? "danger" : "default"}
+                      title={b.job.jobNumber}
+                      subtitle={nameOf(b.job.customerId)}
+                      badge={
+                        late ? (
+                          <StatusTag status="DELAYED" tone="danger" />
+                        ) : b.etaIn !== null && b.etaIn >= 0 ? (
+                          <span className="hm-age is-info">
+                            {b.etaIn === 0
+                              ? tx("home_today")
+                              : tx("home_in_days", { n: b.etaIn })}
+                          </span>
+                        ) : null
+                      }
+                    >
+                      <RouteTrack
+                        from={b.job.pol}
+                        to={b.job.pod}
+                        progress={b.progress ?? 50}
+                        fromDate={dm(b.etd)}
+                        toDate={dm(b.eta)}
+                        delayed={late}
+                        size="sm"
+                      />
+                    </EntityCard>
+                  );
+                })}
+              </CardGrid>
+            ) : (
+              <Quiet icon={Boat}>{tx("home_water_empty")}</Quiet>
+            )}
+          </Panel>
+
+          <Panel
+            title={
+              <SectionTitle
+                icon={WarningCircle}
+                tone={urgent ? "danger" : "warning"}
+                label={tx("home_attn_title")}
+                count={items.length}
+              />
+            }
+            extra={
+              items.length > topItems.length ? (
+                <Link to="/exceptions" className="cz-link-btn">
+                  {tx("home_view_all", { n: items.length })}
+                </Link>
+              ) : null
+            }
+          >
+            {loading ? (
+              <LoadingState />
+            ) : topItems.length ? (
+              <CardGrid min={250}>
+                {topItems.map((it) => (
+                  <AttentionCard key={it.id} item={it} />
+                ))}
+              </CardGrid>
+            ) : (
+              <Quiet icon={CheckSquare}>{tx("home_attn_empty_title")}</Quiet>
+            )}
+          </Panel>
+
+          <Panel title={tx("home_sec_stages")}>
+            <ol className="hm-stagecount" aria-label={tx("home_sec_stages")}>
+              {SHIPMENT_STAGES.map((s, i) => {
+                const n = stageCounts[i];
+                return (
+                  <li key={s.key} className={n ? "has-jobs" : undefined}>
+                    <Link
+                      to={`/jobs?stage=${s.key}`}
+                      className="hm-stagecount-link"
+                      aria-label={`${stageLabels[s.key]} ${n}`}
+                    >
+                      <span className="hm-stagecount-dot">
+                        <s.icon
+                          size={20}
+                          weight={n ? "fill" : "regular"}
+                          aria-hidden
+                        />
+                        {n ? (
+                          <span className="hm-stagecount-n">{n}</span>
+                        ) : null}
+                      </span>
+                      <span className="hm-stagecount-label">
+                        {stageLabels[s.key]}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </Panel>
+        </div>
+
+        <div className="cz-stack">
+          <div className="hm-ai-compact">
+            <AiBriefCard
+              variant="panel"
+              title={tx("home_ai_title")}
+              facts={facts}
+              localFallback={localBrief}
+              context="overview"
+            />
+          </div>
+
+          <Panel
+            title={
+              <SectionTitle
+                icon={Receipt}
+                tone={overdueInv.length ? "warning" : "success"}
+                label={tx("home_sec_ar")}
+              />
+            }
+            extra={
+              <Link to="/invoices" className="cz-link-btn">
+                {tx("home_all_tasks")}
+              </Link>
+            }
+          >
+            {openAr ? (
+              <div className="hm-aging">
+                <Donut
+                  size={112}
+                  parts={AGING.map((a) => ({
+                    value: aging[a.key],
+                    tone: a.tone,
+                    label: tx(`home_aging_${a.key}`),
+                  }))}
+                  center={fmtNumber(openAr, loc)}
+                  caption={tx("home_aging_caption")}
+                />
+                <Legend
+                  items={AGING.map((a) => ({
+                    tone: a.tone,
+                    label: tx(`home_aging_${a.key}`),
+                    value: aging[a.key],
+                  }))}
+                />
+              </div>
+            ) : (
+              <Quiet icon={Receipt}>{tx("home_ar_empty")}</Quiet>
+            )}
+          </Panel>
+
+          <Panel
+            title={
+              <SectionTitle
+                icon={CheckSquare}
+                tone={lateTasks ? "danger" : "accent"}
+                label={tx("home_tasks_title")}
+                count={dueTasks.length}
+              />
+            }
+            extra={
+              <Link to="/tasks" className="cz-link-btn">
+                {tx("home_all_tasks")}
+              </Link>
+            }
+          >
+            {dueTasks.length ? (
+              <ul className="hm-mini-tasks">
+                {dueTasks.slice(0, 5).map((t) => (
+                  <li
+                    key={t.id}
+                    className={t.bucket === "overdue" ? "is-late" : undefined}
+                  >
+                    <Checkbox
+                      checked={t.done}
+                      onChange={() => toggle(t.id)}
+                      aria-label={t.title}
+                    />
+                    <span className="hm-mini-title">{t.title}</span>
+                    {t.customerId ? (
+                      <PersonAvatar name={nameOf(t.customerId)} size={22} />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Quiet icon={CheckSquare}>
+                {openTasks.length
+                  ? tx("home_tasks_none_due")
+                  : tx("home_tasks_none")}
+              </Quiet>
+            )}
+          </Panel>
+        </div>
+      </div>
+    </>
   );
 }

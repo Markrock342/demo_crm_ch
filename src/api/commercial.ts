@@ -233,9 +233,79 @@ export async function approveVendorBill(id: string) {
   return apiFetch(`/api/vendor-bills/${id}/approve`, { method: "POST" });
 }
 
+/** Mark an approved vendor bill as paid (or partly paid). */
+export async function payVendorBill(id: string, opts?: { partial?: boolean }) {
+  return apiFetch(`/api/vendor-bills/${id}/pay`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(opts ?? {}),
+  }) as Promise<{ status: string }>;
+}
+
+/** One line on an invoice / vendor bill created from scratch. `taxCode` e.g. "VAT7". */
+export type ManualLine = { description: string; qty: number | string; unitPrice: number | string; taxCode?: string | null };
+
+export type CreatedFinanceDoc = { id: string; subtotal: string; tax: string; total: string; currency: string; status: string };
+
+export async function createVendorBill(input: {
+  vendorId: string;
+  jobId?: string | null;
+  currency: string;
+  dueDate?: string;
+  lines: ManualLine[];
+}) {
+  return apiFetch("/api/vendor-bills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<CreatedFinanceDoc & { billNumber: string }>;
+}
+
+export type VendorRow = {
+  id: string;
+  company: string;
+  nameZh?: string | null;
+  nameTh?: string | null;
+  vendorType: string;
+  paymentTermsDays?: number | null;
+  currencies?: string | null;
+  services?: string | null;
+  taxId?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+};
+
 export async function fetchVendors() {
   const data = await apiFetch("/api/vendors");
-  return (data.items as Array<{ id: string; company: string; vendorType: string }>) ?? [];
+  return (data.items as VendorRow[]) ?? [];
+}
+
+/** Vendor display name in the UI language (falls back to the legal / English name). */
+export function vendorDisplayName(v: Pick<VendorRow, "company" | "nameZh" | "nameTh">, locale: string) {
+  if (locale === "zh" && v.nameZh) return v.nameZh;
+  if (locale === "th" && v.nameTh) return v.nameTh;
+  return v.company;
+}
+
+export async function createVendor(input: {
+  company: string;
+  nameZh?: string;
+  nameTh?: string;
+  vendorType: string;
+  currency?: string;
+  paymentTermsDays?: number;
+  taxId?: string;
+  services?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}) {
+  return apiFetch("/api/vendors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<VendorRow>;
 }
 
 export type InvoiceRow = {
@@ -263,6 +333,26 @@ export async function createInvoiceFromJob(input: { jobId: string; customerId: s
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+/** Create a DRAFT invoice from scratch (no job charges needed). */
+export async function createInvoice(input: {
+  customerId: string;
+  jobId?: string | null;
+  currency: string;
+  dueDate?: string;
+  notes?: string;
+  lines: ManualLine[];
+}) {
+  return apiFetch("/api/invoices", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }) as Promise<CreatedFinanceDoc & { invoiceNumber: string }>;
+}
+
+export function invoicePdfUrl(id: string) {
+  return `/api/invoices/${id}/pdf`;
 }
 
 export async function issueInvoice(id: string) {

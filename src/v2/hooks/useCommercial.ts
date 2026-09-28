@@ -6,6 +6,7 @@ import { fetchCrmBundle } from "../../api/crm.ts";
 import { fetchMails } from "../../api/comms.ts";
 import { queryKeys } from "../queries/keys.ts";
 import { useAppMode } from "./useAppMode.ts";
+import { useCan } from "./useCan.ts";
 
 export function useCrmBundle() {
   const { live } = useAppMode();
@@ -17,28 +18,31 @@ export function useCrmBundle() {
 }
 
 export function useLiveRates(params: Record<string, string>, enabled = true) {
+  const can = useCan();
   return useQuery({
     queryKey: queryKeys.rates.search(params),
     queryFn: () => searchRates(params),
-    enabled: enabled && Object.values(params).some(Boolean),
+    enabled: enabled && can("rate.view_sell") && Object.values(params).some(Boolean),
   });
 }
 
 export function useLiveQuotations(customerId?: string) {
   const { live } = useAppMode();
+  const can = useCan();
   return useQuery({
     queryKey: queryKeys.quotations.list(customerId),
     queryFn: () => fetchQuotations(customerId),
-    enabled: live,
+    enabled: live && can("quotation.view"),
   });
 }
 
 export function useLiveInvoices(customerId?: string) {
   const { live } = useAppMode();
+  const can = useCan();
   return useQuery({
     queryKey: queryKeys.invoices.list(customerId),
     queryFn: () => fetchInvoices(customerId),
-    enabled: live,
+    enabled: live && can("invoice.view"),
   });
 }
 

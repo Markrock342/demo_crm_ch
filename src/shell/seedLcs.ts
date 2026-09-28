@@ -6,6 +6,7 @@ import type { ShellQuotation, ShellQuoteStatus } from "../ports/quote.port.ts";
 import type { ShellInvoice } from "../ports/billing.port.ts";
 import type { ShellDocItem, ShellDocType, ShellRate, ShellTask, ShellVendor, ShellVendorBill } from "./supportStore.tsx";
 import { SHELL_BOX_STATUSES } from "../ports/ops.port.ts";
+import { localizeDemo } from "../v2/lib/demoText.ts";
 
 const LANES = [
   { pol: "CNSHA", pod: "THLCH", origin: "Shanghai", destination: "Laem Chabang", laneZh: "上海→林查班" },
@@ -38,23 +39,26 @@ function yard(slot: string) {
   };
 }
 
-const CUSTOMER_META: Array<{ zh: string; th: string; en: string; cityZh: string; cityTh: string; cityEn: string }> = [
-  { zh: "粤泰贸易", th: "Yuetai Trading", en: "Yuetai Trading", cityZh: "广州", cityTh: "กว่างโจว", cityEn: "Guangzhou" },
-  { zh: "东海供应链", th: "Donghai Supply", en: "Donghai Supply", cityZh: "宁波", cityTh: "หนิงโป", cityEn: "Ningbo" },
-  { zh: "深圳华运", th: "HuaYun SZ", en: "HuaYun Shenzhen", cityZh: "深圳", cityTh: "เซินเจิ้น", cityEn: "Shenzhen" },
-  { zh: "曼谷精工", th: "Bangkok Precision", en: "Bangkok Precision", cityZh: "曼谷", cityTh: "กรุงเทพ", cityEn: "Bangkok" },
-  { zh: "罗勇塑胶", th: "Rayong Plastics", en: "Rayong Plastics", cityZh: "罗勇", cityTh: "ระยอง", cityEn: "Rayong" },
-  { zh: "上海联通物流", th: "Shanghai LianTong", en: "Shanghai LianTong", cityZh: "上海", cityTh: "เซี่ยงไฮ้", cityEn: "Shanghai" },
-  { zh: "盐田港务代理", th: "Yantian Agency", en: "Yantian Agency", cityZh: "盐田", cityTh: "หยานเถียน", cityEn: "Yantian" },
-  { zh: "林查班仓储", th: "LCB Warehouse Co", en: "LCB Warehouse Co", cityZh: "林查班", cityTh: "แหลมฉบัง", cityEn: "Laem Chabang" },
-  { zh: "黄埔机电", th: "Huangpu Mech", en: "Huangpu Mech", cityZh: "黄埔", cityTh: "หวงผู่", cityEn: "Huangpu" },
-  { zh: "春武里汽车件", th: "Chonburi Auto", en: "Chonburi Auto Parts", cityZh: "春武里", cityTh: "ชลบุรี", cityEn: "Chonburi" },
-  { zh: "厦门海翔", th: "Xiamen Haixiang", en: "Xiamen Haixiang", cityZh: "厦门", cityTh: "เซี่ยเหมิน", cityEn: "Xiamen" },
-  { zh: "青岛远航", th: "Qingdao Yuanhang", en: "Qingdao Yuanhang", cityZh: "青岛", cityTh: "ชิงเต่า", cityEn: "Qingdao" },
-  { zh: "泰国建材进口", th: "Thai Building Imp", en: "Thai Building Import", cityZh: "曼谷", cityTh: "กรุงเทพ", cityEn: "Bangkok" },
-  { zh: "佛山陶瓷出口", th: "Foshan Ceramics", en: "Foshan Ceramics", cityZh: "佛山", cityTh: "ฝอซาน", cityEn: "Foshan" },
-  { zh: "合艾冷链", th: "Hatyai Cold Chain", en: "Hatyai Cold Chain", cityZh: "合艾", cityTh: "หาดใหญ่", cityEn: "Hatyai" },
+const CUSTOMER_META_RAW: Array<{ zh: string; cityZh: string; cityTh: string; cityEn: string }> = [
+  { zh: "粤泰贸易", cityZh: "广州", cityTh: "กว่างโจว", cityEn: "Guangzhou" },
+  { zh: "东海供应链", cityZh: "宁波", cityTh: "หนิงโป", cityEn: "Ningbo" },
+  { zh: "深圳华运", cityZh: "深圳", cityTh: "เซินเจิ้น", cityEn: "Shenzhen" },
+  { zh: "曼谷精工", cityZh: "曼谷", cityTh: "กรุงเทพ", cityEn: "Bangkok" },
+  { zh: "罗勇塑胶", cityZh: "罗勇", cityTh: "ระยอง", cityEn: "Rayong" },
+  { zh: "上海联通物流", cityZh: "上海", cityTh: "เซี่ยงไฮ้", cityEn: "Shanghai" },
+  { zh: "盐田港务代理", cityZh: "盐田", cityTh: "หยานเถียน", cityEn: "Yantian" },
+  { zh: "林查班仓储", cityZh: "林查班", cityTh: "แหลมฉบัง", cityEn: "Laem Chabang" },
+  { zh: "黄埔机电", cityZh: "黄埔", cityTh: "หวงผู่", cityEn: "Huangpu" },
+  { zh: "春武里汽车件", cityZh: "春武里", cityTh: "ชลบุรี", cityEn: "Chonburi" },
+  { zh: "厦门海翔", cityZh: "厦门", cityTh: "เซี่ยเหมิน", cityEn: "Xiamen" },
+  { zh: "青岛远航", cityZh: "青岛", cityTh: "ชิงเต่า", cityEn: "Qingdao" },
+  { zh: "泰国建材进口", cityZh: "曼谷", cityTh: "กรุงเทพ", cityEn: "Bangkok" },
+  { zh: "佛山陶瓷出口", cityZh: "佛山", cityTh: "ฝอซาน", cityEn: "Foshan" },
+  { zh: "合艾冷链", cityZh: "合艾", cityTh: "หาดใหญ่", cityEn: "Hatyai" },
 ];
+
+/** Thai / English names come from the shared sample-text dictionary (src/v2/lib/demoText.ts). */
+const CUSTOMER_META = CUSTOMER_META_RAW.map((c) => ({ ...c, th: localizeDemo(c.zh, "th"), en: localizeDemo(c.zh, "en") }));
 
 export const LCS_CUSTOMERS: ShellCustomer[] = CUSTOMER_META.map((c, i) => {
   const lane = LANES[i % LANES.length]!;
@@ -67,8 +71,8 @@ export const LCS_CUSTOMERS: ShellCustomer[] = CUSTOMER_META.map((c, i) => {
     cityTh: c.cityTh,
     cityEn: c.cityEn,
     laneZh: lane.laneZh,
-    laneTh: `${lane.origin}→${lane.destination}`,
-    laneEn: `${lane.origin}→${lane.destination}`,
+    laneTh: localizeDemo(lane.laneZh, "th"),
+    laneEn: localizeDemo(lane.laneZh, "en"),
     owner: OWNERS_SALES[i % OWNERS_SALES.length]!,
     updated: `09-${String((i % 28) + 1).padStart(2, "0")}`,
     taxId: i % 2 === 0 ? `0${1000000000000 + i}` : `TH${9000000000000 + i}`,

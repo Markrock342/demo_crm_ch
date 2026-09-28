@@ -1,5 +1,8 @@
-import { integer, pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, numeric, pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import { organizations } from "./tenancy.js";
+import { users } from "./auth.js";
+
+export type LanePair = { pol: string; pod: string };
 
 export const customers = pgTable("customers", {
   id: text("id").primaryKey(),
@@ -19,6 +22,31 @@ export const customers = pgTable("customers", {
   updated: text("updated").notNull(),
   arDays: integer("ar_days").notNull().default(0),
   portalPin: text("portal_pin").notNull().default("demo"),
+  /** Which of nameZh / nameTh / nameEn were typed by a person ("th,en"); the rest are fallbacks. Null = legacy row. */
+  nameLangs: text("name_langs"),
+  businessType: text("business_type"),
+  website: text("website"),
+  industry: text("industry"),
+  leadSource: text("lead_source"),
+  ownerUserId: uuid("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  taxId: text("tax_id"),
+  /** null / "" = head office; otherwise the 5-digit branch number. */
+  branchNo: text("branch_no"),
+  billingAddress: text("billing_address"),
+  country: text("country"),
+  currency: text("currency"),
+  creditTermDays: integer("credit_term_days"),
+  creditLimit: numeric("credit_limit", { precision: 18, scale: 2 }),
+  paymentMethod: text("payment_method"),
+  billingEmail: text("billing_email"),
+  preferredLanes: jsonb("preferred_lanes").$type<LanePair[]>().notNull().default([]),
+  containerTypes: jsonb("container_types").$type<string[]>().notNull().default([]),
+  commodities: jsonb("commodities").$type<string[]>().notNull().default([]),
+  incoterms: text("incoterms"),
+  customsBroker: boolean("customs_broker"),
+  handlingNotes: text("handling_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -33,6 +61,7 @@ export const contacts = pgTable("contacts", {
   email: text("email").notNull().default(""),
   phone: text("phone").notNull().default(""),
   wechat: text("wechat").notNull().default(""),
+  lineId: text("line_id").notNull().default(""),
   primary: boolean("primary").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

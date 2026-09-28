@@ -1,0 +1,143 @@
+/* AI mail helper — quiet side tool, used in Inbox and job detail. */
+
+.ai-mail {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.ai-mail.is-bare {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.ai-mail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.ai-mail-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ai-mail-out {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.ai-mail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-mail-summary {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+
+.ai-mail-facts {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.ai-mail-facts > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: var(--space-xs);
+  align-items: baseline;
+}
+
+.ai-mail-facts dt {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.ai-mail-facts dd {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* Icon tags + chips (round 2: picture-first) */
+.ai-mail-pill,
+.ai-mail-icon,
+.ai-mail-chip {
+  --t: var(--ink-soft);
+  --t-soft: var(--fill);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--t-soft);
+  color: var(--t);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ai-mail-pill {
+  padding: 5px 10px;
+}
+
+.ai-mail-icons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ai-mail-icon {
+  min-width: 24px;
+  height: 22px;
+  justify-content: center;
+  padding: 0 6px;
+  font-size: 11.5px;
+}
+
+.ai-mail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-mail-chip {
+  padding: 5px 9px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ai-mail-chip svg {
+  color: var(--ink-faint);
+}
+
+.ai-mail-chip.is-danger svg {
+  color: var(--danger);
+}
+
+.ai-mail-pill.is-info,
+.ai-mail-icon.is-info { --t: oklch(0.42 0.12 250); --t-soft: var(--info-soft); }
+.ai-mail-pill.is-warning,
+.ai-mail-icon.is-warning { --t: var(--warning-text); --t-soft: var(--warning-soft); }
+.ai-mail-pill.is-success { --t: oklch(0.42 0.11 150); --t-soft: var(--success-soft); }
+.ai-mail-icon.is-primary { --t: var(--primary-deep); --t-soft: var(--primary-soft); }
+.ai-mail-icon.is-danger { --t: oklch(0.47 0.17 27); --t-soft: var(--danger-soft); }

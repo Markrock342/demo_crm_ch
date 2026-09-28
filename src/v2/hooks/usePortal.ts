@@ -1,30 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchPortalDocs, fetchPortalInvoices, fetchPortalJobs } from "../../api/portal.ts";
-import { useAppMode } from "./useAppMode.ts";
 
-export function usePortalJobs(enabled: boolean) {
-  const { live } = useAppMode();
-  return useQuery({
-    queryKey: ["portal", "jobs"],
-    queryFn: fetchPortalJobs,
-    enabled: enabled && live,
-  });
+/** Portal data is scoped by the portal cookie; `enabled` = a portal session exists. */
+export function usePortalJobs(enabled: boolean, customerId?: string) {
+  return useQuery({ queryKey: ["portal", customerId, "jobs"], queryFn: fetchPortalJobs, enabled });
 }
 
-export function usePortalInvoices(enabled: boolean) {
-  const { live } = useAppMode();
-  return useQuery({
-    queryKey: ["portal", "invoices"],
-    queryFn: fetchPortalInvoices,
-    enabled: enabled && live,
-  });
+export function usePortalInvoices(enabled: boolean, customerId?: string) {
+  return useQuery({ queryKey: ["portal", customerId, "invoices"], queryFn: fetchPortalInvoices, enabled });
 }
 
-export function usePortalDocs(enabled: boolean) {
-  const { live } = useAppMode();
-  return useQuery({
-    queryKey: ["portal", "docs"],
-    queryFn: fetchPortalDocs,
-    enabled: enabled && live,
-  });
+export function usePortalDocs(enabled: boolean, customerId?: string) {
+  return useQuery({ queryKey: ["portal", customerId, "docs"], queryFn: fetchPortalDocs, enabled });
 }

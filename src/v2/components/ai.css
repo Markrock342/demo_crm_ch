@@ -1,34 +1,72 @@
-.ai-card {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(#fff, #fff) padding-box,
-    linear-gradient(135deg, #6366f1 0%, #8b5cf6 45%, #06b6d4 100%) border-box;
-  border-radius: 10px;
+.ai-mark {
+  color: var(--accent);
 }
 
-.ai-card--compact .ant-card-body {
+.ai-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.ai-drawer-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.ai-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
 }
 
+.ai-panel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ai-panel-body {
+  padding: 14px 16px;
+}
+
+/* Legacy spotlight — restyled as a quiet ink panel. */
 .ai-spotlight {
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 20px 24px;
   margin-bottom: 16px;
-  color: #fff;
-  background: linear-gradient(135deg, #312e81 0%, #4338ca 40%, #0e7490 100%);
-  box-shadow: 0 8px 24px rgba(67, 56, 202, 0.25);
+  color: var(--side-text);
+  background: var(--side);
 }
 
 .ai-spotlight__title {
   margin: 0 0 4px;
   font-size: 18px;
   font-weight: 600;
-  color: #fff;
+  color: oklch(0.97 0.005 215);
 }
 
 .ai-spotlight__desc {
   margin: 0 0 12px;
-  opacity: 0.88;
+  color: var(--side-muted);
   font-size: 13px;
 }
 
@@ -54,8 +92,8 @@
   margin-top: 12px;
   padding: 12px;
   border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--fill);
+  border: 1px solid var(--line);
 }
 
 .ai-thinking {
@@ -72,7 +110,7 @@
 
 .ai-thinking__sparkle {
   flex-shrink: 0;
-  color: #6366f1;
+  color: var(--accent);
   animation: aiSparklePulse 1.2s ease-in-out infinite;
 }
 
@@ -97,7 +135,7 @@
   display: inline-block;
   margin-left: 2px;
   animation: aiCursorBlink 0.85s step-end infinite;
-  color: #6366f1;
+  color: var(--accent);
   font-weight: 400;
 }
 
@@ -115,7 +153,7 @@
   display: block;
   height: 8px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, var(--fill-strong) 25%, var(--fill) 50%, var(--fill-strong) 75%);
   background-size: 200% 100%;
   animation: aiShimmer 1.4s ease infinite;
 }

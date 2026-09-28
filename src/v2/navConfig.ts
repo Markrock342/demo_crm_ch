@@ -1,8 +1,35 @@
 import type { Department } from "../shell/types.ts";
 
+import type { Icon } from "@phosphor-icons/react";
+import {
+  Bell,
+  CalendarBlank,
+  ChartBar,
+  Cube,
+  CurrencyCircleDollar,
+  EnvelopeSimple,
+  FileText,
+  Funnel,
+  Gear,
+  House,
+  IdentificationCard,
+  Lightning,
+  ListChecks,
+  Package,
+  Receipt,
+  Storefront,
+  Boat,
+  SquaresFour,
+  Tray,
+  Users,
+  WarningCircle,
+  Invoice,
+} from "@phosphor-icons/react";
+
 export type NavItem = {
   path: string;
   labelKey: string;
+  icon: Icon;
   end?: boolean;
   /** Hide unless tenant enables yard module (ops/admin only). */
   yardModule?: boolean;
@@ -14,70 +41,59 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-/** LogisticsOS V2 navigation — maps to existing routes until dedicated pages land. */
+/** Sidebar navigation — grouped by the job people are doing, one entry per page. */
 export const v2NavGroups: NavGroup[] = [
   {
-    key: "navDashboard",
-    labelKey: "navDashboard",
+    key: "home",
+    labelKey: "navGroupHome",
     items: [
-      { path: "/", labelKey: "navOverview", end: true },
-      { path: "/exceptions", labelKey: "navActionCenter" },
+      { path: "/", labelKey: "navOverview", icon: House, end: true },
+      { path: "/exceptions", labelKey: "navActionCenter", icon: WarningCircle },
+      { path: "/tasks", labelKey: "navTasks", icon: ListChecks },
+      { path: "/inbox", labelKey: "navInbox", icon: EnvelopeSimple },
+      { path: "/calendar", labelKey: "navCalendar", icon: CalendarBlank },
     ],
   },
   {
-    key: "navSales",
-    labelKey: "navSales",
+    key: "sales",
+    labelKey: "navGroupSales",
     items: [
-      { path: "/leads", labelKey: "navLeads" },
-      { path: "/customers", labelKey: "navCustomers" },
-      { path: "/contacts", labelKey: "navContacts" },
-      { path: "/rates", labelKey: "navRates" },
-      { path: "/quotations", labelKey: "navQuotations" },
+      { path: "/leads", labelKey: "navLeads", icon: Tray },
+      { path: "/pipeline", labelKey: "navPipeline", icon: Funnel },
+      { path: "/customers", labelKey: "navCustomers", icon: Users },
+      { path: "/contacts", labelKey: "navContacts", icon: IdentificationCard },
+      { path: "/rates", labelKey: "navRates", icon: CurrencyCircleDollar },
+      { path: "/quotations", labelKey: "navQuotations", icon: Receipt },
     ],
   },
   {
-    key: "navOperations",
-    labelKey: "navOperations",
+    key: "ops",
+    labelKey: "navGroupOps",
     items: [
-      { path: "/jobs", labelKey: "navJobs" },
-      { path: "/shipments", labelKey: "navShipments" },
-      { path: "/boxes", labelKey: "navBoxes" },
-      { path: "/docs", labelKey: "navDocs" },
-      { path: "/inbox", labelKey: "navInbox" },
-      { path: "/tasks", labelKey: "navTasks" },
-      { path: "/calendar", labelKey: "navCalendar" },
+      { path: "/jobs", labelKey: "navJobs", icon: Package },
+      { path: "/shipments", labelKey: "navShipments", icon: Boat },
+      { path: "/boxes", labelKey: "navBoxes", icon: Cube },
+      { path: "/yard", labelKey: "navYard", icon: SquaresFour, yardModule: true },
+      { path: "/docs", labelKey: "navDocs", icon: FileText },
     ],
   },
   {
-    key: "navFinance",
-    labelKey: "navFinance",
+    key: "finance",
+    labelKey: "navGroupFinance",
     items: [
-      { path: "/invoices", labelKey: "navInvoices" },
-      { path: "/vendor-bills", labelKey: "navVendorBills" },
-      { path: "/vendors", labelKey: "navVendors" },
-      { path: "/reports", labelKey: "navFinanceReports" },
+      { path: "/invoices", labelKey: "navInvoices", icon: Invoice },
+      { path: "/vendor-bills", labelKey: "navVendorBills", icon: Receipt },
+      { path: "/vendors", labelKey: "navVendors", icon: Storefront },
+      { path: "/reports", labelKey: "navReports", icon: ChartBar },
     ],
   },
   {
-    key: "navAnalytics",
-    labelKey: "navAnalytics",
-    items: [{ path: "/reports", labelKey: "navReports" }],
-  },
-  {
-    key: "navAutomation",
-    labelKey: "navAutomation",
+    key: "system",
+    labelKey: "navGroupSystem",
     items: [
-      { path: "/automation", labelKey: "navAutomation" },
-      { path: "/notifications", labelKey: "navNotifications" },
-    ],
-  },
-  {
-    key: "navAdmin",
-    labelKey: "navAdmin",
-    items: [
-      { path: "/settings", labelKey: "navSettings" },
-      { path: "/yard", labelKey: "navYard", yardModule: true },
-      { path: "/pipeline", labelKey: "navPipeline" },
+      { path: "/automation", labelKey: "navAutomation", icon: Lightning },
+      { path: "/notifications", labelKey: "navNotifications", icon: Bell },
+      { path: "/settings", labelKey: "navSettings", icon: Gear },
     ],
   },
 ];
@@ -123,7 +139,6 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/vendor-bills",
     "/reports",
     "/jobs",
-    "/rates",
     "/settings",
   ]),
   admin: new Set([
@@ -158,20 +173,45 @@ export function v2NavPathAllowed(department: Department | null, path: string): b
   return allowedByDept[department].has(path);
 }
 
+export type ResolvedNavGroup = { key: string; label: string; items: (NavItem & { label: string })[] };
+
 export function v2NavForDepartment(
   department: Department | null,
   tx: (key: string) => string,
   opts?: { yardEnabled?: boolean },
-): { path: string; name: string; routes?: { path: string; name: string }[] }[] {
+): ResolvedNavGroup[] {
   const yardEnabled = opts?.yardEnabled ?? (department === "ops" || department === "admin");
   return v2NavGroups
     .map((g) => ({
-      path: g.items[0]?.path ?? "/",
-      name: tx(g.labelKey),
-      routes: g.items
+      key: g.key,
+      label: tx(g.labelKey),
+      items: g.items
         .filter((item) => !item.yardModule || yardEnabled)
         .filter((item) => (department ? v2NavPathAllowed(department, item.path) : false))
-        .map((item) => ({ path: item.path, name: tx(item.labelKey) })),
+        .map((item) => ({ ...item, label: tx(item.labelKey) })),
     }))
-    .filter((g) => g.routes && g.routes.length > 0);
+    .filter((g) => g.items.length > 0);
+}
+
+/** Longest nav path that prefixes the current location — drives the active item + page title. */
+export function activeNavItem(groups: ResolvedNavGroup[], pathname: string) {
+  let best: (NavItem & { label: string }) | null = null;
+  for (const g of groups) {
+    for (const item of g.items) {
+      const hit = item.end ? pathname === item.path : pathname === item.path || pathname.startsWith(item.path + "/");
+      if (hit && (!best || item.path.length > best.path.length)) best = item;
+    }
+  }
+  return best;
+}
+
+/** Map real API roles to the menu department. Highest-privilege role wins. */
+export function departmentFromRoles(roles: readonly string[] | undefined | null): Department | null {
+  if (!roles?.length) return null;
+  const r = new Set(roles);
+  if (r.has("SUPER_ADMIN") || r.has("MANAGEMENT")) return "admin";
+  if (r.has("ACCOUNTING")) return "finance";
+  if (r.has("SALES") || r.has("PRICING")) return "sales";
+  if (r.has("OPERATIONS") || r.has("CUSTOMER_SERVICE")) return "ops";
+  return "sales";
 }

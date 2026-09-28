@@ -9,8 +9,6 @@ import {
 } from "react";
 import {
   boxes as seedBoxes,
-  customers as seedCustomers,
-  mailsSeed,
   type Box,
   type BoxStatus,
   type Customer,
@@ -18,10 +16,6 @@ import {
 } from "./data";
 import {
   activities as seedActs,
-  contacts as seedContacts,
-  deals as seedDeals,
-  docs as seedDocs,
-  leads as seedLeads,
   tasks as seedTasks,
   type Activity,
   type Contact,
@@ -56,13 +50,21 @@ type UiPrefs = {
   motion: boolean;
 };
 
+function browserLocale(): Locale {
+  const lang = (typeof navigator !== "undefined" ? navigator.language : "").toLowerCase();
+  if (lang.startsWith("th")) return "th";
+  if (lang.startsWith("en")) return "en";
+  if (lang.startsWith("zh")) return "zh";
+  return "zh";
+}
+
 function loadUi(): UiPrefs {
   try {
     const raw = localStorage.getItem(UI_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Partial<UiPrefs>;
       return {
-        locale: p.locale ?? "zh",
+        locale: p.locale ?? browserLocale(),
         compact: p.compact ?? true,
         motion: p.motion ?? true,
       };
@@ -70,7 +72,7 @@ function loadUi(): UiPrefs {
   } catch {
     /* ignore */
   }
-  return { locale: "zh", compact: true, motion: true };
+  return { locale: browserLocale(), compact: true, motion: true };
 }
 
 type Persist = {
@@ -94,15 +96,17 @@ function emptyPersist(): Persist {
   const boxes = seedBoxes;
   return {
     locale: "zh",
-    customers: syncCustomerBoxCounts(seedCustomers, boxes),
+    // Customers, contacts, leads, deals, mail and documents come from the API (CrmSync) —
+    // never show bundled sample rows in their place.
+    customers: [],
     boxes,
-    mails: mailsSeed,
-    contacts: seedContacts,
-    leads: seedLeads,
-    deals: seedDeals,
+    mails: [],
+    contacts: [],
+    leads: [],
+    deals: [],
     tasks: seedTasks,
     activities: seedActs,
-    docs: seedDocs,
+    docs: [],
     shipments: seedShipments,
     invoices: seedInvoices,
     compact: false,

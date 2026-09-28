@@ -1,0 +1,1295 @@
+/* Home area: overview, needs attention, tasks, calendar, notifications, inbox. */
+
+.hm-quiet {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+/* ── Row lists (shared pattern) ───────────── */
+
+.hm-attn,
+.hm-sched,
+.hm-feed,
+.hm-tasks,
+.hm-mini-tasks,
+.hm-mail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hm-attn > li + li,
+.hm-sched > li + li,
+.hm-feed > li + li,
+.hm-tasks > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.hm-attn-row,
+.hm-sched-row,
+.hm-feed-row {
+  display: grid;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.hm-attn-row:hover,
+.hm-sched-row:hover,
+.hm-feed-row:hover {
+  background: var(--fill);
+  color: inherit;
+}
+
+.hm-attn-row:focus-visible,
+.hm-sched-row:focus-visible,
+.hm-feed-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* ── Attention list ─────────────────────── */
+
+.hm-attn-row {
+  grid-template-columns: 92px minmax(150px, 210px) minmax(0, 1fr) auto 16px;
+  grid-template-areas: "sev ref what age go";
+}
+
+.hm-attn-sev {
+  grid-area: sev;
+}
+
+.hm-attn-ref {
+  grid-area: ref;
+  min-width: 0;
+}
+
+.hm-attn-ref .cz-cell-main,
+.hm-attn-ref .cz-cell-sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hm-attn-what {
+  grid-area: what;
+  min-width: 0;
+}
+
+.hm-attn-reason {
+  display: block;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.hm-attn-age {
+  grid-area: age;
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hm-attn-go {
+  grid-area: go;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 720px) {
+  .hm-attn-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ref sev"
+      "what age";
+    align-items: start;
+    gap: 4px var(--space-sm);
+  }
+
+  .hm-attn-go {
+    display: none;
+  }
+}
+
+/* ── Schedule (ETD / ETA) ────────────────── */
+
+.hm-sched-row {
+  grid-template-columns: 44px 84px minmax(140px, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas: "date kind job lane when";
+}
+
+.hm-sched-date {
+  grid-area: date;
+  display: grid;
+  justify-items: center;
+  line-height: 1.1;
+}
+
+.hm-sched-date strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hm-sched-date span {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.hm-sched-kind {
+  grid-area: kind;
+}
+
+.hm-sched-job {
+  grid-area: job;
+  min-width: 0;
+}
+
+.hm-sched-lane {
+  grid-area: lane;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.hm-sched-when {
+  grid-area: when;
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .hm-sched-row {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "date job kind"
+      "date lane when";
+    gap: 2px var(--space-sm);
+  }
+}
+
+/* ── Mini tasks (overview side) ──────────── */
+
+.hm-mini-tasks {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.hm-mini-tasks li {
+  display: grid;
+  gap: 2px;
+}
+
+.hm-mini-title {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.hm-mini-due {
+  padding-inline-start: 24px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.hm-mini-due.is-late {
+  color: var(--danger);
+}
+
+/* ── Reason (kind icon + text) ───────────── */
+
+.hm-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.hm-reason-icon {
+  flex-shrink: 0;
+  color: var(--ink-faint);
+}
+
+.hm-attn-what .cz-cell-sub {
+  padding-inline-start: 24px;
+}
+
+.hm-next {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+/* ── Tasks ───────────────────────────────── */
+
+.hm-quickadd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.hm-quickadd-title {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.hm-quickadd-select {
+  width: 190px;
+}
+
+@media (max-width: 640px) {
+  .hm-quickadd-select {
+    flex: 1 1 140px;
+    width: auto;
+  }
+}
+
+.hm-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hm-group-title.is-danger {
+  color: var(--danger);
+}
+
+.hm-group-count {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: center;
+}
+
+.hm-task {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  min-height: 56px;
+}
+
+.hm-task-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hm-task-title {
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.hm-task.is-done .hm-task-title {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+}
+
+.hm-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.hm-task-meta a {
+  color: var(--ink-soft);
+}
+
+.hm-task-meta a:hover {
+  color: var(--primary);
+}
+
+.hm-task-late {
+  color: var(--danger);
+}
+
+/* ── Notifications feed ──────────────────── */
+
+.hm-feed-row {
+  grid-template-columns: 36px minmax(0, 1fr) 10px;
+}
+
+.hm-feed-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--ink-soft);
+}
+
+.hm-feed-row.is-unread .hm-feed-icon {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+
+.hm-feed-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hm-feed-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.hm-feed-row.is-unread .hm-feed-title > span:first-child {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hm-feed-cust {
+  color: var(--ink-faint);
+}
+
+.hm-feed-body {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.hm-unread-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── Calendar (FullCalendar restyled to tokens) ── */
+
+.hm-cal {
+  --fc-classic-button: var(--paper);
+  --fc-classic-button-border: var(--line-strong);
+  --fc-classic-button-strong: var(--fill);
+  --fc-classic-button-strong-border: var(--line-strong);
+  --fc-classic-button-outline: var(--primary-soft);
+  --fc-classic-button-foreground: var(--ink);
+  --fc-classic-primary: var(--primary);
+  --fc-classic-primary-foreground: var(--on-primary);
+  --fc-classic-event: var(--primary);
+  --fc-classic-event-contrast: var(--on-primary);
+  --fc-classic-background-event: var(--success);
+  --fc-classic-background-event-opacity: 15%;
+  --fc-classic-background-event-foreground-opacity: 50%;
+  --fc-classic-highlight: var(--primary-soft);
+  --fc-classic-today: var(--accent-soft);
+  --fc-classic-now: var(--danger);
+  --fc-classic-small-dot-width: 8px;
+  --fc-classic-large-dot-width: 10px;
+  --fc-classic-background: var(--paper);
+  --fc-classic-faint: var(--fill);
+  --fc-classic-muted: var(--fill);
+  --fc-classic-strong: var(--fill-strong);
+  --fc-classic-foreground: var(--ink);
+  --fc-classic-faint-foreground: var(--ink-faint);
+  --fc-classic-muted-foreground: var(--ink-soft);
+  --fc-classic-border: var(--line);
+  --fc-classic-strong-border: var(--line-strong);
+}
+
+.hm-cal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--line);
+}
+
+.hm-cal-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.hm-cal-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hm-cal-body {
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  font-size: 13.5px;
+}
+
+.hm-cal-body a {
+  color: inherit;
+}
+
+@media (max-width: 640px) {
+  .hm-cal-title {
+    order: -1;
+    width: 100%;
+  }
+
+  .hm-cal-body {
+    padding: var(--space-xs);
+  }
+}
+
+/* ── Inbox ───────────────────────────────── */
+
+.hm-mail {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .hm-mail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.hm-mail-search {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--line);
+}
+
+.hm-mail-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.hm-mail-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.hm-mail-item:hover {
+  background: var(--fill);
+}
+
+.hm-mail-item.is-active {
+  background: var(--primary-soft);
+}
+
+.hm-mail-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.hm-mail-line1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hm-mail-who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.hm-mail-item.is-unread .hm-mail-who {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hm-mail-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.hm-mail-subject {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+.hm-mail-flag {
+  margin-top: 2px;
+}
+
+.hm-mail-reading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-md);
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .hm-mail-reading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.hm-mail-letter .cz-panel-body {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+@media (max-width: 640px) {
+  .hm-mail-letter .cz-panel-body {
+    padding: var(--space-md);
+  }
+}
+
+.hm-mail-back {
+  justify-self: start;
+  margin: -4px 0 -8px -6px;
+}
+
+.hm-mail-h {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.hm-mail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: -8px 0 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.hm-mail-meta strong {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.hm-mail-body {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hm-mail-reply {
+  display: grid;
+  gap: var(--space-xs);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--line);
+}
+
+.hm-mail-reply-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hm-mail-reply-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.hm-mail-draft {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.hm-mail-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.hm-mail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.hm-mail-actions-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-inline-start: auto;
+}
+
+.hm-drawer-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.hm-drawer-lead {
+  margin-bottom: var(--space-md);
+}
+
+.hm-pad {
+  padding: var(--space-md);
+}
+
+/* Let a wide Segmented scroll inside the page instead of pushing it sideways. */
+.hm-seg-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hm-seg-scroll .ant-segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* ══ Round 2: picture-first ═══════════════════════════ */
+
+/* Section heading: icon badge + words + count */
+.hm-sec-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hm-count {
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--t-soft, var(--fill));
+  color: var(--t-ink, var(--ink-soft));
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+
+.hm-quiet-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-faint);
+}
+
+/* Age / due chip */
+.hm-age {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hm-age.is-old,
+.hm-age.is-danger {
+  background: var(--danger-soft);
+  color: oklch(0.47 0.17 27);
+}
+
+.hm-age.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.hm-age.is-info {
+  background: var(--info-soft);
+  color: oklch(0.42 0.12 250);
+}
+
+.hm-age.is-neutral {
+  background: var(--fill);
+  color: var(--ink-faint);
+}
+
+/* Attention card footer */
+.hm-card-cust {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+}
+
+.hm-next-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hm-next-btn.is-danger {
+  border-color: var(--danger);
+  color: oklch(0.47 0.17 27);
+}
+
+.cz-card.is-link:hover .hm-next-btn {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.hm-col-empty {
+  padding: var(--space-sm) 4px;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+/* AI brief kept compact on overview */
+.hm-ai-compact .cz-panel-body,
+.hm-ai-compact > * {
+  font-size: 13.5px;
+}
+
+/* Jobs by stage: six icons with counts */
+.hm-stagecount {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hm-stagecount li {
+  position: relative;
+  min-width: 0;
+}
+
+.hm-stagecount li + li::before {
+  content: "";
+  position: absolute;
+  top: 26px;
+  left: calc(-50% + 30px);
+  right: calc(50% + 30px);
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.hm-stagecount-link {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 4px 2px 6px;
+  border-radius: 10px;
+  color: var(--ink-faint);
+  text-decoration: none;
+  text-align: center;
+}
+
+.hm-stagecount-link:hover {
+  background: var(--fill);
+}
+
+.hm-stagecount-link:focus-visible {
+  outline: 2px solid var(--primary);
+}
+
+.hm-stagecount-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--fill);
+}
+
+.hm-stagecount li.has-jobs .hm-stagecount-dot {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+
+.hm-stagecount-n {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 22px;
+  box-shadow: 0 0 0 2px var(--paper);
+}
+
+.hm-stagecount-label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.hm-stagecount li.has-jobs .hm-stagecount-label {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .hm-stagecount-dot {
+    width: 36px;
+    height: 36px;
+  }
+
+  .hm-stagecount li + li::before {
+    top: 22px;
+    left: calc(-50% + 22px);
+    right: calc(50% + 22px);
+  }
+
+  .hm-stagecount-label {
+    font-size: 11px;
+  }
+
+  .hm-stagecount-n {
+    right: -8px;
+    font-size: 12px;
+    line-height: 20px;
+    min-width: 20px;
+  }
+}
+
+/* AR aging */
+.hm-aging {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.hm-aging .cz-legend {
+  display: grid;
+  gap: 8px;
+}
+
+/* Overview mini tasks */
+.hm-mini-tasks li {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.hm-mini-tasks .hm-mini-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hm-mini-tasks li.is-late .hm-mini-title {
+  color: oklch(0.47 0.17 27);
+}
+
+/* ── Task cards ── */
+.hm-tgroup {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.hm-tgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hm-tcard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.hm-tcard.is-late {
+  border-color: oklch(0.8 0.08 27);
+}
+
+.hm-tcard.is-done {
+  background: var(--fill);
+}
+
+.hm-tcheck {
+  position: relative;
+  display: grid;
+  cursor: pointer;
+}
+
+.hm-tcheck input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.hm-tcheck-box {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--paper);
+  color: transparent;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.hm-tcheck:hover .hm-tcheck-box {
+  border-color: var(--primary);
+}
+
+.hm-tcheck input:focus-visible + .hm-tcheck-box {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.hm-tcheck input:checked + .hm-tcheck-box {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--on-primary);
+}
+
+.hm-tcard-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hm-tcard-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.hm-tcard.is-done .hm-tcard-title {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  font-weight: 400;
+}
+
+.hm-fire {
+  margin-inline-end: 4px;
+  vertical-align: -2px;
+  color: var(--danger);
+}
+
+.hm-tcard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.hm-chip:hover {
+  color: var(--primary-deep);
+  background: var(--primary-soft);
+}
+
+.hm-tcard-people {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Notifications: one line per item ── */
+.hm-feed-row {
+  grid-template-columns: 34px minmax(0, 1fr) auto 10px;
+}
+
+.hm-feed-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.hm-feed-line strong {
+  flex: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.hm-feed-row.is-unread .hm-feed-line strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hm-feed-line .hm-feed-body {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+.hm-feed-row > .hm-feed-cust {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.hm-feed-row.is-read .cz-icon-badge,
+.hm-feed-row:not(.is-unread) .cz-icon-badge {
+  opacity: 0.7;
+}
+
+@media (max-width: 640px) {
+  .hm-feed-row {
+    grid-template-columns: 34px minmax(0, 1fr) 10px;
+  }
+
+  .hm-feed-row > .hm-feed-cust {
+    display: none;
+  }
+}
+
+/* ── Calendar legend + icon chips ── */
+.hm-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hm-legend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.hm-legend-btn strong {
+  color: var(--ink);
+}
+
+.hm-legend-btn[aria-pressed="true"] {
+  border-color: var(--ev);
+  box-shadow: 0 0 0 1px var(--ev);
+}
+
+.hm-legend-btn.is-off {
+  opacity: 0.45;
+}
+
+.hm-legend-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.is-etd { --ev: var(--info); --ev-soft: var(--info-soft); --ev-ink: oklch(0.38 0.12 250); }
+.is-eta { --ev: var(--primary); --ev-soft: var(--primary-soft); --ev-ink: var(--primary-deep); }
+.is-task { --ev: var(--warning); --ev-soft: var(--warning-soft); --ev-ink: var(--warning-text); }
+.is-act { --ev: var(--ink-faint); --ev-soft: var(--fill); --ev-ink: var(--ink-soft); }
+
+.hm-ev-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ev);
+  color: var(--paper);
+}
+
+.hm-cal .hm-ev {
+  margin-bottom: 2px;
+  border: 0 !important;
+  border-radius: 6px;
+  background: var(--ev-soft) !important;
+  color: var(--ev-ink) !important;
+}
+
+.hm-ev-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ev-ink);
+}
+
+.hm-ev-inner .hm-ev-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.hm-ev-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Inbox rows: avatar · name/time · subject + AI icons ── */
+.hm-mail-item {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.hm-mail-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hm-mail-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hm-mail-line2 .hm-mail-subject {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hm-mail-item .hm-unread-dot {
+  margin-top: 6px;
+}
+
+.hm-mail-meta {
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .hm-tiles .cz-tile {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .hm-tiles .cz-icon-badge {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .hm-tiles .cz-tile-value {
+    font-size: 1.4rem;
+  }
+
+  .hm-tiles .cz-tile-label {
+    font-size: 12.5px;
+    line-height: 1.3;
+  }
+
+  .hm-tiles .cz-tiles > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .hm-exc-board .cz-card {
+    padding: 12px;
+  }
+
+  .hm-exc-board .cz-card-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+  }
+}

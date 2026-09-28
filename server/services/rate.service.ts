@@ -34,8 +34,54 @@ function rateStatus(validFrom: Date, validUntil: Date): RateSearchRow["status"] 
   return "ACTIVE";
 }
 
-export async function listVendors(db: Db) {
-  return db.select().from(vendors).orderBy(vendors.company);
+export async function listVendors(db: Db, organizationId: string) {
+  return db.select().from(vendors).where(eq(vendors.organizationId, organizationId)).orderBy(vendors.company);
+}
+
+export const VENDOR_TYPES = ["SHIPPING_LINE", "TRUCKING", "CUSTOMS", "DEPOT", "WAREHOUSE", "OTHER"] as const;
+export type VendorType = (typeof VENDOR_TYPES)[number];
+
+export async function createVendor(
+  db: Db,
+  organizationId: string,
+  input: {
+    company: string;
+    nameZh?: string | null;
+    nameTh?: string | null;
+    vendorType: VendorType;
+    currency?: string;
+    paymentTermsDays?: number;
+    taxId?: string | null;
+    address?: string | null;
+    services?: string | null;
+    contactName?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+  },
+) {
+  const clean = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+  const id = `v${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+  const [row] = await db
+    .insert(vendors)
+    .values({
+      id,
+      organizationId,
+      company: input.company.trim(),
+      nameZh: clean(input.nameZh),
+      nameTh: clean(input.nameTh),
+      vendorType: input.vendorType,
+      currencies: (input.currency ?? "THB").toUpperCase(),
+      paymentTermsDays: input.paymentTermsDays ?? 30,
+      taxId: clean(input.taxId),
+      address: clean(input.address),
+      services: clean(input.services),
+      contactName: clean(input.contactName),
+      contactEmail: clean(input.contactEmail),
+      contactPhone: clean(input.contactPhone),
+      status: "ACTIVE",
+    })
+    .returning();
+  return row!;
 }
 
 export async function searchRates(

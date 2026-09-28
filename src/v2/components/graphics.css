@@ -1,0 +1,691 @@
+/* Visual-first primitives (Graphics.tsx). Tokens only. */
+
+.cz-flag {
+  flex: none;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px oklch(0.24 0.02 220 / 0.12);
+  vertical-align: middle;
+}
+
+.cz-flag-chip {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 3px;
+  background: var(--fill-strong);
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+}
+
+/* Tone palette shared by badges, tiles, bars, donuts */
+.is-primary { --t: var(--primary); --t-soft: var(--primary-soft); --t-ink: var(--primary-deep); }
+.is-accent { --t: var(--accent); --t-soft: var(--accent-soft); --t-ink: oklch(0.5 0.14 45); }
+.is-success { --t: var(--success); --t-soft: var(--success-soft); --t-ink: oklch(0.42 0.11 150); }
+.is-warning { --t: var(--warning); --t-soft: var(--warning-soft); --t-ink: var(--warning-text); }
+.is-danger { --t: var(--danger); --t-soft: var(--danger-soft); --t-ink: oklch(0.47 0.17 27); }
+.is-info { --t: var(--info); --t-soft: var(--info-soft); --t-ink: oklch(0.42 0.12 250); }
+.is-neutral { --t: var(--ink-faint); --t-soft: var(--fill); --t-ink: var(--ink-soft); }
+
+/* ── Port & route ─────────────────────── */
+
+.cz-port-badge {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cz-port-badge.is-end {
+  justify-items: end;
+  text-align: end;
+}
+
+.cz-port-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cz-port-line strong {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.cz-port-badge.is-lg .cz-port-line strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.cz-port-badge.is-sm .cz-port-line strong {
+  font-size: 12px;
+}
+
+.cz-port-name {
+  font-size: 12px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14ch;
+}
+
+.cz-route {
+  --route: var(--primary);
+  display: grid;
+  grid-template-columns: auto minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cz-route.is-late {
+  --route: var(--danger);
+}
+
+.cz-route.is-done {
+  --route: var(--success);
+}
+
+.cz-route-mid {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cz-route-line {
+  position: relative;
+  height: 2px;
+  margin: 14px 18px;
+  background-image: linear-gradient(90deg, var(--line-strong) 50%, transparent 50%);
+  background-size: 8px 2px;
+}
+
+.cz-route.is-lg .cz-route-line {
+  margin: 18px 22px;
+}
+
+.cz-route.is-sm .cz-route-line {
+  margin: 11px 14px;
+}
+
+.cz-route-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--route);
+  border-radius: 2px;
+}
+
+.cz-route-vehicle {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--route);
+  box-shadow: 0 0 0 2px var(--route);
+  transform: translate(-50%, -50%);
+}
+
+.cz-route.is-sm .cz-route-vehicle {
+  width: 22px;
+  height: 22px;
+}
+
+.cz-route.is-lg .cz-route-vehicle {
+  width: 36px;
+  height: 36px;
+}
+
+.cz-route-dates {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.cz-route.is-late .cz-route-eta {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ── Stage flow ───────────────────────── */
+
+.cz-stages {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cz-stage {
+  position: relative;
+  flex: 1 1 0;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: center;
+}
+
+.cz-stage + .cz-stage::before {
+  content: "";
+  position: absolute;
+  top: 19px;
+  right: calc(50% + 22px);
+  left: calc(-50% + 22px);
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.cz-stages.is-sm .cz-stage + .cz-stage::before {
+  top: 11px;
+  right: calc(50% + 13px);
+  left: calc(-50% + 13px);
+}
+
+.cz-stage.is-done + .cz-stage::before,
+.cz-stage.is-done + .cz-stage.is-now::before,
+.cz-stage.is-done + .cz-stage.is-problem::before {
+  background: var(--primary);
+}
+
+.cz-stage-dot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--ink-faint);
+}
+
+.cz-stages.is-sm .cz-stage-dot {
+  width: 24px;
+  height: 24px;
+}
+
+.cz-stage.is-done .cz-stage-dot {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.cz-stage.is-now .cz-stage-dot {
+  background: var(--accent-soft);
+  color: oklch(0.5 0.14 45);
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.cz-stage.is-problem .cz-stage-dot {
+  background: var(--danger-soft);
+  color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger);
+}
+
+.cz-stage-text {
+  display: grid;
+  gap: 1px;
+  padding: 0 2px;
+}
+
+.cz-stage-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.cz-stage.is-now .cz-stage-label,
+.cz-stage.is-problem .cz-stage-label {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.cz-stage.is-next .cz-stage-label {
+  color: var(--ink-faint);
+}
+
+.cz-stage-date {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+/* ── Icon badge & tiles ───────────────── */
+
+.cz-icon-badge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--t-soft);
+  color: var(--t-ink);
+}
+
+.cz-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-sm);
+}
+
+.cz-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+
+.cz-tile.is-link:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.cz-tile-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cz-tile-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.cz-tile-value.is-danger {
+  color: var(--danger);
+}
+
+.cz-tile-value.is-warning {
+  color: var(--warning-text);
+}
+
+.cz-tile-label {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+.cz-tile-visual {
+  margin-top: 6px;
+}
+
+/* ── Bars, donut, legend ──────────────── */
+
+.cz-segbar {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--fill);
+}
+
+.cz-seg {
+  min-width: 4px;
+  background: var(--t);
+}
+
+.cz-barlist {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cz-barlist-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 34%) 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.cz-barlist-row:hover {
+  background: var(--fill);
+}
+
+.cz-barlist-label {
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cz-barlist-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.cz-barlist-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--t);
+}
+
+.cz-barlist-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.cz-donut {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+
+.cz-donut svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.cz-donut-track {
+  fill: none;
+  stroke: var(--fill);
+  stroke-width: 12;
+}
+
+.cz-donut-seg {
+  fill: none;
+  stroke: var(--t);
+  stroke-width: 12;
+}
+
+.cz-donut-center {
+  display: grid;
+  justify-items: center;
+  line-height: 1.1;
+}
+
+.cz-donut-center strong {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+}
+
+.cz-donut-center em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.cz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.cz-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cz-legend strong {
+  color: var(--ink);
+}
+
+.cz-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--t);
+}
+
+/* ── Cards, grid, board ───────────────── */
+
+.cz-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--min), 100%), 1fr));
+  gap: var(--space-sm);
+}
+
+.cz-card {
+  display: grid;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: inherit;
+  text-align: start;
+  text-decoration: none;
+  font: inherit;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+
+.cz-card.is-link {
+  cursor: pointer;
+}
+
+.cz-card.is-link:hover {
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px oklch(0.24 0.02 220 / 0.08);
+  transform: translateY(-1px);
+}
+
+.cz-card.is-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.cz-card.is-danger {
+  border-color: oklch(0.8 0.08 27);
+  background: color-mix(in oklch, var(--danger-soft) 35%, var(--paper));
+}
+
+.cz-card.is-warning {
+  border-color: oklch(0.85 0.08 80);
+}
+
+.cz-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.cz-card-media {
+  flex: none;
+}
+
+.cz-card-titles {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cz-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cz-card-sub {
+  font-size: 13px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cz-card-badge {
+  flex: none;
+}
+
+.cz-card-body {
+  min-width: 0;
+}
+
+.cz-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.cz-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 1fr);
+  gap: var(--space-sm);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.cz-board-col {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: var(--space-sm);
+  background: var(--fill);
+  border-radius: 12px;
+}
+
+.cz-board-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px 4px;
+}
+
+.cz-board-head h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cz-board-count {
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.cz-board-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-xs);
+}
+
+.cz-viewswitch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--fill);
+}
+
+.cz-viewswitch button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.cz-viewswitch button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 640px) {
+  .cz-stage-label {
+    font-size: 11px;
+  }
+
+  .cz-stage-date {
+    display: none;
+  }
+
+  .cz-stages.is-lg .cz-stage-dot {
+    width: 32px;
+    height: 32px;
+  }
+
+  .cz-stages.is-lg .cz-stage + .cz-stage::before {
+    top: 15px;
+    right: calc(50% + 18px);
+    left: calc(-50% + 18px);
+  }
+
+  .cz-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cz-tile {
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+  }
+
+  .cz-tile .cz-icon-badge {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9px;
+  }
+
+  .cz-tile-value {
+    font-size: 1.35rem;
+  }
+
+  .cz-tile-label {
+    font-size: 12.5px;
+    line-height: 1.3;
+  }
+
+  .cz-board {
+    grid-auto-columns: minmax(260px, 85vw);
+  }
+}

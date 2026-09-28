@@ -264,15 +264,56 @@ export function mailTransitionAllowed(from: string, to: string): boolean {
   return false;
 }
 
+const ISO_STAMP = /^\d{4}-\d{2}-\d{2}T/;
+
+/**
+ * Legacy demo labels ("14:22", "昨 17:15" = yesterday) → ISO timestamp (Bangkok wall clock,
+ * relative to `now`). ISO input is returned unchanged; unknown formats return null.
+ */
+export function legacyMailTimeToIso(label: string, now = new Date()): string | null {
+  const t = label.trim();
+  if (ISO_STAMP.test(t)) return t;
+  const m = t.match(/^(昨|昨天|yesterday|เมื่อวาน)?\s*(\d{1,2}):(\d{2})$/i);
+  if (!m) return null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  let stamp = new Date(`${today}T${m[2]!.padStart(2, "0")}:${m[3]}:00+07:00`);
+  if (m[1]) stamp = new Date(stamp.getTime() - 24 * 60 * 60 * 1000);
+  return stamp.toISOString();
+}
+
+/**
+ * Convert a batch of legacy labels, keeping their order and spacing but shifting the whole
+ * batch back if needed so the newest one lands 20 minutes before `now` (never in the future).
+ */
+export function legacyMailTimesToIso(labels: string[], now = new Date()): Array<string | null> {
+  const raw = labels.map((l) => (ISO_STAMP.test(l.trim()) ? null : legacyMailTimeToIso(l, now)));
+  const times = raw.filter((x): x is string => Boolean(x)).map((x) => new Date(x).getTime());
+  if (!times.length) return raw;
+  const latest = Math.max(...times);
+  const limit = now.getTime() - 20 * 60 * 1000;
+  const shift = latest > limit ? latest - limit : 0;
+  return raw.map((x) => (x ? new Date(new Date(x).getTime() - shift).toISOString() : null));
+}
+
 export async function seedCommsFromDemo(db: Db) {
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(mails);
-  if (Number(count) > 0) return { skipped: true as const };
+  if (Number(count) > 0) {
+    // Normalize old free-text time labels on already-seeded rows (idempotent).
+    const rows = await db.select({ id: mails.id, timeLabel: mails.timeLabel }).from(mails);
+    const isos = legacyMailTimesToIso(rows.map((r) => r.timeLabel));
+    for (const [i, r] of rows.entries()) {
+      const iso = isos[i];
+      if (iso) await db.update(mails).set({ timeLabel: iso }).where(eq(mails.id, r.id));
+    }
+    return { skipped: true as const };
+  }
 
   const { mailsSeed } = await import("../../src/data.js");
   const { docs } = await import("../../src/crm.js");
 
-  for (const m of mailsSeed) {
-    await createMail(db, { ...m, id: m.id });
+  const stamps = legacyMailTimesToIso(mailsSeed.map((m) => m.time));
+  for (const [i, m] of mailsSeed.entries()) {
+    await createMail(db, { ...m, id: m.id, time: stamps[i] ?? new Date().toISOString() });
   }
   for (const d of docs) {
     await upsertCrmDoc(db, d);

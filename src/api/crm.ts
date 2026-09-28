@@ -6,11 +6,131 @@ async function readJson(res: Response) {
   return data as Record<string, unknown>;
 }
 
+export type ApiIssue = { path: string; message: string };
+
+/** API error with per-field issues (400 invalid_body). */
+export class ApiError extends Error {
+  status: number;
+  issues: ApiIssue[];
+  constructor(message: string, status: number, issues: ApiIssue[] = []) {
+    super(message);
+    this.status = status;
+    this.issues = issues;
+  }
+}
+
 async function apiFetch(path: string, init?: RequestInit) {
   const res = await fetch(path, { credentials: "include", ...init });
   const data = await readJson(res);
-  if (!res.ok) throw new Error(String(data.error ?? `api_${res.status}`));
+  if (!res.ok) throw new ApiError(String(data.error ?? `api_${res.status}`), res.status, (data.issues as ApiIssue[]) ?? []);
   return data;
+}
+
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/* ── Full customer record ─────────────────────────────── */
+
+export type LanePair = { pol: string; pod: string };
+
+/** Profile fields the API returns on every customer (all optional on legacy rows). */
+export type CustomerProfile = {
+  nameLangs: string[] | null;
+  businessType: string | null;
+  website: string | null;
+  industry: string | null;
+  leadSource: string | null;
+  ownerUserId: string | null;
+  status: string;
+  notes: string | null;
+  taxId: string | null;
+  branchNo: string | null;
+  billingAddress: string | null;
+  country: string | null;
+  currency: string | null;
+  creditTermDays: number | null;
+  creditLimit: number | null;
+  paymentMethod: string | null;
+  billingEmail: string | null;
+  preferredLanes: LanePair[];
+  containerTypes: string[];
+  commodities: string[];
+  incoterms: string | null;
+  customsBroker: boolean | null;
+  handlingNotes: string | null;
+  createdAt: string;
+  portalAccess: boolean;
+};
+
+export type CustomerRecord = Customer & Partial<CustomerProfile>;
+export type CustomerDetail = Customer & CustomerProfile & { contacts: Contact[] };
+
+export type ContactInput = {
+  id?: string;
+  name: string;
+  title?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  wechat?: string | null;
+  lineId?: string | null;
+  primary?: boolean;
+};
+
+/** Body for POST /api/customers and PATCH /api/customers/:id. On PATCH, `contacts` is the full list. */
+export type CustomerInput = {
+  nameZh?: string | null;
+  nameTh?: string | null;
+  nameEn?: string | null;
+  city?: string | null;
+  laneZh?: string | null;
+  laneTh?: string | null;
+  laneEn?: string | null;
+  businessType?: string | null;
+  website?: string | null;
+  industry?: string | null;
+  leadSource?: string | null;
+  ownerUserId?: string | null;
+  status?: string;
+  notes?: string | null;
+  taxId?: string | null;
+  branchNo?: string | null;
+  billingAddress?: string | null;
+  country?: string | null;
+  currency?: string | null;
+  creditTermDays?: number | null;
+  creditLimit?: number | null;
+  paymentMethod?: string | null;
+  billingEmail?: string | null;
+  preferredLanes?: LanePair[];
+  containerTypes?: string[];
+  commodities?: string[];
+  incoterms?: string | null;
+  customsBroker?: boolean | null;
+  handlingNotes?: string | null;
+  contacts?: ContactInput[];
+};
+
+export async function fetchCustomer(id: string): Promise<CustomerDetail> {
+  return (await apiFetch(`/api/customers/${encodeURIComponent(id)}`)) as CustomerDetail;
+}
+
+export async function createCustomerRecord(input: CustomerInput): Promise<CustomerDetail> {
+  return (await apiFetch("/api/customers", json("POST", input))) as CustomerDetail;
+}
+
+export async function updateCustomerRecord(id: string, patch: CustomerInput): Promise<CustomerDetail> {
+  return (await apiFetch(`/api/customers/${encodeURIComponent(id)}`, json("PATCH", patch))) as CustomerDetail;
+}
+
+export async function apiUpdateContact(id: string, patch: Partial<Omit<ContactInput, "id">>): Promise<Contact> {
+  return (await apiFetch(`/api/contacts/${encodeURIComponent(id)}`, json("PATCH", patch))) as Contact;
+}
+
+export async function apiDeleteContact(id: string): Promise<void> {
+  await apiFetch(`/api/contacts/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export type CrmBundle = {
@@ -86,4 +206,19 @@ export async function apiUpdateOpportunityStage(id: string, stage: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ stage }),
   });
+}
+
+/* ── Customer portal access (staff) ───────────────────── */
+
+/** Issues (or rotates) the portal access code. The plain code is returned only this once. */
+export async function issuePortalAccessCode(customerId: string): Promise<{ customerId: string; code: string; emails: string[] }> {
+  return (await apiFetch(`/api/portal/access-code/${encodeURIComponent(customerId)}`, { method: "POST" })) as {
+    customerId: string;
+    code: string;
+    emails: string[];
+  };
+}
+
+export async function revokePortalAccess(customerId: string): Promise<void> {
+  await apiFetch(`/api/portal/access-code/${encodeURIComponent(customerId)}`, { method: "DELETE" });
 }

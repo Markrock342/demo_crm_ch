@@ -1,20 +1,33 @@
-import { Empty, Result, Spin } from "antd";
+import { Result, Spin } from "antd";
 import type { ReactNode } from "react";
+import "./kit.css";
 
-type EmptyProps = { description?: string; action?: ReactNode };
+type EmptyProps = { title?: string; description?: string; action?: ReactNode };
 
-export function EmptyState({ description, action }: EmptyProps) {
-  return <Empty description={description} image={Empty.PRESENTED_IMAGE_SIMPLE}>{action}</Empty>;
-}
-
-export function LoadingState({ tip }: { tip?: string }) {
+/** Empty state that tells people what to do next, not just "no data". */
+export function EmptyState({ title, description, action }: EmptyProps) {
   return (
-    <div style={{ padding: 48, textAlign: "center" }}>
-      <Spin tip={tip} />
+    <div className="cz-empty">
+      <svg width="56" height="40" viewBox="0 0 56 40" aria-hidden>
+        <rect x="1" y="9" width="54" height="30" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M10 9V1h36v8M14 17v14M22 17v14M30 17v14M38 17v14M46 17v14" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+      {title ? <p className="cz-empty-title">{title}</p> : null}
+      {description ? <p className="cz-empty-desc">{description}</p> : null}
+      {action ? <div className="cz-empty-action">{action}</div> : null}
     </div>
   );
 }
 
-export function ErrorState({ title, subTitle }: { title?: string; subTitle?: string }) {
-  return <Result status="error" title={title ?? "Error"} subTitle={subTitle} />;
+export function LoadingState({ tip }: { tip?: string }) {
+  return (
+    <div className="cz-loading">
+      <Spin />
+      {tip ? <span>{tip}</span> : null}
+    </div>
+  );
+}
+
+export function ErrorState({ title, subTitle, action }: { title?: string; subTitle?: string; action?: ReactNode }) {
+  return <Result status="warning" title={title ?? "Something went wrong"} subTitle={subTitle} extra={action} />;
 }

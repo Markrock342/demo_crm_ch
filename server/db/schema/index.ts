@@ -7,3 +7,4 @@ export * from "./finance.js";
 export * from "./comms.js";
 export * from "./document-templates.js";
 export * from "./job-tasks.js";
+export * from "./organization.js";

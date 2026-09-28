@@ -4,6 +4,7 @@ import { hasPermission, type PermissionCode, type RoleCode } from "../domain/rba
 import { readSessionCookie, verifySession, type SessionPayload } from "../lib/jwt.js";
 import { loadAuthUser, type AuthUser } from "../services/auth.service.js";
 import { resolveSessionOrganization, type TenantContext } from "../services/tenancy.service.js";
+import { isSessionStale, passwordChangedAtFor } from "../services/users.service.js";
 
 export type AuthEnv = {
   Variables: {
@@ -37,7 +38,8 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     return next();
   }
   const user = await loadAuthUser(db, session.sub);
-  if (!user) {
+  // A password change / admin reset revokes every session issued before it.
+  if (!user || isSessionStale(session.iat, await passwordChangedAtFor(db, session.sub))) {
     c.set("user", null);
     c.set("session", session);
     return next();

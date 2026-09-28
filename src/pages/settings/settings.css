@@ -1,0 +1,365 @@
+/* Settings: account, company, users (admin essentials). Page-local styles only. */
+
+.adm-anchor {
+  scroll-margin-top: var(--space-md);
+}
+
+.adm-small {
+  font-size: 12.5px;
+}
+
+.adm-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.adm-block-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-sm);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.adm-block-meta {
+  margin-inline-start: auto;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+/* ── My account ── */
+.adm-identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--line);
+}
+
+.adm-identity.is-compact {
+  padding-bottom: var(--space-sm);
+}
+
+.adm-identity-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.adm-identity-text strong {
+  font-size: 17px;
+}
+
+.adm-identity-text .cz-muted {
+  overflow-wrap: anywhere;
+}
+
+.adm-identity-roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+
+.adm-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.adm-block {
+  min-width: 0;
+}
+
+.adm-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.adm-rules li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.adm-rules li.is-ok {
+  color: var(--success);
+}
+
+/* ── Role pill ── */
+.adm-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 7px;
+  border-radius: 999px;
+  background: var(--t-soft);
+  color: var(--t-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.adm-role-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px 0;
+  white-space: normal;
+}
+
+.adm-role-opt > span:last-child {
+  display: grid;
+  line-height: 1.3;
+}
+
+/* ── Company ── */
+.adm-company-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.adm-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.adm-logo-frame {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 64px;
+  padding: 6px;
+  border: 1px dashed var(--line-strong, var(--line));
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--ink-faint);
+  overflow: hidden;
+}
+
+.adm-logo-frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.adm-logo-side {
+  display: grid;
+  gap: 4px;
+}
+
+.adm-group {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-md) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.adm-group > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.adm-group > legend + * {
+  clear: both;
+}
+
+.adm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-md);
+}
+
+.adm-grid .ant-form-item {
+  margin-bottom: var(--space-sm);
+}
+
+.adm-span-2 {
+  grid-column: 1 / -1;
+}
+
+.adm-branch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-md);
+}
+
+.adm-sticky-save {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-sm) 0;
+  background: linear-gradient(to top, var(--paper) 70%, transparent);
+}
+
+/* ── Users ── */
+.adm-users {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.adm-users-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.adm-users-summary .cz-legend {
+  flex: 1 1 260px;
+}
+
+.adm-users-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-inline-start: auto;
+}
+
+.adm-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.adm-user-card.is-off .cz-card {
+  background: var(--fill);
+  opacity: 0.72;
+}
+
+.adm-user-card .cz-card {
+  height: 100%;
+  text-align: start;
+}
+
+.adm-user-card .cz-card-sub {
+  overflow-wrap: anywhere;
+}
+
+.adm-user-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adm-you {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.adm-user-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.adm-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.adm-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.adm-status.is-on {
+  color: var(--success);
+}
+
+.adm-status.is-on::before {
+  background: var(--success);
+}
+
+.adm-danger-list {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--line);
+}
+
+.adm-temp {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0;
+}
+
+.adm-temp-code {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--fill);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .adm-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .adm-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adm-identity-roles {
+    margin-inline-start: 0;
+  }
+
+  .adm-users-tools {
+    margin-inline-start: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .adm-temp {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

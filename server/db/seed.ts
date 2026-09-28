@@ -1,10 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { getDb, closeDb } from "./index.js";
+import { eq } from "drizzle-orm";
 import { seedAuth } from "../services/auth.service.js";
+import { hashAccessCode } from "../services/portal-access.service.js";
+import { customers } from "./schema/crm.js";
 import { seedCommsFromDemo } from "../services/comms.service.js";
 import { seedCrmFromDemo } from "../services/crm.service.js";
 import { seedCommercial } from "./seed-commercial.js";
 import { seedOperations } from "./seed-operations.js";
+import { seedSales } from "./seed-sales.js";
+import { seedFinance } from "./seed-finance.js";
 import { syncDocSequences } from "./seed-sequences.js";
 
 function loadDotEnv(path: string) {
@@ -21,6 +26,17 @@ function loadDotEnv(path: string) {
   }
 }
 
+/** Known portal code for the test customer (c1) so the login page's test buttons can open the portal. */
+export const TEST_PORTAL = { customerId: "c1", email: "hai@huayun-sz.cn", code: "TEST-2026" };
+
+async function seedTestPortalAccess(db: NonNullable<ReturnType<typeof getDb>>) {
+  if (process.env.SEED_TEST_ACCOUNTS === "false") return;
+  await db
+    .update(customers)
+    .set({ portalPin: await hashAccessCode(TEST_PORTAL.code) })
+    .where(eq(customers.id, TEST_PORTAL.customerId));
+}
+
 async function main() {
   loadDotEnv(".env");
   const db = getDb();
@@ -34,6 +50,9 @@ async function main() {
   const operations = await seedOperations(db);
   const comms = await seedCommsFromDemo(db);
   await syncDocSequences(db);
+  const sales = await seedSales(db);
+  const finance = await seedFinance(db);
+  await seedTestPortalAccess(db);
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
   if (!crm.skipped) {
@@ -48,6 +67,8 @@ async function main() {
   if (!comms.skipped) {
     console.log(`Comms seed: ${comms.mails} mails, ${comms.docs} docs`);
   }
+  console.log(`Sales seed: ${sales.quotations} quotations, ${sales.leads} leads, ${sales.deals} deals, ${sales.docs} docs, ${sales.mails} extra mails`);
+  console.log(`Finance seed: ${finance.invoices} invoices, ${finance.payments} payments, ${finance.billingNotes} billing notes, ${finance.vendorBills} vendor bills`);
 }
 
 main().catch((e) => {

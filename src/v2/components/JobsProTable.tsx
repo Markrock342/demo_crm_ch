@@ -1,174 +1,172 @@
-import type { ProColumns } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
-import { Tag } from "antd";
-import { useMemo } from "react";
+import { Warning } from "@phosphor-icons/react";
+import { Tooltip } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { customerName, type Customer } from "../../data";
-import { jobGrossProfit, type ShellJob } from "../../ports/job.port.ts";
+import type { ShellJob } from "../../ports/job.port.ts";
 import { useStore } from "../../store";
-import { Money } from "./Money.tsx";
-import { StatusTag } from "./StatusTag.tsx";
+import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
+import { fmtDate } from "../lib/format.ts";
+import { fmtShortDate, known, milestoneLabel, personName, STAGE_KEYS, stageFromNext, useIsPhone } from "../pages/jobsShared.ts";
+import { JobsStackList } from "../pages/JobsStackList.tsx";
+import { DataTable } from "./DataTable.tsx";
+import { progressBetween, RouteTrack, StageFlow, type StageKey } from "./Graphics.tsx";
+import { LaneCell, PeopleStack } from "./Visuals.tsx";
 
-type Props = {
-  rows: ShellJob[];
-  customers: Customer[];
-  loading?: boolean;
-  error?: string | null;
-  onReload?: () => void;
-  extraToolbar?: React.ReactNode;
+export type JobNextStep = { code: string; label: string; plannedAt?: string | null } | null;
+export type JobListRow = ShellJob & {
+  next?: JobNextStep;
+  /** 0 booked … 5 delivered (see jobsShared stage helpers). */
+  stage?: number;
 };
 
-export function JobsProTable({ rows, customers, loading, error, onReload, extraToolbar }: Props) {
+/** Stage of a list row: precomputed by the page, else derived from the next milestone. */
+export function rowStage(r: JobListRow): number {
+  return r.stage ?? stageFromNext(r, r.next?.code ?? null);
+}
+
+/** Voyage progress for the route picture: at origin until sailed, in port once arrived. */
+export function rowProgress(r: JobListRow, stage = rowStage(r)): number | null {
+  if (stage >= 3) return 100;
+  if (stage < 2) return known(r.etd) ? 0 : null;
+  return progressBetween(known(r.etd) || null, known(r.eta) || null) ?? 50;
+}
+
+type Props = {
+  rows: JobListRow[];
+  loading?: boolean;
+  emptyText?: string;
+  emptyAction?: ReactNode;
+};
+
+/**
+ * Jobs list — at most 6 columns: Job no. + customer | stage icons | route picture (ETD/ETA) | vessel | next step | people.
+ * Columns whose values are all unknown are hidden instead of showing a wall of "—". Phones get stacked rows.
+ */
+export function JobsProTable({ rows, loading, emptyText, emptyAction }: Props) {
   const { tx, locale } = useStore();
   const navigate = useNavigate();
+  const { nameOf } = useCustomerLookup();
+  const phone = useIsPhone();
 
-  const customerMap = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
+  const people = (r: ShellJob) => [...new Set([personName(r.salesOwner), personName(r.opsOwner)].filter(Boolean))];
+  const vessel = (r: ShellJob) => [known(r.vessel), known(r.voyage)].filter(Boolean).join(" / ") || known(r.carrier);
+  const has = (fn: (r: JobListRow) => unknown) => rows.some((r) => Boolean(fn(r)));
+  const shortDate = (v: string) => (known(v) ? fmtShortDate(v, locale) : undefined);
+  const stageLabels = Object.fromEntries(STAGE_KEYS.map((k) => [k, tx(`stage_${k}`)])) as Record<StageKey, string>;
 
-  const columns: ProColumns<ShellJob>[] = [
+  const stageCell = (r: JobListRow) => {
+    const stage = rowStage(r);
+    const late = Boolean(r.delayed) && stage < 5;
+    return (
+      <span className="jobs-status-cell">
+        <span className="jobs-stage-mini" aria-label={stageLabels[STAGE_KEYS[stage]]} role="img">
+          <StageFlow current={stage >= 5 ? STAGE_KEYS.length : stage} labels={stageLabels} problem={late} size="sm" />
+        </span>
+        {late ? (
+          <Tooltip title={tx("jobs_delayed")}>
+            <span className="jobs-late-icon" role="img" aria-label={tx("jobs_delayed")}>
+              <Warning size={16} weight="fill" />
+            </span>
+          </Tooltip>
+        ) : null}
+      </span>
+    );
+  };
+
+  const route = (r: JobListRow) => {
+    const stage = rowStage(r);
+    return (
+      <RouteTrack
+        size="sm"
+        from={r.pol}
+        to={r.pod}
+        progress={rowProgress(r, stage)}
+        fromDate={shortDate(r.etd)}
+        toDate={shortDate(r.eta)}
+        delayed={Boolean(r.delayed)}
+        done={stage >= 5}
+      />
+    );
+  };
+
+  if (phone) {
+    return (
+      <JobsStackList
+        loading={loading}
+        emptyText={emptyText}
+        emptyAction={emptyAction}
+        items={rows.map((r) => ({
+          key: r.id,
+          title: r.jobNumber,
+          status: stageCell(r),
+          sub: (
+            <>
+              <span>{nameOf(r.customerId)}</span>
+              <LaneCell from={r.pol} to={r.pod} />
+            </>
+          ),
+          onOpen: () => navigate(`/jobs/${r.id}`),
+        }))}
+      />
+    );
+  }
+
+  const columns: ColumnsType<JobListRow> = [
     {
-      title: tx("navJobs"),
-      dataIndex: "jobNumber",
-      fixed: "left",
-      width: 140,
-      copyable: true,
-      render: (_, row) => (
+      title: tx("jobs_colJob"),
+      key: "job",
+      render: (_, r) => (
         <>
-          <strong>{row.jobNumber}</strong>
-          {row.delayed ? (
-            <Tag color="red" style={{ marginLeft: 6 }}>
-              delay
-            </Tag>
-          ) : null}
+          <span className="cz-cell-main jobs-nowrap">{r.jobNumber}</span>
+          <span className="cz-cell-sub jobs-cell-clip">{nameOf(r.customerId)}</span>
         </>
       ),
     },
-    {
-      title: tx("colCustomer"),
-      dataIndex: "customerId",
-      width: 160,
-      ellipsis: true,
-      render: (_, row) => {
-        const c = customerMap.get(row.customerId);
-        return c ? customerName(c, locale) : row.customerId;
-      },
-    },
-    {
-      title: tx("jobParties"),
-      dataIndex: "shipper",
-      width: 180,
-      ellipsis: true,
-      search: false,
-      render: (_, row) => `${row.shipper} / ${row.consignee}`,
-    },
-    {
-      title: "Lane",
-      dataIndex: "pol",
-      width: 120,
-      render: (_, row) => (
-        <span style={{ fontFamily: "ui-monospace, monospace" }}>
-          {row.pol}→{row.pod}
-        </span>
-      ),
-    },
-    {
-      title: tx("colCarrier"),
-      dataIndex: "carrier",
-      width: 100,
-      ellipsis: true,
-    },
-    {
-      title: "Vessel / Voyage",
-      dataIndex: "vessel",
-      width: 140,
-      search: false,
-      render: (_, row) => {
-        const vv = [row.vessel, row.voyage].filter(Boolean).join(" / ");
-        return vv || "—";
-      },
-    },
-    {
-      title: tx("calEtd"),
-      dataIndex: "etd",
-      width: 88,
-      search: false,
-    },
-    {
-      title: tx("calEta"),
-      dataIndex: "eta",
-      width: 88,
-      search: false,
-    },
-    {
-      title: tx("jobOwners"),
-      dataIndex: "salesOwner",
-      width: 120,
-      search: false,
-      render: (_, row) => `${row.salesOwner || "—"} / ${row.opsOwner || "—"}`,
-    },
-    {
-      title: tx("colStatus"),
-      dataIndex: "status",
-      width: 110,
-      valueType: "select",
-      valueEnum: {
-        OPEN: { text: "OPEN" },
-        IN_PROGRESS: { text: "IN_PROGRESS" },
-        CLOSED: { text: "CLOSED" },
-      },
-      render: (_, row) => <StatusTag status={row.status} />,
-    },
-    {
-      title: "AR",
-      dataIndex: "billingStatus",
-      width: 100,
-      search: false,
-      render: (_, row) => <StatusTag status={row.billingStatus} />,
-    },
-    {
-      title: tx("jobGrossProfit"),
-      dataIndex: "totalSell",
-      width: 110,
-      align: "right",
-      search: false,
-      render: (_, row) => {
-        const gp = row.listGrossProfit ?? (row.totalSell || row.costs.length ? jobGrossProfit(row) : null);
-        if (gp == null) return "—";
+    { title: tx("jobs_colStage"), key: "stage", render: (_, r) => stageCell(r) },
+    { title: tx("jobs_colLane"), key: "route", width: 300, render: (_, r) => route(r) },
+  ];
+
+  if (has(vessel)) {
+    columns.push({
+      title: tx("jobs_colVessel"),
+      key: "vessel",
+      render: (_, r) => <span className="jobs-vessel">{vessel(r) || "—"}</span>,
+    });
+  }
+
+  if (has((r) => r.next !== undefined)) {
+    columns.push({
+      title: tx("jobs_colNext"),
+      key: "next",
+      render: (_, r) => {
+        if (!r.next) return <span className="cz-muted">{tx("jobs_allDone")}</span>;
+        const overdue = r.next.plannedAt ? new Date(String(r.next.plannedAt)).getTime() < Date.now() : false;
         return (
           <>
-            <Money amount={gp} currency={row.currency} locale={locale === "zh" ? "zh-CN" : locale === "th" ? "th-TH" : "en-US"} />{" "}
-            {row.currency}
+            <span className="jobs-nowrap">{milestoneLabel(tx, r.next.code, r.next.label)}</span>
+            {r.next.plannedAt ? (
+              <span className={`cz-cell-sub${overdue ? " jobs-text-danger" : ""}`}>{fmtDate(r.next.plannedAt, locale)}</span>
+            ) : null}
           </>
         );
       },
-    },
-  ];
+    });
+  }
+
+  if (has((r) => people(r).length)) {
+    columns.push({ title: tx("jobs_colOwner"), key: "people", render: (_, r) => <PeopleStack names={people(r)} /> });
+  }
 
   return (
-    <ProTable<ShellJob>
+    <DataTable<JobListRow>
       rowKey="id"
       columns={columns}
       dataSource={rows}
       loading={loading}
-      scroll={{ x: 1400 }}
-      search={{
-        labelWidth: "auto",
-        filterType: "light",
-      }}
-      options={{
-        reload: onReload ? () => onReload() : false,
-        density: true,
-        setting: { draggable: true, checkable: true },
-      }}
-      pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
-      dateFormatter="string"
-      headerTitle={extraToolbar}
-      onRow={(record) => ({
-        style: { cursor: "pointer" },
-        onClick: () => navigate(`/jobs/${record.id}`),
-      })}
-      locale={{
-        emptyText: error ?? tx("emptyShellCrm"),
-      }}
+      emptyText={emptyText}
+      emptyAction={emptyAction}
+      onRowClick={(r) => navigate(`/jobs/${r.id}`)}
     />
   );
 }

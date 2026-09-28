@@ -38,7 +38,6 @@ import {
   PortalJobPage,
 } from "./pages/Portal";
 import { QuotePublicPage } from "./pages/QuotePublic";
-import { QuotePublicShellPage } from "./pages/QuotePublicShell";
 import { navPathAllowed } from "./shell/nav.ts";
 import { useShellNotifications } from "./shell/notificationStore.tsx";
 import { useIsShellMode, useShellSession } from "./shell/session.tsx";
@@ -47,6 +46,7 @@ import { V2AppShell } from "./v2/AppShell.tsx";
 
 import { useStore } from "./store";
 import { uiV2 } from "./v2/config.ts";
+import { departmentFromRoles } from "./v2/navConfig.ts";
 
 const groups = [
   {
@@ -118,7 +118,6 @@ export default function App() {
   return (
     <Routes>
       <Route path="/q/:token" element={<QuotePublicPage />} />
-      <Route path="/q/shell/:id" element={<QuotePublicShellPage />} />
       <Route path="/portal" element={<PortalEnterPage />} />
       <Route path="/portal/home" element={<PortalHomePage />} />
       <Route path="/portal/jobs/:id" element={<PortalJobPage />} />
@@ -144,13 +143,13 @@ export default function App() {
 function LegacyAppShell() {
   const s = useStore();
   const { tx, locale, setLocale, query, setQuery, mails, toast, compact, motion } = s;
-  const { user, mode, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { shellUser, leave } = useShellSession();
   const shellMode = useIsShellMode();
   const shellNotes = useShellNotifications();
   const navigate = useNavigate();
   const loc = useLocation();
-  const dept = shellUser?.department ?? (user ? "admin" : null);
+  const dept = shellUser?.department ?? departmentFromRoles(user?.roles);
   const displayName = shellUser?.nameZh ?? shellUser?.name ?? user?.nameZh ?? user?.name ?? tx("userName");
   const displayRole = shellUser?.roles[0] ?? user?.roles[0] ?? tx("userRole");
   const visibleGroups = groups
@@ -354,9 +353,8 @@ function LegacyAppShell() {
             ))}
           </div>
           <div className="side-foot">
-            <p className="tenant">{tx("tenant")}</p>
+            {user?.organizationName ? <p className="tenant">{user.organizationName}</p> : null}
             <p className={`gemini-dot ${gemini ? "on" : "off"}`}>{gemini ? tx("geminiOn") : tx("geminiOff")}</p>
-            {shellUser ? <p className="meta">{tx("shellMode")}</p> : mode === "demo" ? <p className="meta">{tx("demoMode")}</p> : null}
           </div>
         </aside>
 

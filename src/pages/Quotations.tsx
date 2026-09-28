@@ -156,11 +156,6 @@ export function QuotationsPage() {
                     {tx("quoteBumpRevision")}
                   </button>
                 ) : null}
-                {detail.status === "SENT" || detail.status === "ACCEPTED" || detail.status === "REJECTED" ? (
-                  <Link className="btn btn-ghost" to={`/q/shell/${detail.id}`} target="_blank" rel="noopener noreferrer">
-                    {tx("quoteOpenPreview")}
-                  </Link>
-                ) : null}
                 {detail.status === "ACCEPTED" && !hasJob ? (
                   <button
                     type="button"

@@ -1,133 +1,424 @@
-import type { ProColumns } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
-import { Button, Col, Form, Input, Row } from "antd";
-import { useMemo, useState } from "react";
+import { ArrowsLeftRight, Boat, FilePlus } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { Button, Select, Tooltip } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { RateSearchRow } from "../../api/commercial.ts";
+import { searchRates, type RateSearchRow } from "../../api/commercial.ts";
 import { useShellSupport } from "../../shell/supportStore.tsx";
-import { useIsShellMode } from "../../shell/session.tsx";
 import { useStore } from "../../store";
-import { PageHeader } from "../components/PageHeader.tsx";
-import { AiBriefCard } from "../components/AiBriefCard.tsx";
-import { Money } from "../components/Money.tsx";
+import { useMedia } from "../../ui/useMedia";
+import {
+  CardGrid,
+  DataTable,
+  EmptyState,
+  EntityCard,
+  ErrorState,
+  Flag,
+  IconBadge,
+  LaneCell,
+  LoadingState,
+  PageHeader,
+  Panel,
+  RouteTrack,
+  StatusTag,
+  ViewSwitch,
+  readView,
+  writeView,
+} from "../components";
 import { useAppMode } from "../hooks/useAppMode.ts";
-import { useLiveRates } from "../hooks/useCommercial.ts";
+import { fmtDate, fmtMoney } from "../lib/format.ts";
+import { queryKeys } from "../queries/keys.ts";
+import { ContainerChip, DateChip, SalesMobileList } from "./SalesMobileList.tsx";
+import { SALES_PORTS, fmtShortDate, placeCode, portName, uniqueSorted } from "./salesUtil.ts";
+import "./sales.css";
+
+const STANDARD_TYPES = ["20GP", "40GP", "40HC", "45HC", "20RF", "40RF"];
+
+function useDebounced<T>(value: T, ms = 350) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setV(value), ms);
+    return () => window.clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
 
 export function RatesPageV2() {
-  const shell = useIsShellMode();
-  const { live } = useAppMode();
+  const { shell, live } = useAppMode();
   const { tx, locale } = useStore();
   const support = useShellSupport();
   const navigate = useNavigate();
-  const [search, setSearch] = useState({ origin: "Shanghai", destination: "Laem Chabang", containerType: "40HC" });
-  const liveRates = useLiveRates(search, live);
+  const mobile = useMedia("(max-width: 640px)");
 
-  const shellRows = useMemo(
+  const [view, setViewState] = useState(() => readView("rates"));
+  const setView = (v: "cards" | "list") => {
+    setViewState(v);
+    writeView("rates", v);
+  };
+  /** Port codes (UN/LOCODE) picked in the search panel. */
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [containerType, setContainerType] = useState<string | undefined>();
+
+  const params = useDebounced(
+    useMemo(() => {
+      const p: Record<string, string> = {};
+      if (origin.trim()) p.pol = origin.trim();
+      if (destination.trim()) p.pod = destination.trim();
+      if (containerType) p.containerType = containerType;
+      return p;
+    }, [origin, destination, containerType]),
+  );
+
+  const liveRates = useQuery({
+    queryKey: queryKeys.rates.search(params),
+    queryFn: () => searchRates(params),
+    enabled: live,
+  });
+
+  const shellRows = useMemo<RateSearchRow[]>(
     () =>
-      support.rates.map((r) => ({
-        laneId: r.id,
-        vendor: r.carrier,
-        carrier: r.carrier,
-        origin: r.origin,
-        destination: r.destination,
-        pol: r.origin,
-        pod: r.destination,
-        mode: "FCL",
-        containerType: r.containerType,
-        validFrom: r.validFrom,
-        validUntil: r.validUntil,
-        currency: r.currency,
-        totalBuy: String(r.buyAmount),
-        totalSell: String(r.sellAmount),
-        margin: String(r.sellAmount - r.buyAmount),
-        marginPct: r.sellAmount ? String(((r.sellAmount - r.buyAmount) / r.sellAmount) * 100) : "0",
-        status: "ACTIVE" as const,
-      })),
-    [support.rates],
+      support.rates
+        .filter(
+          (r) =>
+            (!params.pol || placeCode(r.origin) === params.pol) &&
+            (!params.pod || placeCode(r.destination) === params.pod) &&
+            (!params.containerType || r.containerType === params.containerType),
+        )
+        .map((r) => ({
+          laneId: r.id,
+          vendor: r.carrier,
+          carrier: r.carrier,
+          origin: r.origin,
+          destination: r.destination,
+          pol: "",
+          pod: "",
+          mode: "FCL",
+          containerType: r.containerType,
+          validFrom: r.validFrom,
+          validUntil: r.validUntil,
+          currency: r.currency,
+          totalBuy: String(r.buyAmount),
+          totalSell: String(r.sellAmount),
+          margin: String(r.sellAmount - r.buyAmount),
+          marginPct: r.sellAmount ? String(((r.sellAmount - r.buyAmount) / r.sellAmount) * 100) : "0",
+          status: "ACTIVE" as const,
+        })),
+    [support.rates, params],
   );
 
   const rows: RateSearchRow[] = shell ? shellRows : (liveRates.data ?? []);
-  const localeTag = locale === "zh" ? "zh-CN" : locale === "th" ? "th-TH" : "en-US";
+  const fromCode = (r: RateSearchRow) => r.pol || placeCode(r.origin) || "";
+  const toCode = (r: RateSearchRow) => r.pod || placeCode(r.destination) || "";
 
-  const rateFacts = {
-    lanes: rows.length,
-    origin: search.origin,
-    destination: search.destination,
-    containerType: search.containerType,
-    avgSell: rows.length ? Math.round(rows.reduce((n, r) => n + parseFloat(r.totalSell ?? "0"), 0) / rows.length) : 0,
-  };
-  const rateLocal = `Rates: ${rows.length} lanes ${search.origin}→${search.destination} ${search.containerType}.`;
+  const portOptions = useMemo(() => {
+    const codes = uniqueSorted([...SALES_PORTS.map((p) => p.code), ...rows.flatMap((r) => [fromCode(r), toCode(r)]), origin, destination]);
+    return codes.map((code) => {
+      const name =
+        portName(code, locale) ?? rows.find((r) => fromCode(r) === code)?.origin ?? rows.find((r) => toCode(r) === code)?.destination ?? "";
+      const def = SALES_PORTS.find((p) => p.code === code);
+      return {
+        value: code,
+        search: [code, name, def?.zh, def?.th, def?.en, ...(def?.aliases ?? [])].filter(Boolean).join(" ").toLowerCase(),
+        label: (
+          <span className="sales-port-opt">
+            <Flag code={code} size={20} />
+            <strong>{code}</strong>
+            {name ? <span>{name}</span> : null}
+          </span>
+        ),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, locale, origin, destination]);
 
-  const columns: ProColumns<RateSearchRow>[] = [
-    { title: "POL", dataIndex: "pol", width: 120 },
-    { title: "POD", dataIndex: "pod", width: 120 },
-    { title: tx("colCarrier"), dataIndex: "carrier", width: 100 },
-    { title: tx("colBoxType"), dataIndex: "containerType", width: 80 },
+  const portPicker = (value: string, onChange: (v: string) => void, placeholder: string, label: string) => (
+    <Select
+      showSearch
+      allowClear
+      size="large"
+      aria-label={label}
+      className="sales-port-select"
+      placeholder={placeholder}
+      value={value || undefined}
+      onChange={(v) => onChange(v ?? "")}
+      options={portOptions}
+      filterOption={(input, opt) => Boolean(opt?.search.includes(input.trim().toLowerCase()))}
+    />
+  );
+  const showBuy = rows.some((r) => r.totalBuy);
+  const typeOptions = uniqueSorted([...STANDARD_TYPES, ...rows.map((r) => r.containerType)]).map((t) => ({ value: t, label: t }));
+  const filtersOn = Boolean(origin || destination || containerType);
+
+  function quoteFromRate(r: RateSearchRow) {
+    const q = new URLSearchParams({
+      origin: r.origin,
+      destination: r.destination,
+      ...(r.pol ? { pol: r.pol } : {}),
+      ...(r.pod ? { pod: r.pod } : {}),
+      ...(r.containerType ? { containerType: r.containerType } : {}),
+      rateLaneId: r.laneId,
+    });
+    navigate(`/quotations/new?${q.toString()}`);
+  }
+
+  const validity = (r: RateSearchRow) => (
+    <span className="sales-validity">
+      <span className="cz-muted">
+        {fmtDate(r.validFrom, locale)} – {fmtDate(r.validUntil, locale)}
+      </span>
+      {r.status !== "ACTIVE" ? (
+        <StatusTag status={r.status} label={tx(`sales_rate_${r.status}`)} tone={r.status === "EXPIRED" ? "neutral" : "warning"} />
+      ) : null}
+    </span>
+  );
+
+  const marginPct = (r: RateSearchRow) => (r.marginPct ? `${Math.round(Number(r.marginPct) * 10) / 10}%` : null);
+
+  const columns: ColumnsType<RateSearchRow> = [
     {
-      title: "Buy",
-      dataIndex: "totalBuy",
-      align: "right",
-      render: (_, r) => (r.totalBuy ? <Money amount={parseFloat(r.totalBuy)} currency={r.currency} locale={localeTag} /> : "—"),
+      title: tx("sales_colRoute"),
+      key: "lane",
+      render: (_, r) => (
+        <LaneCell from={fromCode(r) || r.origin} to={toCode(r) || r.destination} title={`${r.origin} → ${r.destination}`} />
+      ),
     },
     {
-      title: "Sell",
-      dataIndex: "totalSell",
-      align: "right",
-      render: (_, r) => (r.totalSell ? <Money amount={parseFloat(r.totalSell)} currency={r.currency} locale={localeTag} /> : "—"),
+      title: tx("sales_colCarrier"),
+      key: "carrier",
+      render: (_, r) => (
+        <>
+          <span>{r.carrier || r.vendor}</span>
+          <span className="cz-cell-sub">{r.containerType ?? "—"}</span>
+        </>
+      ),
     },
-    { title: "Valid", dataIndex: "validUntil", width: 100 },
-    { title: tx("colStatus"), dataIndex: "status", width: 100 },
+    { title: tx("sales_colValidity"), key: "valid", render: (_, r) => validity(r) },
+    ...(showBuy
+      ? [
+          {
+            title: tx("sales_colBuy"),
+            key: "buy",
+            align: "right" as const,
+            className: "cz-num",
+            render: (_: unknown, r: RateSearchRow) => (
+              <span className="cz-muted">{r.totalBuy ? fmtMoney(r.totalBuy, r.currency, locale) : "—"}</span>
+            ),
+          },
+        ]
+      : []),
     {
-      title: "",
-      valueType: "option",
-      width: 120,
-      render: () => [
-        <Button key="q" type="link" size="small" onClick={() => navigate("/quotations/new")}>
-          {tx("rateCreateQuote")}
-        </Button>,
-      ],
+      title: tx("sales_colSell"),
+      key: "sell",
+      align: "right",
+      className: "cz-num",
+      render: (_, r) => (
+        <>
+          <span className="sales-price">{r.totalSell ? fmtMoney(r.totalSell, r.currency, locale) : "—"}</span>
+          {marginPct(r) ? (
+            <span className="cz-cell-sub" title={tx("sales_colMargin")}>
+              {tx("sales_colMargin")} {marginPct(r)}
+            </span>
+          ) : null}
+        </>
+      ),
+    },
+    {
+      title: <span className="sr-only">{tx("sales_useInQuote")}</span>,
+      key: "use",
+      align: "right",
+      render: (_, r) => (
+        <Button size="small" icon={<FilePlus size={16} aria-hidden />} onClick={() => quoteFromRate(r)} disabled={r.status === "EXPIRED"}>
+          {tx("sales_useInQuote")}
+        </Button>
+      ),
     },
   ];
 
+  const rateCard = (r: RateSearchRow) => {
+    const pct = r.marginPct ? Number(r.marginPct) : null;
+    const expiring = r.status === "EXPIRING_SOON";
+    const expired = r.status === "EXPIRED";
+    return (
+      <EntityCard
+        key={r.laneId}
+        tone={expiring ? "warning" : "default"}
+        media={<IconBadge icon={Boat} tone={expired ? "neutral" : "primary"} size={36} />}
+        title={r.carrier || r.vendor}
+        subtitle={r.carrier && r.vendor && r.carrier !== r.vendor ? r.vendor : undefined}
+        badge={
+          <DateChip
+            label={fmtShortDate(r.validUntil, locale)}
+            tone={expired ? "danger" : expiring ? "warning" : undefined}
+            title={`${tx("sales_colValidity")}: ${fmtDate(r.validFrom, locale)} – ${fmtDate(r.validUntil, locale)}`}
+          />
+        }
+        footer={
+          <>
+            <ContainerChip type={r.containerType} />
+            <Button
+              type={expired ? "default" : "primary"}
+              ghost={!expired}
+              icon={<FilePlus size={16} aria-hidden />}
+              onClick={() => quoteFromRate(r)}
+              disabled={expired}
+            >
+              {tx("sales_useInQuote")}
+            </Button>
+          </>
+        }
+      >
+        <RouteTrack from={fromCode(r)} to={toCode(r)} fromName={r.origin} toName={r.destination} progress={null} size="sm" />
+        <div className="sales-rate-money">
+          <span className="sales-rate-sell">{r.totalSell ? fmtMoney(r.totalSell, r.currency, locale) : "—"}</span>
+          {pct !== null ? (
+            <Tooltip
+              title={`${tx("sales_colMargin")} ${Math.round(pct * 10) / 10}%${r.totalBuy ? ` · ${tx("sales_colBuy")} ${fmtMoney(r.totalBuy, r.currency, locale)}` : ""}`}
+            >
+              <span className="sales-margin" aria-label={`${tx("sales_colMargin")} ${Math.round(pct)}%`}>
+                <span className="sales-margin-track">
+                  <span
+                    className={pct < 5 ? "is-danger" : pct < 10 ? "is-warning" : "is-success"}
+                    style={{ width: `${Math.min(100, (pct / 30) * 100)}%` }}
+                  />
+                </span>
+                <span className="sales-margin-pct">{Math.round(pct)}%</span>
+              </span>
+            </Tooltip>
+          ) : null}
+        </div>
+      </EntityCard>
+    );
+  };
+
+  const emptyState = <EmptyState title={tx("sales_ratesEmpty")} description={filtersOn ? tx("sales_ratesEmptyHint") : undefined} />;
+
   return (
-    <div style={{ padding: "0 8px 24px" }}>
+    <div className="cz-stack sales-page">
       <PageHeader
-        title={tx("navRates")}
-        subtitle={shell ? tx("shellDataBadge") : live ? tx("liveApiBadge") : tx("apiNotConfigured")}
+        title={tx("sales_ratesTitle")}
+        subtitle={tx("sales_ratesSubShort")}
+        extra={<ViewSwitch value={view} onChange={setView} labels={{ cards: tx("viewCards"), list: tx("viewList") }} />}
       />
-      {(shell || live) && (
-        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col xs={24}>
-            <AiBriefCard title={tx("aiMgmtReport")} facts={rateFacts} localFallback={rateLocal} compact />
-          </Col>
-        </Row>
-      )}
-      {live ? (
-        <Form layout="inline" style={{ marginBottom: 16 }} onFinish={() => liveRates.refetch()}>
-          <Form.Item label="Origin">
-            <Input value={search.origin} onChange={(e) => setSearch((s) => ({ ...s, origin: e.target.value }))} />
-          </Form.Item>
-          <Form.Item label="Destination">
-            <Input value={search.destination} onChange={(e) => setSearch((s) => ({ ...s, destination: e.target.value }))} />
-          </Form.Item>
-          <Form.Item label="Type">
-            <Input value={search.containerType} onChange={(e) => setSearch((s) => ({ ...s, containerType: e.target.value }))} />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" loading={liveRates.isLoading}>
-            Search
-          </Button>
-        </Form>
-      ) : null}
-      {!shell && !live ? <p>{tx("apiNotConfigured")}</p> : null}
-      {(shell || live) && (
-        <ProTable<RateSearchRow>
-          rowKey="laneId"
-          loading={live && liveRates.isLoading}
-          columns={columns}
-          dataSource={rows}
-          search={false}
-          pagination={{ pageSize: 20 }}
-        />
+
+      {!shell && !live ? (
+        <Panel>
+          <EmptyState title={tx("sales_ratesOffline")} />
+        </Panel>
+      ) : (
+        <>
+          <Panel>
+            <form className="sales-rate-search" role="search" onSubmit={(e) => e.preventDefault()}>
+              <label className="sales-field">
+                <span>{tx("sales_fOrigin")}</span>
+                {portPicker(origin, setOrigin, tx("sales_pickPort"), tx("sales_fOrigin"))}
+              </label>
+              <Tooltip title={tx("sales_swap")}>
+                <Button
+                  className="sales-swap"
+                  type="text"
+                  size="large"
+                  aria-label={tx("sales_swap")}
+                  icon={<ArrowsLeftRight size={20} aria-hidden />}
+                  onClick={() => {
+                    setOrigin(destination);
+                    setDestination(origin);
+                  }}
+                />
+              </Tooltip>
+              <label className="sales-field">
+                <span>{tx("sales_fDestination")}</span>
+                {portPicker(destination, setDestination, tx("sales_pickPort"), tx("sales_fDestination"))}
+              </label>
+              <label className="sales-field sales-field--type">
+                <span>{tx("sales_fContainer")}</span>
+                <Select
+                  allowClear
+                  size="large"
+                  placeholder={tx("sales_allContainers")}
+                  value={containerType}
+                  onChange={(v) => setContainerType(v ?? undefined)}
+                  options={typeOptions}
+                />
+              </label>
+              <div className="sales-rate-clear">
+                {filtersOn ? (
+                  <button
+                    type="button"
+                    className="cz-link-btn"
+                    onClick={() => {
+                      setOrigin("");
+                      setDestination("");
+                      setContainerType(undefined);
+                    }}
+                  >
+                    {tx("clearFilters")}
+                  </button>
+                ) : (
+                  <span className="cz-filter-count">{tx("sales_ratesCount", { n: rows.length })}</span>
+                )}
+              </div>
+            </form>
+          </Panel>
+
+          {live && liveRates.isError ? (
+            <Panel>
+              <ErrorState
+                title={tx("sales_ratesError")}
+                action={<Button onClick={() => void liveRates.refetch()}>{tx("sales_retry")}</Button>}
+              />
+            </Panel>
+          ) : view === "cards" ? (
+            live && liveRates.isLoading ? (
+              <LoadingState />
+            ) : rows.length === 0 ? (
+              emptyState
+            ) : (
+              <CardGrid min={300}>{rows.map(rateCard)}</CardGrid>
+            )
+          ) : mobile ? (
+            <SalesMobileList
+              empty={emptyState}
+              rows={rows.map((r) => ({
+                key: r.laneId,
+                title: <LaneCell from={fromCode(r) || r.origin} to={toCode(r) || r.destination} />,
+                status: <span className="sales-price">{r.totalSell ? fmtMoney(r.totalSell, r.currency, locale) : "—"}</span>,
+                sub: [r.carrier || r.vendor, r.containerType, fmtDate(r.validUntil, locale)].filter(Boolean).join(" · "),
+                actions: (
+                  <Button
+                    type="text"
+                    aria-label={tx("sales_useInQuote")}
+                    icon={<FilePlus size={18} aria-hidden />}
+                    onClick={() => quoteFromRate(r)}
+                    disabled={r.status === "EXPIRED"}
+                  />
+                ),
+              }))}
+            />
+          ) : (
+            <DataTable<RateSearchRow>
+              rowKey="laneId"
+              loading={live && liveRates.isFetching}
+              columns={columns}
+              dataSource={rows}
+              emptyText={tx("sales_ratesEmpty")}
+              emptyAction={
+                filtersOn ? (
+                  <Button
+                    onClick={() => {
+                      setOrigin("");
+                      setDestination("");
+                      setContainerType(undefined);
+                    }}
+                  >
+                    {tx("clearFilters")}
+                  </Button>
+                ) : undefined
+              }
+            />
+          )}
+        </>
       )}
     </div>
   );

@@ -8,6 +8,11 @@ export const vendors = pgTable("vendors", {
     .notNull()
     .references(() => organizations.id),
   company: text("company").notNull(),
+  nameZh: text("name_zh"),
+  nameTh: text("name_th"),
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
   vendorType: text("vendor_type").notNull(),
   taxId: text("tax_id"),
   address: text("address"),

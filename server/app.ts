@@ -8,6 +8,7 @@ import { portalRoutes } from "./routes/portal.js";
 import { crmRoutes } from "./routes/crm.js";
 import { systemRoutes } from "./routes/system.js";
 import { trackingRoutes } from "./routes/tracking.js";
+import { usersRoutes } from "./routes/users.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
@@ -22,6 +23,7 @@ export function createApp() {
   app.route("/", commsRoutes());
   app.route("/portal", portalRoutes());
   app.route("/", trackingRoutes());
+  app.route("/", usersRoutes());
   app.route("/public", publicQuoteRoutes());
 
   app.get("/ai/health", (c) => {

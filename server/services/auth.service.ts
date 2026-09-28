@@ -89,21 +89,24 @@ export async function seedAuth(db: Db) {
     }
   }
 
-  const demoUsers: Array<{ email: string; password: string; name: string; nameZh: string; role: RoleCode }> = [
-    { email: "admin@cangzhan.com", password: "demo123", name: "Lin Xiaohang", nameZh: "林晓衡", role: "SUPER_ADMIN" },
-    { email: "sales@cangzhan.com", password: "demo123", name: "Zhou Ke", nameZh: "周可", role: "SALES" },
-    { email: "ops@cangzhan.com", password: "demo123", name: "Ma Siyuan", nameZh: "马思远", role: "OPERATIONS" },
-    { email: "finance@cangzhan.com", password: "demo123", name: "Finance Clerk", nameZh: "财务", role: "ACCOUNTING" },
+  // Real-looking people (Chinese + Thai staff) so owners never show as ids.
+  const demoUsers: Array<{ email: string; password: string; name: string; nameZh: string; nameTh: string; role: RoleCode }> = [
+    { email: "admin@cangzhan.com", password: "demo123", name: "Lin Xiaoheng", nameZh: "林晓衡", nameTh: "หลิน เสี่ยวเหิง", role: "SUPER_ADMIN" },
+    { email: "sales@cangzhan.com", password: "demo123", name: "Zhou Ke", nameZh: "周可", nameTh: "โจว เข่อ", role: "SALES" },
+    { email: "chen@cangzhan.com", password: "demo123", name: "Chen Yining", nameZh: "陈一宁", nameTh: "เฉิน อี้หนิง", role: "SALES" },
+    { email: "ops@cangzhan.com", password: "demo123", name: "Ma Siyuan", nameZh: "马思远", nameTh: "หม่า ซือหยวน", role: "OPERATIONS" },
+    { email: "cs@cangzhan.com", password: "demo123", name: "Napat Srisuk", nameZh: "纳帕·西苏", nameTh: "ณภัทร ศรีสุข", role: "CUSTOMER_SERVICE" },
+    { email: "finance@cangzhan.com", password: "demo123", name: "Siriporn Wongsakul", nameZh: "诗丽蓬·旺萨功", nameTh: "ศิริพร วงศ์สกุล", role: "ACCOUNTING" },
   ];
 
   for (const u of demoUsers) {
     const hash = await bcrypt.hash(u.password, 10);
     const [inserted] = await db
       .insert(users)
-      .values({ email: u.email, passwordHash: hash, name: u.name, nameZh: u.nameZh })
+      .values({ email: u.email, passwordHash: hash, name: u.name, nameZh: u.nameZh, nameTh: u.nameTh })
       .onConflictDoUpdate({
         target: users.email,
-        set: { passwordHash: hash, name: u.name, nameZh: u.nameZh, updatedAt: new Date() },
+        set: { passwordHash: hash, name: u.name, nameZh: u.nameZh, nameTh: u.nameTh, updatedAt: new Date() },
       })
       .returning();
 

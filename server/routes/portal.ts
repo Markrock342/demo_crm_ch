@@ -8,6 +8,15 @@ import { signPortalSession, portalSessionCookie, clearPortalSessionCookie, readP
 import { listJobs } from "../services/operations.service.js";
 import { listInvoices } from "../services/finance.service.js";
 import { listCrmDocs } from "../services/comms.service.js";
+import { requireAuth, requirePermission, requireTenant, type AuthEnv } from "../middleware/auth.js";
+import {
+  authenticatePortalContact,
+  clearPortalLoginFailures,
+  issuePortalAccessCode,
+  portalLoginBlocked,
+  recordPortalLoginFailure,
+  revokePortalAccess,
+} from "../services/portal-access.service.js";
 
 export type PortalEnv = {
   Variables: {
@@ -48,26 +57,49 @@ export function portalRoutes() {
   r.post("/login", async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    const body = z
-      .object({
-        customerId: z.string().min(1),
-        pin: z.string().optional(),
-      })
-      .parse(await c.req.json());
+    let body: { email: string; code: string };
+    try {
+      body = z
+        .object({ email: z.string().email().max(200), code: z.string().min(1).max(40) })
+        .parse(await c.req.json());
+    } catch {
+      return c.json({ error: "invalid_body" }, 400);
+    }
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    const key = `${body.email.trim().toLowerCase()}|${ip}`;
+    if (portalLoginBlocked(key)) return c.json({ error: "too_many_attempts" }, 429);
 
-    const [cust] = await db.select().from(customers).where(eq(customers.id, body.customerId)).limit(1);
-    if (!cust) return c.json({ error: "invalid_credentials" }, 401);
+    const hit = await authenticatePortalContact(db, body.email, body.code);
+    if (!hit) {
+      recordPortalLoginFailure(key);
+      return c.json({ error: "invalid_credentials" }, 401);
+    }
+    clearPortalLoginFailures(key);
 
-    const expected = (cust.portalPin ?? "demo").trim() || "demo";
-    const pin = (body.pin ?? "").trim();
-    if (pin && pin !== expected) return c.json({ error: "invalid_credentials" }, 401);
-
-    const token = await signPortalSession({ customerId: cust.id, orgId: cust.organizationId });
+    const token = await signPortalSession({ customerId: hit.customerId, orgId: hit.orgId });
     c.header("Set-Cookie", portalSessionCookie(token));
     return c.json({
-      session: { customerId: cust.id, organizationId: cust.organizationId },
+      session: { customerId: hit.customerId, organizationId: hit.orgId },
     });
   });
+
+  // Staff: issue / rotate / revoke a customer's portal access code (plain code returned once).
+  const staff = new Hono<AuthEnv>();
+  staff.post("/:customerId", requireAuth(), requireTenant(), requirePermission("customer.edit"), async (c) => {
+    const db = getDb();
+    if (!db) return c.json({ error: "database_unavailable" }, 503);
+    const res = await issuePortalAccessCode(db, c.get("organizationId")!, c.req.param("customerId"));
+    if (!res) return c.json({ error: "not_found" }, 404);
+    return c.json(res);
+  });
+  staff.delete("/:customerId", requireAuth(), requireTenant(), requirePermission("customer.edit"), async (c) => {
+    const db = getDb();
+    if (!db) return c.json({ error: "database_unavailable" }, 503);
+    const ok = await revokePortalAccess(db, c.get("organizationId")!, c.req.param("customerId"));
+    if (!ok) return c.json({ error: "not_found" }, 404);
+    return c.json({ ok: true });
+  });
+  r.route("/access-code", staff);
 
   r.post("/logout", (c) => {
     c.header("Set-Cookie", clearPortalSessionCookie());
@@ -84,6 +116,7 @@ export function portalRoutes() {
       customerId: cust.id,
       nameEn: cust.nameEn,
       nameZh: cust.nameZh,
+      nameTh: cust.nameTh,
       organizationId: cust.organizationId,
     });
   });

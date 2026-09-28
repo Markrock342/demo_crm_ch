@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
-import { authMiddleware, requireAuth, requireTenant, type AuthEnv } from "../middleware/auth.js";
+import { authMiddleware, requireAuth, requirePermission, requireTenant, type AuthEnv } from "../middleware/auth.js";
+import { contactInputSchema, customerCreateSchema, customerPatchSchema } from "../domain/customer.js";
 import { writeAudit } from "../services/audit.service.js";
 import {
   createContact,
   createCustomer,
+  CustomerInputError,
+  deleteContact,
   createLead,
   createOpportunity,
   getCustomer,
@@ -13,33 +16,33 @@ import {
   listCustomers,
   listLeads,
   listOpportunities,
+  updateContact,
   updateCustomer,
   updateLeadStage,
   updateOpportunityStage,
 } from "../services/crm.service.js";
 
-const customerCreateSchema = z.object({
-  nameZh: z.string().min(1),
-  nameTh: z.string().optional(),
-  nameEn: z.string().optional(),
-  cityZh: z.string().min(1),
-  cityTh: z.string().optional(),
-  cityEn: z.string().optional(),
-  laneZh: z.string().min(1),
-  laneTh: z.string().optional(),
-  laneEn: z.string().optional(),
-  owner: z.string().min(1),
-});
+const contactCreateSchema = contactInputSchema.omit({ id: true }).extend({ customerId: z.string().min(1) });
+const contactPatchSchema = contactInputSchema.omit({ id: true }).partial();
 
-const contactCreateSchema = z.object({
-  customerId: z.string().min(1),
-  name: z.string().min(1),
-  title: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  wechat: z.string().optional(),
-  primary: z.boolean().optional(),
-});
+type Issue = { path: string; message: string };
+/** Parse JSON with a zod schema → data + which top-level keys were sent, or a 400 with field issues. */
+async function parseJson<T extends z.ZodType>(c: { req: { json: () => Promise<unknown> } }, schema: T) {
+  const raw = await c.req.json().catch(() => null);
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return { issues: parsed.error.issues.map((i): Issue => ({ path: i.path.join("."), message: i.message })) };
+  }
+  const keys = new Set(raw && typeof raw === "object" ? Object.keys(raw as object) : []);
+  return { data: parsed.data as z.infer<T>, present: (k: string) => keys.has(k) };
+}
+
+function inputError(c: { json: (b: unknown, s?: number) => Response }, e: unknown) {
+  if (e instanceof CustomerInputError) {
+    return c.json({ error: "invalid_body", issues: [{ path: e.field ?? "", message: e.code }] }, 400);
+  }
+  throw e;
+}
 
 const leadCreateSchema = z.object({
   company: z.string().min(1),
@@ -94,68 +97,77 @@ export function crmRoutes() {
     if (typeof db !== "object" || !("select" in db)) return db;
     const row = await getCustomer(db, orgId(c), c.req.param("id"));
     if (!row) return c.json({ error: "not_found" }, 404);
-    return c.json(row);
+    return c.json({ ...row, contacts: await listContacts(db, orgId(c), row.id) });
   });
 
-  r.post("/customers", ...tenantGate, async (c) => {
+  r.post("/customers", ...tenantGate, requirePermission("customer.create"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const user = c.get("user")!;
-    let body: z.infer<typeof customerCreateSchema>;
+    const parsed = await parseJson(c, customerCreateSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
+    let row;
     try {
-      body = customerCreateSchema.parse(await c.req.json());
-    } catch {
-      return c.json({ error: "invalid_body" }, 400);
+      row = await createCustomer(db, orgId(c), parsed.data, parsed.present);
+    } catch (e) {
+      return inputError(c, e);
     }
-    const row = await createCustomer(db, orgId(c), body);
+    const people = await listContacts(db, orgId(c), row.id);
     await writeAudit(db, {
       userId: user.id,
       action: "CUSTOMER_CREATED",
       entityType: "customer",
       entityId: row.id,
-      newValue: row,
+      newValue: { ...row, contacts: people },
     });
-    return c.json(row, 201);
+    return c.json({ ...row, contacts: people }, 201);
   });
 
-  r.patch("/customers/:id", ...tenantGate, async (c) => {
+  r.patch("/customers/:id", ...tenantGate, requirePermission("customer.edit"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const user = c.get("user")!;
     const id = c.req.param("id");
     const before = await getCustomer(db, orgId(c), id);
     if (!before) return c.json({ error: "not_found" }, 404);
-    const patch = await c.req.json();
-    const row = await updateCustomer(db, orgId(c), id, patch);
+    const parsed = await parseJson(c, customerPatchSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
+    const beforeContacts = parsed.present("contacts") ? await listContacts(db, orgId(c), id) : undefined;
+    let row;
+    try {
+      row = await updateCustomer(db, orgId(c), id, parsed.data, parsed.present);
+    } catch (e) {
+      return inputError(c, e);
+    }
+    if (!row) return c.json({ error: "not_found" }, 404);
+    const people = await listContacts(db, orgId(c), id);
     await writeAudit(db, {
       userId: user.id,
       action: "CUSTOMER_UPDATED",
       entityType: "customer",
       entityId: id,
-      oldValue: before,
-      newValue: row,
+      oldValue: beforeContacts ? { ...before, contacts: beforeContacts } : before,
+      newValue: beforeContacts ? { ...row, contacts: people } : row,
     });
-    return c.json(row);
+    return c.json({ ...row, contacts: people });
   });
 
-  r.get("/contacts", requireAuth(), async (c) => {
+  r.get("/contacts", ...tenantGate, async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const customerId = c.req.query("customerId");
-    const items = await listContacts(db, customerId);
+    const items = await listContacts(db, orgId(c), customerId);
     return c.json({ items });
   });
 
-  r.post("/contacts", requireAuth(), async (c) => {
+  r.post("/contacts", ...tenantGate, requirePermission("customer.edit", "customer.create"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     const user = c.get("user")!;
-    let body: z.infer<typeof contactCreateSchema>;
-    try {
-      body = contactCreateSchema.parse(await c.req.json());
-    } catch {
-      return c.json({ error: "invalid_body" }, 400);
-    }
+    const parsed = await parseJson(c, contactCreateSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
+    const body = parsed.data;
+    if (!(await getCustomer(db, orgId(c), body.customerId))) return c.json({ error: "customer_not_found" }, 404);
     const row = await createContact(db, {
       customerId: body.customerId,
       name: body.name,
@@ -163,6 +175,7 @@ export function crmRoutes() {
       email: body.email ?? "",
       phone: body.phone ?? "",
       wechat: body.wechat ?? "",
+      lineId: body.lineId ?? "",
       primary: body.primary ?? false,
     });
     await writeAudit(db, {
@@ -173,6 +186,32 @@ export function crmRoutes() {
       newValue: row,
     });
     return c.json(row, 201);
+  });
+
+  r.patch("/contacts/:id", ...tenantGate, requirePermission("customer.edit"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const id = c.req.param("id");
+    const parsed = await parseJson(c, contactPatchSchema);
+    if (!parsed.data) return c.json({ error: "invalid_body", issues: parsed.issues }, 400);
+    const patch: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(parsed.data)) if (parsed.present(k)) patch[k] = v ?? "";
+    const row = await updateContact(db, orgId(c), id, patch);
+    if (!row) return c.json({ error: "not_found" }, 404);
+    await writeAudit(db, { userId: user.id, action: "CONTACT_UPDATED", entityType: "contact", entityId: id, newValue: row });
+    return c.json(row);
+  });
+
+  r.delete("/contacts/:id", ...tenantGate, requirePermission("customer.edit"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const id = c.req.param("id");
+    const row = await deleteContact(db, orgId(c), id);
+    if (!row) return c.json({ error: "not_found" }, 404);
+    await writeAudit(db, { userId: user.id, action: "CONTACT_DELETED", entityType: "contact", entityId: id, oldValue: row });
+    return c.json({ ok: true });
   });
 
   r.get("/leads", ...tenantGate, async (c) => {

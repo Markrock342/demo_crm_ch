@@ -1,53 +1,91 @@
 :root {
-  /* Tech logistics — cool slate canvas, teal tracking accent */
-  --paper: oklch(0.995 0.004 240);
-  --paper-raised: oklch(0.988 0.008 235);
-  --canvas: oklch(0.962 0.014 240);
-  --ink: oklch(0.26 0.045 255);
-  --ink-soft: oklch(0.44 0.03 250);
-  --ink-faint: oklch(0.58 0.02 250);
-  --line: oklch(0.91 0.012 240);
-  --line-strong: oklch(0.85 0.018 240);
-  --seal: oklch(0.53 0.14 210);
-  --seal-deep: oklch(0.46 0.13 210);
-  --seal-soft: oklch(0.94 0.04 210);
-  --on-seal: oklch(0.99 0.005 240);
-  --slate: oklch(0.48 0.08 240);
-  --ochre: oklch(0.68 0.14 80);
-  --olive: oklch(0.56 0.11 160);
-  --rust: oklch(0.58 0.15 35);
-  --grid-line: oklch(0.88 0.014 240 / 0.55);
-  --shadow: 0 12px 32px oklch(0.26 0.045 255 / 0.1);
-  --shadow-sm: 0 2px 12px oklch(0.26 0.045 255 / 0.07);
-  --radius: 8px;
+  /* Dockside ledger — warm paper canvas, harbor-teal action, container-orange mark. */
+  --canvas: oklch(0.972 0.006 85);
+  --paper: oklch(0.995 0.003 85);
+  --paper-raised: oklch(0.952 0.008 85);
+  --fill: oklch(0.952 0.008 85);
+  --fill-strong: oklch(0.925 0.01 85);
+  --ink: oklch(0.24 0.02 220);
+  --ink-soft: oklch(0.43 0.02 220);
+  --ink-faint: oklch(0.56 0.015 220);
+  --line: oklch(0.905 0.01 85);
+  --line-strong: oklch(0.84 0.012 85);
+
+  --primary: oklch(0.47 0.095 200);
+  --primary-deep: oklch(0.4 0.085 200);
+  --primary-soft: oklch(0.945 0.03 200);
+  --on-primary: oklch(0.99 0.004 200);
+  --accent: oklch(0.7 0.16 50);
+  --accent-soft: oklch(0.95 0.035 55);
+
+  --side: oklch(0.225 0.025 215);
+  --side-hover: oklch(0.28 0.028 215);
+  --side-active: oklch(0.33 0.04 205);
+  --side-text: oklch(0.86 0.012 215);
+  --side-muted: oklch(0.62 0.015 215);
+
+  --success: oklch(0.55 0.13 150);
+  --success-soft: oklch(0.95 0.035 150);
+  --warning: oklch(0.72 0.15 75);
+  --warning-text: oklch(0.52 0.12 65);
+  --warning-soft: oklch(0.96 0.045 85);
+  --danger: oklch(0.55 0.19 27);
+  --danger-soft: oklch(0.95 0.03 27);
+  --info: oklch(0.52 0.13 250);
+  --info-soft: oklch(0.95 0.025 250);
+
+  /* Legacy aliases — older pages read these names. */
+  --seal: var(--primary);
+  --seal-deep: var(--primary-deep);
+  --seal-soft: var(--primary-soft);
+  --on-seal: var(--on-primary);
+  --slate: var(--info);
+  --ochre: var(--warning);
+  --olive: var(--success);
+  --rust: var(--danger);
+  --grid-line: oklch(0.88 0.01 85 / 0.6);
+
+  --shadow: 0 16px 40px oklch(0.24 0.02 220 / 0.12);
+  --shadow-sm: 0 1px 2px oklch(0.24 0.02 220 / 0.06);
+  --radius: 10px;
   --radius-sm: 6px;
   --radius-pill: 999px;
-  --font-ui: "IBM Plex Sans", "IBM Plex Sans Thai", "Noto Sans SC", "Noto Sans Thai", system-ui, sans-serif;
-  --font-serif: var(--font-ui);
+
+  --font-ui: "Anuphan", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --font-display: "Bai Jamjuree", "Anuphan", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --font-serif: var(--font-display);
   --font-sans: var(--font-ui);
+
   --space-2xs: 4px;
   --space-xs: 8px;
   --space-sm: 12px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 20px;
-  --space-2xl: 32px;
-  --display: 1.875rem;
-  --h1: 1.375rem;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  --display: 2rem;
+  --h1: 1.5rem;
   --h2: 1.125rem;
   --h3: 1rem;
-  --body: 1rem;
+  --body: 0.9375rem;
   --body-sm: 0.875rem;
   --caption: 0.75rem;
+
+  --control-h: 36px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
   --dur: 200ms;
+  --dur-slow: 320ms;
+
   font-family: var(--font-ui);
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--ink);
   background: var(--canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
 }
 
 *,
@@ -4320,6 +4358,12 @@ td .pill {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: none;
+}
+
+.login-card-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: calc(var(--space-sm) * -1) 0 var(--space-sm);
 }
 
 .login-mark {

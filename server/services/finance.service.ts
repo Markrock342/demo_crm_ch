@@ -1,9 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { shipmentCharges, jobs } from "../db/schema/operations.js";
-import { billingNoteItems, billingNotes, invoiceLines, invoices, paymentAllocations, payments, vendorBillLines, vendorBills } from "../db/schema/finance.js";
+import { billingNoteItems, billingNotes, invoiceLines, invoices, paymentAllocations, payments, taxCodes, vendorBillLines, vendorBills } from "../db/schema/finance.js";
 import { customers } from "../db/schema/crm.js";
-import { add, d, sub, toDb } from "../lib/money.js";
+import { vendors } from "../db/schema/commercial.js";
+import { add, d, mul, sub, toDb } from "../lib/money.js";
 import { nextDocNumber } from "./sequence.service.js";
 import { getJob } from "./operations.service.js";
 
@@ -289,6 +290,7 @@ export async function createVendorBillFromJob(
 
   await db.insert(vendorBills).values({
     id,
+    organizationId,
     vendorId: input.vendorId,
     jobId: input.jobId,
     billNumber,
@@ -338,14 +340,22 @@ export async function payVendorBill(db: Db, organizationId: string, billId: stri
   return { status };
 }
 
+/** Tenant filter for vendor bills: own column, or (legacy rows) the linked job's tenant. */
+function vendorBillOrgClause(organizationId: string) {
+  return or(
+    eq(vendorBills.organizationId, organizationId),
+    and(isNull(vendorBills.organizationId), eq(jobs.organizationId, organizationId)),
+  )!;
+}
+
 export async function listVendorBills(db: Db, organizationId: string, opts?: { vendorId?: string; jobId?: string }) {
-  const clauses = [eq(jobs.organizationId, organizationId)];
+  const clauses = [vendorBillOrgClause(organizationId)];
   if (opts?.vendorId) clauses.push(eq(vendorBills.vendorId, opts.vendorId));
   if (opts?.jobId) clauses.push(eq(vendorBills.jobId, opts.jobId));
   const rows = await db
     .select({ bill: vendorBills })
     .from(vendorBills)
-    .innerJoin(jobs, eq(vendorBills.jobId, jobs.id))
+    .leftJoin(jobs, eq(vendorBills.jobId, jobs.id))
     .where(and(...clauses));
   return rows.map((r) => r.bill);
 }
@@ -354,10 +364,218 @@ export async function getVendorBill(db: Db, organizationId: string, id: string) 
   const [row] = await db
     .select({ bill: vendorBills })
     .from(vendorBills)
-    .innerJoin(jobs, eq(vendorBills.jobId, jobs.id))
-    .where(and(eq(vendorBills.id, id), eq(jobs.organizationId, organizationId)))
+    .leftJoin(jobs, eq(vendorBills.jobId, jobs.id))
+    .where(and(eq(vendorBills.id, id), vendorBillOrgClause(organizationId)))
     .limit(1);
   if (!row) return null;
   const lines = await db.select().from(vendorBillLines).where(eq(vendorBillLines.vendorBillId, id));
   return { bill: row.bill, lines };
+}
+
+// ── Create finance documents from scratch (no job charges required) ──
+
+export type ManualLineInput = {
+  description: string;
+  qty: string | number;
+  unitPrice: string | number;
+  taxCode?: string | null;
+};
+
+export type ComputedLine = {
+  description: string;
+  quantity: string;
+  unitAmount: string;
+  amount: string;
+  tax: string;
+  taxCode: string | null;
+};
+
+/**
+ * Pure money maths for manual invoice / bill lines.
+ * amount = qty × unitPrice (2 dp), tax = amount × rate(taxCode) (2 dp, per line).
+ * Throws `invalid_tax_code` for a code missing from `taxRates`, `invalid_line` for qty ≤ 0 or unitPrice < 0.
+ */
+export function computeManualLines(lines: ManualLineInput[], taxRates: Map<string, string>) {
+  if (!lines.length) throw new Error("no_lines");
+  const out: ComputedLine[] = lines.map((l) => {
+    const qty = d(l.qty);
+    const unit = d(l.unitPrice);
+    if (!qty.isFinite() || !unit.isFinite() || qty.lte(0) || unit.lt(0)) throw new Error("invalid_line");
+    const amount = mul(qty, unit).toDecimalPlaces(2);
+    const code = l.taxCode?.trim() || null;
+    let tax = d(0);
+    if (code) {
+      const rate = taxRates.get(code);
+      if (rate === undefined) throw new Error("invalid_tax_code");
+      tax = mul(amount, rate).toDecimalPlaces(2);
+    }
+    return {
+      description: l.description.trim(),
+      quantity: toDb(qty),
+      unitAmount: toDb(unit),
+      amount: toDb(amount),
+      tax: toDb(tax),
+      taxCode: code,
+    };
+  });
+  const subtotal = add(...out.map((l) => l.amount));
+  const tax = add(...out.map((l) => l.tax));
+  return { lines: out, subtotal: toDb(subtotal), tax: toDb(tax), total: toDb(subtotal.plus(tax)) };
+}
+
+async function loadTaxRates(db: Db, lines: ManualLineInput[]) {
+  const codes = [...new Set(lines.map((l) => l.taxCode?.trim()).filter((c): c is string => Boolean(c)))];
+  const map = new Map<string, string>();
+  if (!codes.length) return map;
+  const rows = await db.select().from(taxCodes).where(inArray(taxCodes.code, codes));
+  for (const r of rows) map.set(r.code, r.rate);
+  return map;
+}
+
+function docId(prefix: string) {
+  return `${prefix}${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function parseDueDate(input: string | undefined, fallbackDays: number, from: Date) {
+  if (input) {
+    const due = new Date(input);
+    if (Number.isNaN(due.getTime())) throw new Error("invalid_due_date");
+    return due;
+  }
+  return new Date(from.getTime() + fallbackDays * 24 * 60 * 60 * 1000);
+}
+
+export async function createInvoice(
+  db: Db,
+  organizationId: string,
+  input: {
+    customerId: string;
+    jobId?: string | null;
+    currency: string;
+    dueDate?: string;
+    paymentTermsDays?: number;
+    notes?: string;
+    lines: ManualLineInput[];
+    createdBy: string;
+  },
+) {
+  const [cust] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(and(eq(customers.id, input.customerId), eq(customers.organizationId, organizationId)))
+    .limit(1);
+  if (!cust) throw new Error("customer_not_found");
+  if (input.jobId) {
+    const job = await getJob(db, organizationId, input.jobId);
+    if (!job) throw new Error("job_not_found");
+    if (job.customerId !== input.customerId) throw new Error("job_customer_mismatch");
+  }
+
+  const totals = computeManualLines(input.lines, await loadTaxRates(db, input.lines));
+  const issueDate = new Date();
+  const terms = input.paymentTermsDays ?? 30;
+  const dueDate = parseDueDate(input.dueDate, terms, issueDate);
+  const invoiceNumber = await nextDocNumber(db, "INV", "INV");
+  const id = docId("inv");
+  const currency = input.currency.toUpperCase();
+
+  await db.transaction(async (tx) => {
+    await tx.insert(invoices).values({
+      id,
+      organizationId,
+      invoiceNumber,
+      customerId: input.customerId,
+      jobId: input.jobId ?? null,
+      issueDate,
+      dueDate,
+      currency,
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      total: totals.total,
+      paidAmount: "0",
+      balanceDue: totals.total,
+      paymentTermsDays: terms,
+      notes: input.notes ?? null,
+      status: "DRAFT",
+      createdBy: input.createdBy,
+      snapshot: JSON.stringify({ source: "MANUAL" }),
+    });
+    await tx.insert(invoiceLines).values(
+      totals.lines.map((l, i) => ({
+        id: `${id}-l${i}`,
+        invoiceId: id,
+        chargeId: null,
+        description: l.description,
+        quantity: l.quantity,
+        unitAmount: l.unitAmount,
+        amount: l.amount,
+        currency,
+        taxCode: l.taxCode,
+      })),
+    );
+  });
+
+  return { id, invoiceNumber, subtotal: totals.subtotal, tax: totals.tax, total: totals.total, currency, status: "DRAFT" as const };
+}
+
+export async function createVendorBill(
+  db: Db,
+  organizationId: string,
+  input: {
+    vendorId: string;
+    jobId?: string | null;
+    currency: string;
+    dueDate?: string;
+    lines: ManualLineInput[];
+  },
+) {
+  const [vendor] = await db
+    .select({ id: vendors.id, paymentTermsDays: vendors.paymentTermsDays })
+    .from(vendors)
+    .where(and(eq(vendors.id, input.vendorId), eq(vendors.organizationId, organizationId)))
+    .limit(1);
+  if (!vendor) throw new Error("vendor_not_found");
+  if (input.jobId) {
+    const job = await getJob(db, organizationId, input.jobId);
+    if (!job) throw new Error("job_not_found");
+  }
+
+  const totals = computeManualLines(input.lines, await loadTaxRates(db, input.lines));
+  const billDate = new Date();
+  const dueDate = parseDueDate(input.dueDate, vendor.paymentTermsDays ?? 30, billDate);
+  const billNumber = await nextDocNumber(db, "VB", "VB");
+  const id = docId("vb");
+  const currency = input.currency.toUpperCase();
+
+  await db.transaction(async (tx) => {
+    await tx.insert(vendorBills).values({
+      id,
+      organizationId,
+      vendorId: input.vendorId,
+      jobId: input.jobId ?? null,
+      billNumber,
+      billDate,
+      dueDate,
+      currency,
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      total: totals.total,
+      status: "DRAFT",
+    });
+    await tx.insert(vendorBillLines).values(
+      totals.lines.map((l, i) => ({
+        id: `${id}-l${i}`,
+        vendorBillId: id,
+        chargeId: null,
+        description: l.description,
+        quantity: l.quantity,
+        unitAmount: l.unitAmount,
+        taxCode: l.taxCode,
+        amount: l.amount,
+        currency,
+      })),
+    );
+  });
+
+  return { id, billNumber, subtotal: totals.subtotal, tax: totals.tax, total: totals.total, currency, status: "DRAFT" as const };
 }

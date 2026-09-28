@@ -1,55 +1,58 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { fetchPortalMe, portalLogin, portalLogout, type PortalMe } from "../api/portal.ts";
 
-export type PortalSession = {
-  customerId: string;
-  enteredAt: string;
-};
+/**
+ * Customer-portal session, backed by the server's HttpOnly portal cookie.
+ * `session` is whatever /api/portal/me returns; nothing is trusted from browser storage.
+ */
+export type PortalSession = PortalMe;
 
 type PortalValue = {
   session: PortalSession | null;
-  enter: (customerId: string, pin: string, expectedPin?: string) => string | null;
-  enterFromApi: (customerId: string) => void;
-  leave: () => void;
+  loading: boolean;
+  /** Sign in with contact e-mail + access code. Throws Error(code) on failure. */
+  login: (email: string, code: string) => Promise<void>;
+  leave: () => Promise<void>;
 };
 
-const STORAGE_KEY = "cangzhan-portal-session";
+const LEGACY_KEY = "cangzhan-portal-session";
 const Ctx = createContext<PortalValue | null>(null);
 
-function read(): PortalSession | null {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as PortalSession;
-  } catch {
-    return null;
-  }
-}
-
 export function PortalSessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<PortalSession | null>(() => read());
+  const [session, setSession] = useState<PortalSession | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const enter = useCallback((customerId: string, pin: string, expectedPin = "demo") => {
-    if (!customerId) return "errorSave";
-    const want = (expectedPin || "demo").trim() || "demo";
-    if (pin.trim() && pin.trim() !== want) return "portalBadPin";
-    const s = { customerId, enteredAt: new Date().toISOString() };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    setSession(s);
-    return null;
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(LEGACY_KEY);
+    } catch {
+      /* storage blocked */
+    }
+    let alive = true;
+    fetchPortalMe()
+      .then((me) => alive && setSession(me))
+      .catch(() => alive && setSession(null))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const enterFromApi = useCallback((customerId: string) => {
-    const s = { customerId, enteredAt: new Date().toISOString() };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-    setSession(s);
+  const login = useCallback(async (email: string, code: string) => {
+    await portalLogin(email, code);
+    setSession(await fetchPortalMe());
   }, []);
 
-  const leave = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
+  const leave = useCallback(async () => {
+    try {
+      await portalLogout();
+    } catch {
+      /* cookie may already be gone */
+    }
     setSession(null);
   }, []);
 
-  const value = useMemo(() => ({ session, enter, enterFromApi, leave }), [session, enter, enterFromApi, leave]);
+  const value = useMemo(() => ({ session, loading, login, leave }), [session, loading, login, leave]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

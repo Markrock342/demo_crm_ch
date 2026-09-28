@@ -93,7 +93,8 @@ export function useContainers(opts?: YardOpts) {
       }
       const rec = idMap.get(containerNo);
       if (!rec) return;
-      await patchContainerApi(rec.id, { yardCode: yard });
+      // Store a neutral place code (yard map slots are at Laem Chabang); the UI translates it.
+      await patchContainerApi(rec.id, { yardCode: /^[A-Z]\d+$/i.test(yard) ? `LCB-${yard.toUpperCase()}` : yard });
       await reload();
       flash("movedYard");
     },

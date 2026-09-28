@@ -1,0 +1,418 @@
+/* Visual (board / card) views for bookings, documents and templates. Tokens only. */
+
+/* ── Bookings board ─────────────────────── */
+
+.ops-board-stack {
+  display: grid;
+  gap: var(--space-sm);
+  align-content: start;
+}
+
+.ops-board-empty {
+  margin: 0;
+  padding: var(--space-md) 0;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+.ops-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ops-card-vessel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ops-carrier {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.ops-late-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ops-box-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
+.ops-box-chip svg {
+  color: var(--accent);
+}
+
+.ops-box-chip strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.ops-teu-chip {
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-late-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid oklch(0.8 0.08 27);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--danger);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ops-late-toggle:hover,
+.ops-late-toggle.is-on {
+  background: var(--danger-soft);
+}
+
+.ops-late-toggle:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.ops-late-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--paper);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ops-ship-hero {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: 12px;
+  background: var(--fill);
+}
+
+/* ── Documents: per-job cards ──────────── */
+
+.ops-docs-tiles {
+  margin-bottom: var(--space-xs);
+}
+
+.ops-doc-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ops-doc-card-title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.ops-doc-card-title a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.ops-doc-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-doc-node {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 6px;
+  width: 100px;
+  text-align: center;
+}
+
+.ops-doc-node .ant-upload-wrapper,
+.ops-doc-node .ant-upload,
+.ops-doc-node > .ant-btn {
+  max-width: 100%;
+}
+
+.ops-doc-node .ant-btn {
+  max-width: 100%;
+  padding-inline: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ops-doc-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--t-soft);
+  color: var(--t-ink);
+  font: inherit;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.ops-doc-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px var(--t);
+}
+
+.ops-doc-icon:focus-visible {
+  outline: 2px solid var(--t);
+  outline-offset: 2px;
+}
+
+.ops-doc-node.is-wait .ops-doc-icon {
+  border: 2px dashed var(--warning);
+  background: var(--paper);
+}
+
+.ops-doc-node.is-late .ops-doc-icon {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.ops-doc-state {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--t);
+}
+
+.ops-doc-kind {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.ops-doc-node.is-ok .ops-doc-kind {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.ops-doc-node .ant-btn {
+  font-size: 12.5px;
+}
+
+.ops-doc-foot-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.ops-doc-foot-state.is-ok {
+  color: var(--success);
+}
+
+.ops-doc-foot-state.is-missing {
+  color: var(--warning-text);
+}
+
+.ops-doc-foot-state.is-late {
+  color: var(--danger);
+}
+
+/* ── Template gallery ──────────────────── */
+
+.ops-tpl-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.ops-tpl-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px oklch(0.24 0.02 220 / 0.08);
+}
+
+.ops-tpl-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 200px;
+  padding: var(--space-md) 0 0;
+  border: 0;
+  background: var(--fill);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ops-tpl-thumb:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.ops-tpl-paper {
+  align-self: end;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  width: 62%;
+  height: 100%;
+  padding: 16px 16px 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--paper);
+  box-shadow: 0 2px 10px oklch(0.24 0.02 220 / 0.1);
+  transition: transform var(--dur) var(--ease);
+}
+
+.ops-tpl-card:hover .ops-tpl-paper {
+  transform: translateY(-4px);
+}
+
+.ops-tpl-paper-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--primary);
+}
+
+.ops-tpl-paper-head span {
+  width: 40%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--primary);
+  opacity: 0.7;
+}
+
+.ops-tpl-line {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fill-strong);
+}
+
+.ops-tpl-line.is-short {
+  width: 55%;
+}
+
+.ops-tpl-rows {
+  display: grid;
+  gap: 5px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.ops-tpl-rows span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.ops-tpl-rows span::before,
+.ops-tpl-rows span::after {
+  content: "";
+  height: 5px;
+  border-radius: 3px;
+  background: var(--fill-strong);
+}
+
+.ops-tpl-rows span::before {
+  width: 50%;
+}
+
+.ops-tpl-rows span::after {
+  width: 18%;
+}
+
+.ops-tpl-body {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+}
+
+.ops-tpl-name {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.ops-tpl-name strong {
+  font-size: 15px;
+}
+
+.ops-tpl-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+@media (max-width: 640px) {
+  .ops-doc-node {
+    width: 96px;
+  }
+}
+
+.ops-card-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ops-page .cz-card-media .ops-carrier {
+  display: inline-block;
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .ops-page .cz-board {
+    grid-auto-columns: 86%;
+  }
+}
+
+/* Doc cards in one row share height: body grows, footer stays at the bottom. */
+.ops-page .cz-card-grid > .cz-card {
+  grid-template-rows: auto 1fr auto;
+}

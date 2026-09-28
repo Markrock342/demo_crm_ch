@@ -1,10 +1,8 @@
 import { useAuth } from "../../auth/AuthProvider";
-import { useIsShellMode } from "../../shell/session.tsx";
 
+/** The app only runs against the real API: `live` once a staff user is signed in. */
 export function useAppMode() {
-  const shell = useIsShellMode();
-  const { mode, user } = useAuth();
-  const live = !shell && mode === "production" && Boolean(user);
-  const demo = mode === "demo";
-  return { shell, live, demo, api: live, enabled: shell || live };
+  const { user } = useAuth();
+  const live = Boolean(user);
+  return { shell: false as const, live, demo: false as const, api: live, enabled: live };
 }

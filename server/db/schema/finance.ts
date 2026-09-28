@@ -71,6 +71,7 @@ export const invoiceLines = pgTable("invoice_lines", {
   unitAmount: numeric("unit_amount", { precision: 18, scale: 4 }).notNull(),
   amount: numeric("amount", { precision: 18, scale: 4 }).notNull(),
   currency: text("currency").notNull(),
+  taxCode: text("tax_code"),
 });
 
 export const billingNotes = pgTable("billing_notes", {
@@ -132,6 +133,8 @@ export const paymentAllocations = pgTable("payment_allocations", {
 
 export const vendorBills = pgTable("vendor_bills", {
   id: text("id").primaryKey(),
+  /** Tenant; nullable for legacy rows (older bills resolve tenant via their job). */
+  organizationId: uuid("organization_id").references(() => organizations.id),
   vendorId: text("vendor_id")
     .notNull()
     .references(() => vendors.id),
@@ -157,6 +160,9 @@ export const vendorBillLines = pgTable("vendor_bill_lines", {
     .references(() => vendorBills.id, { onDelete: "cascade" }),
   chargeId: text("charge_id"),
   description: text("description").notNull(),
+  quantity: numeric("quantity", { precision: 18, scale: 4 }),
+  unitAmount: numeric("unit_amount", { precision: 18, scale: 4 }),
+  taxCode: text("tax_code"),
   amount: numeric("amount", { precision: 18, scale: 4 }).notNull(),
   currency: text("currency").notNull(),
 });

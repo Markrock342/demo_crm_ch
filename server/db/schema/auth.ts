@@ -6,6 +6,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
   nameZh: text("name_zh"),
+  nameTh: text("name_th"),
+  /** Sessions issued before this are rejected (password change / reset signs out other devices). */
+  passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

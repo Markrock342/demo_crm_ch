@@ -27,8 +27,22 @@ function seedCrm(): CrmSnapshot {
   };
 }
 
+/** Refresh the translated fields of untouched seed customers saved by an older build (keeps user edits / additions). */
+function refreshSeedNames(snap: CrmSnapshot): CrmSnapshot {
+  const seed = new Map(LCS_CUSTOMERS.map((c) => [c.id, c]));
+  return {
+    ...snap,
+    customers: snap.customers.map((c) => {
+      const s = seed.get(c.id);
+      if (!s || c.nameZh !== s.nameZh || c.laneZh !== s.laneZh) return c;
+      return { ...c, nameTh: s.nameTh, nameEn: s.nameEn, laneTh: s.laneTh, laneEn: s.laneEn };
+    }),
+  };
+}
+
 function loadInitial(): CrmSnapshot {
-  return loadPersisted<CrmSnapshot>(STORAGE_KEY, VERSION) ?? seedCrm();
+  const saved = loadPersisted<CrmSnapshot>(STORAGE_KEY, VERSION);
+  return saved ? refreshSeedNames(saved) : seedCrm();
 }
 
 type ShellCrmValue = {

@@ -1,6 +1,17 @@
 import { asc, desc, eq, ilike, inArray, or, sql, and } from "drizzle-orm";
 import type { Db } from "../db/index.js";
-import { contacts, customers, leads, opportunities } from "../db/schema/crm.js";
+import { contacts, customers, leads, opportunities, type LanePair } from "../db/schema/crm.js";
+import { users } from "../db/schema/auth.js";
+import { organizationMembers } from "../db/schema/tenancy.js";
+import {
+  laneLabel,
+  normalizeContacts,
+  resolveNames,
+  taxIdError,
+  type ContactInput,
+  type CustomerCreateInput,
+  type CustomerPatchInput,
+} from "../domain/customer.js";
 import { containers } from "../db/schema/operations.js";
 import { DEMO_ORG_ID } from "../domain/tenancy.js";
 
@@ -19,6 +30,32 @@ export type CustomerDto = {
   owner: string;
   updated: string;
   arDays: number;
+  nameLangs: string[] | null;
+  businessType: string | null;
+  website: string | null;
+  industry: string | null;
+  leadSource: string | null;
+  ownerUserId: string | null;
+  status: string;
+  notes: string | null;
+  taxId: string | null;
+  branchNo: string | null;
+  billingAddress: string | null;
+  country: string | null;
+  currency: string | null;
+  creditTermDays: number | null;
+  creditLimit: number | null;
+  paymentMethod: string | null;
+  billingEmail: string | null;
+  preferredLanes: LanePair[];
+  containerTypes: string[];
+  commodities: string[];
+  incoterms: string | null;
+  customsBroker: boolean | null;
+  handlingNotes: string | null;
+  createdAt: string;
+  /** Customer portal sign-in is enabled (a hashed access code is stored). */
+  portalAccess: boolean;
 };
 
 export type ContactDto = {
@@ -29,6 +66,7 @@ export type ContactDto = {
   email: string;
   phone: string;
   wechat: string;
+  lineId: string;
   primary: boolean;
 };
 
@@ -73,6 +111,31 @@ function toCustomer(row: typeof customers.$inferSelect, boxes = 0): CustomerDto 
     owner: row.owner,
     updated: row.updated,
     arDays: row.arDays,
+    nameLangs: row.nameLangs ? row.nameLangs.split(",").filter(Boolean) : null,
+    businessType: row.businessType,
+    website: row.website,
+    industry: row.industry,
+    leadSource: row.leadSource,
+    ownerUserId: row.ownerUserId,
+    status: row.status,
+    notes: row.notes,
+    taxId: row.taxId,
+    branchNo: row.branchNo,
+    billingAddress: row.billingAddress,
+    country: row.country,
+    currency: row.currency,
+    creditTermDays: row.creditTermDays,
+    creditLimit: row.creditLimit === null ? null : Number(row.creditLimit),
+    paymentMethod: row.paymentMethod,
+    billingEmail: row.billingEmail,
+    preferredLanes: row.preferredLanes ?? [],
+    containerTypes: row.containerTypes ?? [],
+    commodities: row.commodities ?? [],
+    incoterms: row.incoterms,
+    customsBroker: row.customsBroker,
+    handlingNotes: row.handlingNotes,
+    createdAt: row.createdAt.toISOString(),
+    portalAccess: typeof row.portalPin === "string" && row.portalPin.startsWith("$2"),
   };
 }
 
@@ -100,6 +163,7 @@ function toContact(row: typeof contacts.$inferSelect): ContactDto {
     email: row.email,
     phone: row.phone,
     wechat: row.wechat,
+    lineId: row.lineId,
     primary: row.primary,
   };
 }
@@ -188,77 +252,230 @@ export async function getCustomer(db: Db, organizationId: string, id: string) {
   return toCustomer(row, counts.get(id) ?? 0);
 }
 
+export class CustomerInputError extends Error {
+  code: string;
+  field?: string;
+  constructor(code: string, field?: string) {
+    super(code);
+    this.code = code;
+    this.field = field;
+  }
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** The owner must be an active member of the same organization; returns their display name. */
+async function resolveOwner(db: Db | Tx, organizationId: string, userId: string): Promise<string> {
+  const [u] = await db
+    .select({ name: users.name, nameZh: users.nameZh })
+    .from(organizationMembers)
+    .innerJoin(users, eq(organizationMembers.userId, users.id))
+    .where(and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.userId, userId), eq(users.active, true)))
+    .limit(1);
+  if (!u) throw new CustomerInputError("owner_not_in_org", "ownerUserId");
+  return u.nameZh || u.name;
+}
+
+/** Profile columns shared by create + patch; only keys present in `input` are returned. */
+function profileColumns(input: CustomerPatchInput, present: (k: string) => boolean) {
+  const out: Partial<typeof customers.$inferInsert> = {};
+  const keys = [
+    "businessType",
+    "website",
+    "industry",
+    "leadSource",
+    "status",
+    "notes",
+    "taxId",
+    "branchNo",
+    "billingAddress",
+    "country",
+    "currency",
+    "creditTermDays",
+    "creditLimit",
+    "paymentMethod",
+    "billingEmail",
+    "preferredLanes",
+    "containerTypes",
+    "commodities",
+    "incoterms",
+    "customsBroker",
+    "handlingNotes",
+  ] as const;
+  for (const k of keys) {
+    if (!present(k)) continue;
+    const v = input[k];
+    if (v === undefined) continue;
+    (out as Record<string, unknown>)[k] = v;
+  }
+  return out;
+}
+
+async function writeContacts(tx: Tx, customerId: string, list: ContactInput[], existingIds: Set<string>) {
+  const normalized = normalizeContacts(list);
+  const keep = new Set<string>();
+  let n = 0;
+  for (const c of normalized) {
+    const values = {
+      name: c.name,
+      title: c.title ?? "",
+      email: c.email ?? "",
+      phone: c.phone ?? "",
+      wechat: c.wechat ?? "",
+      lineId: c.lineId ?? "",
+      primary: c.primary,
+    };
+    if (c.id && existingIds.has(c.id)) {
+      keep.add(c.id);
+      await tx
+        .update(contacts)
+        .set({ ...values, updatedAt: new Date() })
+        .where(and(eq(contacts.id, c.id), eq(contacts.customerId, customerId)));
+    } else {
+      const id = `p${Date.now()}${String(n++).padStart(2, "0")}${Math.random().toString(36).slice(2, 6)}`;
+      keep.add(id);
+      await tx.insert(contacts).values({ id, customerId, ...values });
+    }
+  }
+  const drop = [...existingIds].filter((id) => !keep.has(id));
+  if (drop.length) await tx.delete(contacts).where(and(eq(contacts.customerId, customerId), inArray(contacts.id, drop)));
+}
+
 export async function createCustomer(
   db: Db,
   organizationId: string,
-  input: {
-    nameZh: string;
-    nameTh?: string;
-    nameEn?: string;
-    cityZh: string;
-    cityTh?: string;
-    cityEn?: string;
-    laneZh: string;
-    laneTh?: string;
-    laneEn?: string;
-    owner: string;
-    id?: string;
-  },
+  input: CustomerCreateInput & { id?: string },
+  present: (k: string) => boolean = (k) => (input as Record<string, unknown>)[k] !== undefined,
 ) {
   const stamp = formatStamp(new Date());
   const id = input.id ?? `c${Date.now()}`;
-  const [row] = await db
-    .insert(customers)
-    .values({
-      id,
-      organizationId,
-      nameZh: input.nameZh,
-      nameTh: input.nameTh || input.nameZh,
-      nameEn: input.nameEn || input.nameZh,
-      cityZh: input.cityZh,
-      cityTh: input.cityTh || input.cityZh,
-      cityEn: input.cityEn || input.cityZh,
-      laneZh: input.laneZh,
-      laneTh: input.laneTh || input.laneZh,
-      laneEn: input.laneEn || input.laneZh,
-      owner: input.owner,
-      updated: stamp,
-      arDays: 0,
-    })
-    .returning();
-  return toCustomer(row, 0);
+  const names = resolveNames(input);
+  const city = input.city ?? input.cityZh ?? "—";
+  const lane = input.laneZh ?? laneLabel(input.preferredLanes) ?? "—";
+
+  return db.transaction(async (tx) => {
+    const owner = input.ownerUserId ? await resolveOwner(tx, organizationId, input.ownerUserId) : input.owner || "—";
+    const [row] = await tx
+      .insert(customers)
+      .values({
+        id,
+        organizationId,
+        ...names,
+        cityZh: city,
+        cityTh: city,
+        cityEn: city,
+        laneZh: lane,
+        laneTh: input.laneTh || lane,
+        laneEn: input.laneEn || lane,
+        owner,
+        ownerUserId: input.ownerUserId ?? null,
+        updated: stamp,
+        arDays: 0,
+        ...profileColumns(input, present),
+      })
+      .returning();
+    if (input.contacts?.length) await writeContacts(tx, id, input.contacts, new Set());
+    return toCustomer(row!, 0);
+  });
 }
 
-export async function updateCustomer(db: Db, organizationId: string, id: string, patch: Partial<CustomerDto>) {
-  const { boxes: _boxes, ...rest } = patch;
-  const [row] = await db
-    .update(customers)
-    .set({
-      ...rest,
-      updatedAt: new Date(),
-      updated: patch.updated ?? formatStamp(new Date()),
-    })
-    .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
-    .returning();
-  if (!row) return null;
-  const counts = await containerCountMap(db, [id]);
-  return toCustomer(row, counts.get(id) ?? 0);
+/**
+ * Partial update. `present(k)` says whether the caller sent key k (so "" / null clears a field,
+ * and a missing key leaves it alone). `contacts`, when sent, is the full list: rows with a known
+ * id are updated, rows without id are created, and stored contacts not in the list are deleted.
+ */
+export async function updateCustomer(
+  db: Db,
+  organizationId: string,
+  id: string,
+  input: CustomerPatchInput,
+  present: (k: string) => boolean = (k) => (input as Record<string, unknown>)[k] !== undefined,
+) {
+  return db.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(customers)
+      .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
+      .limit(1);
+    if (!before) return null;
+
+    const set: Partial<typeof customers.$inferInsert> = profileColumns(input, present);
+
+    if (present("nameZh") || present("nameTh") || present("nameEn")) {
+      const typed = new Set(before.nameLangs ? before.nameLangs.split(",") : ["zh", "th", "en"]);
+      const pick = (k: "nameZh" | "nameTh" | "nameEn", lang: string) =>
+        present(k) ? input[k] : typed.has(lang) ? before[k] : null;
+      const names = resolveNames({ nameZh: pick("nameZh", "zh"), nameTh: pick("nameTh", "th"), nameEn: pick("nameEn", "en") });
+      if (!names.nameLangs) throw new CustomerInputError("name_required", "name");
+      Object.assign(set, names);
+    }
+    if (present("city") || present("cityZh")) {
+      const city = input.city ?? input.cityZh ?? "—";
+      Object.assign(set, { cityZh: city, cityTh: city, cityEn: city });
+    }
+    if (present("laneZh") || present("preferredLanes")) {
+      const lane = input.laneZh ?? laneLabel(input.preferredLanes) ?? (present("laneZh") ? "—" : before.laneZh);
+      Object.assign(set, { laneZh: lane, laneTh: input.laneTh || lane, laneEn: input.laneEn || lane });
+    }
+    if (present("ownerUserId")) {
+      set.ownerUserId = input.ownerUserId ?? null;
+      if (input.ownerUserId) set.owner = await resolveOwner(tx, organizationId, input.ownerUserId);
+    } else if (present("owner") && input.owner) {
+      set.owner = input.owner;
+    }
+
+    const err = taxIdError(set.taxId !== undefined ? set.taxId : before.taxId, set.country !== undefined ? set.country : before.country);
+    if (err && (present("taxId") || present("country"))) throw new CustomerInputError(err, "taxId");
+
+    const [row] = await tx
+      .update(customers)
+      .set({ ...set, updatedAt: new Date(), updated: formatStamp(new Date()) })
+      .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
+      .returning();
+
+    if (input.contacts) {
+      const existing = await tx.select({ id: contacts.id }).from(contacts).where(eq(contacts.customerId, id));
+      await writeContacts(tx, id, input.contacts, new Set(existing.map((r) => r.id)));
+    }
+    const counts = await containerCountMap(tx as unknown as Db, [id]);
+    return toCustomer(row!, counts.get(id) ?? 0);
+  });
 }
 
-export async function listContacts(db: Db, customerId?: string) {
+/** Contacts of customers in this organization (optionally one customer). */
+export async function listContacts(db: Db, organizationId: string, customerId?: string) {
   const rows = await db
-    .select()
+    .select({ c: contacts })
     .from(contacts)
-    .where(customerId ? eq(contacts.customerId, customerId) : undefined)
+    .innerJoin(customers, eq(contacts.customerId, customers.id))
+    .where(and(eq(customers.organizationId, organizationId), customerId ? eq(contacts.customerId, customerId) : undefined))
     .orderBy(desc(contacts.primary), asc(contacts.name));
-  return rows.map(toContact);
+  return rows.map((r) => toContact(r.c));
+}
+
+export async function getContact(db: Db, organizationId: string, id: string) {
+  const [r] = await db
+    .select({ c: contacts })
+    .from(contacts)
+    .innerJoin(customers, eq(contacts.customerId, customers.id))
+    .where(and(eq(contacts.id, id), eq(customers.organizationId, organizationId)))
+    .limit(1);
+  return r ? toContact(r.c) : null;
+}
+
+/** Only one primary contact per customer. */
+async function clearOtherPrimaries(db: Db | Tx, customerId: string, keepId: string) {
+  await db
+    .update(contacts)
+    .set({ primary: false, updatedAt: new Date() })
+    .where(and(eq(contacts.customerId, customerId), eq(contacts.primary, true), sql`${contacts.id} <> ${keepId}`));
 }
 
 export async function createContact(
   db: Db,
-  input: Omit<ContactDto, "id"> & { id?: string },
+  input: Omit<ContactDto, "id" | "lineId"> & { id?: string; lineId?: string },
 ) {
-  const id = input.id ?? `p${Date.now()}`;
+  const id = input.id ?? `p${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
   const [row] = await db
     .insert(contacts)
     .values({
@@ -269,10 +486,44 @@ export async function createContact(
       email: input.email,
       phone: input.phone,
       wechat: input.wechat,
+      lineId: input.lineId ?? "",
       primary: input.primary,
     })
     .returning();
-  return toContact(row);
+  if (row!.primary) await clearOtherPrimaries(db, row!.customerId, row!.id);
+  return toContact(row!);
+}
+
+export async function updateContact(db: Db, organizationId: string, id: string, patch: Partial<Omit<ContactDto, "id" | "customerId">>) {
+  const before = await getContact(db, organizationId, id);
+  if (!before) return null;
+  const set: Partial<typeof contacts.$inferInsert> = {};
+  for (const k of ["name", "title", "email", "phone", "wechat", "lineId", "primary"] as const) {
+    if (patch[k] !== undefined) (set as Record<string, unknown>)[k] = patch[k];
+  }
+  const [row] = await db
+    .update(contacts)
+    .set({ ...set, updatedAt: new Date() })
+    .where(eq(contacts.id, id))
+    .returning();
+  if (row!.primary) await clearOtherPrimaries(db, row!.customerId, row!.id);
+  return toContact(row!);
+}
+
+export async function deleteContact(db: Db, organizationId: string, id: string) {
+  const before = await getContact(db, organizationId, id);
+  if (!before) return null;
+  await db.delete(contacts).where(eq(contacts.id, id));
+  return before;
+}
+
+/** Hard delete (tests / cleanup). Fails with a FK error once jobs, quotations or invoices point at the customer. */
+export async function deleteCustomer(db: Db, organizationId: string, id: string) {
+  const [row] = await db
+    .delete(customers)
+    .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
+    .returning({ id: customers.id });
+  return row ?? null;
 }
 
 export async function listLeads(db: Db, organizationId: string, stage?: string) {

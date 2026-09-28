@@ -1,102 +1,292 @@
-import type { ProColumns } from "@ant-design/pro-components";
-import { ProTable } from "@ant-design/pro-components";
-import { Link } from "react-router-dom";
-import { Col, Row } from "antd";
-import { useMemo } from "react";
-import { customerName, type Customer } from "../../data";
-import { isBeforeToday } from "../../lib/dates.ts";
-import { useShellBilling } from "../../shell/billingStore.tsx";
-import { useShellCrm } from "../../shell/crmStore.tsx";
-import { useShellJobs } from "../../shell/jobStore.tsx";
-import { useShellOps } from "../../shell/opsStore.tsx";
-import { useShellSupport } from "../../shell/supportStore.tsx";
+import { Bell, Fire, Lightning } from "@phosphor-icons/react";
+import { Button } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "../../store";
-import { PageHeader } from "../components/PageHeader.tsx";
-import { AiBriefCard } from "../components/AiBriefCard.tsx";
+import {
+  AiBriefCard,
+  Board,
+  DataTable,
+  EmptyState,
+  FilterBar,
+  LoadingState,
+  PageHeader,
+  Panel,
+  StatusTag,
+  ViewSwitch,
+  readView,
+  writeView,
+} from "../components";
 import { useAppMode } from "../hooks/useAppMode.ts";
-import { useLiveInvoices } from "../hooks/useCommercial.ts";
+import { useMedia } from "../../ui/useMedia";
+import {
+  AgeChip,
+  AttentionCard,
+  AttentionList,
+  Reason,
+} from "./home/AttentionList.tsx";
+import {
+  KINDS,
+  SEVERITY_TONE,
+  useAttentionItems,
+  type AttentionItem,
+  type AttentionKind,
+  type Severity,
+} from "./home/attention.ts";
+import "./home/home.css";
 
-type Exc = { id: string; kind: string; label: string; meta: string; to: string };
+const SEV_COLS: { key: Severity; icon: typeof Fire }[] = [
+  { key: "high", icon: Fire },
+  { key: "medium", icon: Lightning },
+  { key: "low", icon: Bell },
+];
 
 export function ExceptionsPageV2() {
-  const { tx, locale } = useStore();
-  const { shell, live, enabled } = useAppMode();
-  const jobs = useShellJobs();
-  const ops = useShellOps();
-  const billing = useShellBilling();
-  const support = useShellSupport();
-  const crm = useShellCrm();
-  const liveInv = useLiveInvoices();
+  const { tx } = useStore();
+  const { enabled } = useAppMode();
+  const navigate = useNavigate();
+  const narrow = useMedia("(max-width: 640px)");
+  const [params, setParams] = useSearchParams();
+  const { items, loading } = useAttentionItems();
+  const [q, setQ] = useState("");
+  const [view, setView] = useState(() => readView("exceptions"));
 
-  const rows = useMemo(() => {
-    const list: Exc[] = [];
-    for (const j of jobs.jobs) {
-      if (j.delayed) list.push({ id: `delay-${j.id}`, kind: "ETA delayed", label: j.jobNumber, meta: `${j.pol}→${j.pod}`, to: `/jobs/${j.id}` });
-      if (j.status !== "CLOSED" && !j.opsOwner.trim()) {
-        list.push({ id: `ops-${j.id}`, kind: "No ops owner", label: j.jobNumber, meta: j.customerId, to: `/jobs/${j.id}` });
-      }
-    }
-    if (shell) {
-      for (const d of support.docs) {
-        if (d.status === "late" || d.status === "wait") {
-          list.push({ id: `doc-${d.id}`, kind: "Missing document", label: `${d.docType} · ${d.name}`, meta: d.note || d.status, to: d.jobId ? `/jobs/${d.jobId}` : "/docs?missing=1" });
-        }
-      }
-      for (const inv of billing.invoices) {
-        if (inv.overdue || (inv.balanceDue > 0 && inv.dueDate && isBeforeToday(inv.dueDate) && inv.status !== "PAID" && inv.status !== "DRAFT")) {
-          const c = crm.customers.find((x) => x.id === inv.customerId);
-          list.push({ id: `inv-${inv.id}`, kind: "Invoice overdue", label: inv.invoiceNumber, meta: c ? customerName(c as Customer, locale) : inv.customerId, to: inv.jobId ? `/jobs/${inv.jobId}` : "/invoices" });
-        }
-      }
-      for (const b of ops.boxes) {
-        if (b.demurrageRisk === "risk" || b.demurrageRisk === "watch") {
-          list.push({ id: `box-${b.id}`, kind: "Container risk", label: b.id, meta: b.demurrageRisk ?? "", to: `/boxes?q=${b.id}` });
-        }
-      }
-    }
-    if (live && liveInv.data) {
-      for (const inv of liveInv.data) {
-        if (parseFloat(inv.balanceDue) > 0 && inv.dueDate && isBeforeToday(String(inv.dueDate).slice(0, 10)) && inv.status !== "PAID" && inv.status !== "DRAFT") {
-          list.push({ id: `inv-${inv.id}`, kind: "Invoice overdue", label: inv.invoiceNumber, meta: inv.customerId, to: inv.jobId ? `/jobs/${inv.jobId}` : "/invoices" });
-        }
-      }
-    }
-    return list;
-  }, [billing.invoices, crm.customers, jobs.jobs, live, liveInv.data, locale, ops.boxes, shell, support.docs]);
+  const sev = (params.get("severity") as Severity | null) ?? "all";
+  const kind = (params.get("kind") as AttentionKind | null) ?? undefined;
 
-  const excFacts = {
-    totalExceptions: rows.length,
-    delayedJobs: rows.filter((r) => r.kind === "ETA delayed").length,
-    missingDocs: rows.filter((r) => r.kind === "Missing document").length,
-    overdueInvoices: rows.filter((r) => r.kind === "Invoice overdue").length,
-    containerRisk: rows.filter((r) => r.kind === "Container risk").length,
-  };
-  const excLocal = `Action center: ${rows.length} exceptions — ${excFacts.delayedJobs} delayed, ${excFacts.missingDocs} docs, ${excFacts.overdueInvoices} AR, ${excFacts.containerRisk} container risks.`;
+  function setParam(key: string, value: string | undefined) {
+    const next = new URLSearchParams(params);
+    if (!value || value === "all") next.delete(key);
+    else next.set(key, value);
+    setParams(next, { replace: true });
+  }
 
-  const columns: ProColumns<Exc>[] = [
-    { title: tx("exceptionKind"), dataIndex: "kind", width: 140 },
-    { title: "Ref", dataIndex: "label", render: (_, r) => <Link to={r.to}>{r.label}</Link> },
-    { title: "Detail", dataIndex: "meta", ellipsis: true },
-    { title: "", valueType: "option", width: 80, render: (_, r) => [<Link key="o" to={r.to}>{tx("exceptionOpen")}</Link>] },
+  const kindFiltered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return items.filter((i) => {
+      if (kind && i.kind !== kind) return false;
+      if (!needle) return true;
+      return `${i.ref} ${i.customer} ${i.reason}`
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [items, kind, q]);
+
+  const rows =
+    sev === "all"
+      ? kindFiltered
+      : kindFiltered.filter((i) => i.severity === sev);
+  const countSev = (s: Severity) =>
+    kindFiltered.filter((i) => i.severity === s).length;
+  const urgent = items.filter((i) => i.severity === "high").length;
+
+  const facts = useMemo(() => {
+    const f: Record<string, number> = { total: items.length, urgent };
+    for (const k of KINDS) f[k] = items.filter((i) => i.kind === k).length;
+    return f;
+  }, [items, urgent]);
+  const localBrief = `${items.length} items need attention (${urgent} urgent): ${KINDS.map((k) => `${facts[k]} ${k}`).join(", ")}.`;
+
+  const columns: ColumnsType<AttentionItem> = [
+    {
+      title: tx("home_col_ref"),
+      key: "ref",
+      width: 220,
+      render: (_, r) => (
+        <>
+          <span className={`cz-cell-main${r.refMono ? " cz-mono" : ""}`}>
+            {r.ref}
+          </span>
+          <span className="cz-cell-sub">{r.customer}</span>
+        </>
+      ),
+    },
+    {
+      title: tx("home_col_severity"),
+      key: "severity",
+      width: 110,
+      render: (_, r) => (
+        <StatusTag
+          status={r.severity}
+          tone={SEVERITY_TONE[r.severity]}
+          label={tx(`home_sev_${r.severity}`)}
+        />
+      ),
+    },
+    {
+      title: tx("home_col_problem"),
+      key: "problem",
+      render: (_, r) => <Reason item={r} />,
+    },
+    {
+      title: tx("home_col_age"),
+      key: "age",
+      width: 110,
+      render: (_, r) => <AgeChip days={r.ageDays} />,
+    },
+    {
+      title: tx("home_col_next"),
+      key: "next",
+      render: (_, r) => (
+        <span className="hm-next">
+          <span>{r.action}</span>
+          <Link to={r.to} className="cz-link-btn">
+            {tx("home_open")}
+          </Link>
+        </span>
+      ),
+    },
   ];
 
   if (!enabled) {
     return (
-      <div style={{ padding: 24 }}>
-        <PageHeader title={tx("navActionCenter")} subtitle={tx("apiNotConfigured")} />
-      </div>
+      <PageHeader
+        title={tx("navActionCenter")}
+        subtitle={tx("home_not_connected")}
+      />
     );
   }
 
   return (
-    <div style={{ padding: "0 8px 24px" }}>
-      <PageHeader title={tx("navActionCenter")} subtitle={`${rows.length} · ${shell ? tx("shellDataBadge") : tx("liveApiBadge")}`} />
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24}>
-          <AiBriefCard title={tx("aiMgmtReport")} facts={excFacts} localFallback={excLocal} compact />
-        </Col>
-      </Row>
-      <ProTable<Exc> rowKey="id" columns={columns} dataSource={rows} search={false} pagination={{ pageSize: 20 }} />
-    </div>
+    <>
+      <PageHeader
+        title={tx("navActionCenter")}
+        subtitle={
+          items.length
+            ? tx("home_exc_sub", { n: items.length, u: urgent })
+            : tx("home_sub_clear")
+        }
+        extra={
+          <AiBriefCard
+            title={tx("home_ai_exc_title")}
+            facts={facts}
+            localFallback={localBrief}
+            context="exceptions"
+          />
+        }
+      >
+        <FilterBar
+          tabs={{
+            value: sev,
+            onChange: (v) => setParam("severity", v),
+            options: [
+              {
+                value: "all",
+                label: tx("home_filter_all"),
+                count: kindFiltered.length,
+              },
+              {
+                value: "high",
+                label: tx("home_sev_high"),
+                count: countSev("high"),
+              },
+              {
+                value: "medium",
+                label: tx("home_sev_medium"),
+                count: countSev("medium"),
+              },
+              {
+                value: "low",
+                label: tx("home_sev_low"),
+                count: countSev("low"),
+              },
+            ],
+          }}
+          search={{
+            value: q,
+            onChange: setQ,
+            placeholder: tx("home_exc_search"),
+          }}
+          selects={[
+            {
+              key: "kind",
+              placeholder: tx("home_filter_kind"),
+              value: kind,
+              onChange: (v) => setParam("kind", v),
+              options: KINDS.map((k) => ({
+                value: k,
+                label: `${tx(`home_kind_${k}`)} (${items.filter((i) => i.kind === k).length})`,
+              })),
+            },
+          ]}
+          onClear={() => {
+            setQ("");
+            setParams(new URLSearchParams(), { replace: true });
+          }}
+          count={rows.length}
+          extra={
+            <ViewSwitch
+              value={view}
+              onChange={(v) => {
+                setView(v);
+                writeView("exceptions", v);
+              }}
+              labels={{ cards: tx("home_view_board"), list: tx("viewList") }}
+            />
+          }
+        />
+      </PageHeader>
+
+      {loading ? (
+        <Panel>
+          <LoadingState />
+        </Panel>
+      ) : items.length === 0 ? (
+        <Panel>
+          <EmptyState
+            title={tx("home_attn_empty_title")}
+            description={tx("home_attn_empty_desc")}
+            action={
+              <Button onClick={() => navigate("/jobs")}>
+                {tx("home_go_jobs")}
+              </Button>
+            }
+          />
+        </Panel>
+      ) : view === "cards" ? (
+        <div className="hm-exc-board">
+          <Board
+            columns={SEV_COLS.filter((c) => sev === "all" || sev === c.key).map(
+              (c) => {
+                const col = rows.filter((r) => r.severity === c.key);
+                return {
+                  key: c.key,
+                  icon: c.icon,
+                  tone: SEVERITY_TONE[c.key],
+                  title: tx(`home_sev_${c.key}`),
+                  count: col.length,
+                  children: col.length ? (
+                    col.map((it) => <AttentionCard key={it.id} item={it} />)
+                  ) : (
+                    <p className="hm-quiet hm-col-empty">
+                      {tx("home_col_empty")}
+                    </p>
+                  ),
+                };
+              },
+            )}
+          />
+        </div>
+      ) : (
+        <Panel flush>
+          {narrow ? (
+            rows.length ? (
+              <AttentionList items={rows} showAction />
+            ) : (
+              <EmptyState description={tx("home_exc_no_match")} />
+            )
+          ) : (
+            <DataTable<AttentionItem>
+              rowKey="id"
+              columns={columns}
+              dataSource={rows}
+              onRowClick={(r) => navigate(r.to)}
+              emptyText={tx("home_exc_no_match")}
+            />
+          )}
+        </Panel>
+      )}
+    </>
   );
 }

@@ -3,13 +3,13 @@ import { Hono } from "hono";
 import { getDb, hasDatabase } from "../db/index.js";
 import { authMiddleware, requireAuth, requirePermission, requireTenant, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
-import { createInvoiceFromJob, createBillingNote, createVendorBillFromJob, approveVendorBill, getArSummary, getInvoice, getVendorBill, issueInvoice, listBillingNotes, listInvoices, listPayments, listVendorBills, payVendorBill, recordPayment } from "../services/finance.service.js";
+import { createInvoice, createInvoiceFromJob, createBillingNote, createVendorBill, createVendorBillFromJob, approveVendorBill, getArSummary, getInvoice, getVendorBill, issueInvoice, listBillingNotes, listInvoices, listPayments, listVendorBills, payVendorBill, recordPayment } from "../services/finance.service.js";
 import { createContainer, getContainer, listContainers, updateContainer } from "../services/container.service.js";
 import { createJobTask, listJobTasks, updateJobTask } from "../services/job-tasks.service.js";
 import { ensureJobMilestones, listMilestonesForJobs, setMilestoneComplete, summarizeMilestones } from "../services/milestone.service.js";
 import { getJob, listBookingsByQuotation, listJobCharges, listJobs, updateChargeActual } from "../services/operations.service.js";
 import { enrichJobsForList } from "../services/job-enrichment.service.js";
-import { generateBillingNotePdf, generateQuotationPdf } from "../services/pdf.service.js";
+import { generateBillingNotePdf, generateInvoicePdf, generateQuotationPdf } from "../services/pdf.service.js";
 import {
   createBookingFromQuotation,
   createJobFromBooking,
@@ -23,7 +23,7 @@ import {
   signQuotation,
   submitForApproval,
 } from "../services/quotation.service.js";
-import { createRateSheetWithLane, getRateLaneCharges, listVendors, searchRates } from "../services/rate.service.js";
+import { createRateSheetWithLane, createVendor, getRateLaneCharges, listVendors, searchRates, VENDOR_TYPES } from "../services/rate.service.js";
 import type { RoleCode } from "../domain/rbac.js";
 
 function dbOr503(c: { json: (body: unknown, status?: number) => Response }) {
@@ -43,14 +43,99 @@ function orgId(c: { get: (k: "organizationId") => string | null }) {
 
 const tenantGate = [requireAuth(), requireTenant()] as const;
 
+const money = z.union([z.number(), z.string().regex(/^-?\d+(\.\d+)?$/)]);
+const currencyCode = z.string().trim().regex(/^[A-Za-z]{3}$/, "currency must be a 3-letter code");
+const isoDate = z.string().refine((v) => !Number.isNaN(new Date(v).getTime()), "invalid date");
+
+/** Lines for invoices / vendor bills created from scratch. */
+const manualLines = z
+  .array(
+    z.object({
+      description: z.string().trim().min(1).max(300),
+      qty: money,
+      unitPrice: money,
+      taxCode: z.string().trim().max(20).optional().nullable(),
+    }),
+  )
+  .min(1)
+  .max(100);
+
+const createInvoiceSchema = z.object({
+  customerId: z.string().min(1),
+  jobId: z.string().min(1).optional().nullable(),
+  currency: currencyCode,
+  dueDate: isoDate.optional(),
+  paymentTermsDays: z.number().int().min(0).max(365).optional(),
+  notes: z.string().max(1000).optional(),
+  lines: manualLines,
+});
+
+const createVendorBillSchema = z.object({
+  vendorId: z.string().min(1),
+  jobId: z.string().min(1).optional().nullable(),
+  currency: currencyCode,
+  dueDate: isoDate.optional(),
+  lines: manualLines,
+});
+
+const createVendorSchema = z.object({
+  company: z.string().trim().min(1).max(200),
+  nameZh: z.string().trim().max(200).optional().nullable(),
+  nameTh: z.string().trim().max(200).optional().nullable(),
+  vendorType: z
+    .string()
+    .transform((v) => v.trim().toUpperCase())
+    .pipe(z.enum(VENDOR_TYPES)),
+  currency: currencyCode.optional(),
+  paymentTermsDays: z.number().int().min(0).max(365).optional(),
+  taxId: z.string().trim().max(50).optional().nullable(),
+  address: z.string().trim().max(500).optional().nullable(),
+  services: z.string().trim().max(300).optional().nullable(),
+  contactName: z.string().trim().max(200).optional().nullable(),
+  contactEmail: z.union([z.string().trim().email(), z.literal("")]).optional().nullable(),
+  contactPhone: z.string().trim().max(50).optional().nullable(),
+});
+
+/** Parse a JSON body; returns a 400 response on invalid input instead of throwing. */
+async function parseBody<T extends z.ZodType>(c: { req: { json: () => Promise<unknown> }; json: (b: unknown, s?: number) => Response }, schema: T) {
+  const raw = await c.req.json().catch(() => null);
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: c.json({ error: "invalid_body", issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })) }, 400) };
+  }
+  return { data: parsed.data as z.infer<T> };
+}
+
+const CREATE_ERRORS: Record<string, number> = {
+  customer_not_found: 404,
+  vendor_not_found: 404,
+  job_not_found: 404,
+  job_customer_mismatch: 400,
+  invalid_tax_code: 400,
+  invalid_line: 400,
+  invalid_due_date: 400,
+  no_lines: 400,
+};
+
 export function commercialRoutes() {
   const r = new Hono<AuthEnv>();
   r.use("*", authMiddleware);
 
-  r.get("/vendors", requireAuth(), requirePermission("rate.view_sell", "vendor_bill.view"), async (c) => {
+  r.get("/vendors", ...tenantGate, requirePermission("rate.view_sell", "vendor_bill.view"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
-    return c.json({ items: await listVendors(db) });
+    return c.json({ items: await listVendors(db, orgId(c)) });
+  });
+
+  r.post("/vendors", ...tenantGate, requirePermission("vendor_bill.create", "rate.create"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const body = await parseBody(c, createVendorSchema);
+    if (body.error) return body.error;
+    const row = await createVendor(db, orgId(c), body.data);
+    await writeAudit(db, { userId: user.id, action: "VENDOR_CREATED", entityType: "vendor", entityId: row.id, newValue: row });
+    return c.json(row, 201);
   });
 
   r.get("/rates/search", requireAuth(), requirePermission("rate.view_sell"), async (c) => {
@@ -243,6 +328,24 @@ export function commercialRoutes() {
     return c.json(row);
   });
 
+  r.get("/invoices/:id/pdf", ...tenantGate, requirePermission("invoice.view"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const id = c.req.param("id");
+    try {
+      const bytes = await generateInvoicePdf(db, orgId(c), id);
+      return new Response(bytes, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="invoice-${id}.pdf"`,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === "not_found") return c.json({ error: "not_found" }, 404);
+      throw e;
+    }
+  });
+
   r.post("/billing-notes", ...tenantGate, requirePermission("billing.create"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
@@ -269,7 +372,7 @@ export function commercialRoutes() {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
     try {
-      const bytes = await generateBillingNotePdf(db, c.req.param("id"));
+      const bytes = await generateBillingNotePdf(db, c.req.param("id"), orgId(c));
       return new Response(bytes, {
         headers: {
           "Content-Type": "application/pdf",
@@ -566,6 +669,24 @@ export function commercialRoutes() {
     return c.json({ items: await listInvoices(db, orgId(c), c.req.query("customerId")) });
   });
 
+  r.post("/invoices", ...tenantGate, requirePermission("invoice.create"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const body = await parseBody(c, createInvoiceSchema);
+    if (body.error) return body.error;
+    try {
+      const result = await createInvoice(db, orgId(c), { ...body.data, createdBy: user.id });
+      await writeAudit(db, { userId: user.id, action: "INVOICE_CREATED", entityType: "invoice", entityId: result.id, newValue: result });
+      return c.json(result, 201);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      const status = CREATE_ERRORS[msg];
+      if (status) return c.json({ error: msg }, status as 400 | 404);
+      throw e;
+    }
+  });
+
   r.post("/invoices/from-job", ...tenantGate, requirePermission("invoice.create"), async (c) => {
     const db = dbOr503(c);
     if (typeof db !== "object" || !("select" in db)) return db;
@@ -641,6 +762,24 @@ export function commercialRoutes() {
     const result = await getVendorBill(db, orgId(c), c.req.param("id"));
     if (!result) return c.json({ error: "not_found" }, 404);
     return c.json(result);
+  });
+
+  r.post("/vendor-bills", ...tenantGate, requirePermission("vendor_bill.create"), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const user = c.get("user")!;
+    const body = await parseBody(c, createVendorBillSchema);
+    if (body.error) return body.error;
+    try {
+      const result = await createVendorBill(db, orgId(c), body.data);
+      await writeAudit(db, { userId: user.id, action: "VENDOR_BILL_CREATED", entityType: "vendor_bill", entityId: result.id, newValue: result });
+      return c.json(result, 201);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      const status = CREATE_ERRORS[msg];
+      if (status) return c.json({ error: msg }, status as 400 | 404);
+      throw e;
+    }
   });
 
   r.post("/vendor-bills/from-job", ...tenantGate, requirePermission("vendor_bill.create"), async (c) => {

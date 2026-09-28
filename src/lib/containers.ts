@@ -1,5 +1,6 @@
 import type { ContainerDto } from "../api/operations.ts";
 import type { Box, BoxStatus, Direction } from "../data.ts";
+import { placeName } from "../v2/lib/places.ts";
 
 function formatEta(iso: string | null): string {
   if (!iso) return "";
@@ -17,9 +18,10 @@ export function containerToBox(row: ContainerDto): Box {
     type: row.type,
     dir: row.direction as Direction,
     status: row.status as BoxStatus,
-    yardZh: yard,
-    yardTh: yard,
-    yardEn: yard,
+    // yardCode is a neutral place code ("LCB-B1"); expose it in each UI language.
+    yardZh: placeName(yard, "zh"),
+    yardTh: placeName(yard, "th"),
+    yardEn: placeName(yard, "en"),
     eta: formatEta(row.eta),
     teu: row.teu,
     bl: row.bl ?? "",

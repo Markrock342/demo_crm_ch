@@ -219,8 +219,7 @@ export function commsRoutes() {
         jobId: z.string().optional(),
       })
       .parse(await c.req.json());
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const time = new Date().toISOString();
     const subj = body.subject || body.body.slice(0, 60);
     const row = await createMail(db, {
       customerId: body.customerId ?? "",

@@ -1,34 +1,67 @@
-import { ProLayout } from "@ant-design/pro-components";
-import { Badge, Button, Dropdown, Input, Space, Typography } from "antd";
-import { Bell, EnvelopeSimple, MagnifyingGlass } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Badge, Dropdown } from "antd";
+import {
+  Bell,
+  CaretDown,
+  EnvelopeSimple,
+  List,
+  MagnifyingGlass,
+  Plus,
+  SidebarSimple,
+  SignOut,
+  Gear,
+  X,
+} from "@phosphor-icons/react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { aiHealth } from "../ai/client";
 import { CommandPalette } from "../CommandPalette";
 import { AppRoutes } from "../AppRoutes.tsx";
 import { LangPicker } from "../ui/LangPicker";
+import { useMedia } from "../ui/useMedia";
 import { useShellNotifications } from "../shell/notificationStore.tsx";
 import { useIsShellMode, useShellSession } from "../shell/session.tsx";
 import { useStore } from "../store";
-import { v2NavForDepartment } from "./navConfig.ts";
+import { initialOf } from "./components/Visuals.tsx";
+import { localizedUserName } from "./lib/demoText.ts";
+import { activeNavItem, departmentFromRoles, v2NavForDepartment, v2NavPathAllowed } from "./navConfig.ts";
+import "./shell.css";
+
+const COLLAPSE_KEY = "cz.sidebar.collapsed";
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export function V2AppShell() {
-  const s = useStore();
-  const { tx, locale, setLocale, query, setQuery, mails, toast } = s;
-  const { user, mode, logout } = useAuth();
+  const { tx, locale, setLocale, mails, toast } = useStore();
+  const { user, logout } = useAuth();
+  const orgName = user?.organizationName?.trim() || "";
   const { shellUser, leave } = useShellSession();
   const shellMode = useIsShellMode();
   const shellNotes = useShellNotifications();
   const navigate = useNavigate();
   const location = useLocation();
-  const dept = shellUser?.department ?? (user ? "admin" : null);
-  const displayName = shellUser?.nameZh ?? shellUser?.name ?? user?.nameZh ?? user?.name ?? tx("userName");
+  const mobile = useMedia("(max-width: 1024px)");
+
+  const dept = shellUser?.department ?? departmentFromRoles(user?.roles);
+  const displayName = localizedUserName(shellUser ?? user, locale) || tx("userName");
   const displayRole = shellUser?.roles[0] ?? user?.roles[0] ?? tx("userRole");
   const unread = mails.filter((m) => m.unread && m.state === "open").length;
   const hot = shellMode ? shellNotes.unreadCount : 0;
+
   const [cmd, setCmd] = useState(false);
   const [gemini, setGemini] = useState<boolean | null>(null);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [drawer, setDrawer] = useState(false);
+
+  const groups = useMemo(() => v2NavForDepartment(dept, tx), [dept, tx, locale]);
+  const current = activeNavItem(groups, location.pathname);
+  const narrow = collapsed && !mobile;
 
   useEffect(() => {
     aiHealth()
@@ -47,14 +80,23 @@ export function V2AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const menuRoutes = useMemo(
-    () => v2NavForDepartment(dept, tx),
-    [dept, tx, locale],
-  );
+  useEffect(() => {
+    setDrawer(false);
+  }, [location.pathname]);
 
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    setCmd(true);
+  useEffect(() => {
+    document.title = current ? `${current.label} · ${tx("brand")}` : tx("brand");
+  }, [current, tx]);
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      try {
+        localStorage.setItem(COLLAPSE_KEY, v ? "0" : "1");
+      } catch {
+        /* storage unavailable — keep in memory */
+      }
+      return !v;
+    });
   }
 
   function onLeave() {
@@ -63,93 +105,167 @@ export function V2AppShell() {
     navigate("/login", { replace: true });
   }
 
-  return (
-    <>
-      <ProLayout
-        title={tx("brand")}
-        logo={
-          <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }} aria-hidden>
+  const can = (path: string) => v2NavPathAllowed(dept, path);
+  const createItems = [
+    can("/quotations") && { key: "/quotations/new", label: tx("quickNewQuote") },
+    can("/customers") && { key: "/customers?new=1", label: tx("quickNewCustomer") },
+    can("/leads") && { key: "/leads?new=1", label: tx("quickNewLead") },
+  ].filter(Boolean) as { key: string; label: string }[];
+
+  const badgeFor = (path: string) => (path === "/inbox" ? unread : path === "/tasks" || path === "/notifications" ? hot : 0);
+
+  const sidebar = (
+    <aside className={`cz-side${narrow ? " is-narrow" : ""}${mobile ? " is-drawer" : ""}${drawer ? " is-open" : ""}`} aria-label={tx("mobileMenu")}>
+      <div className="cz-side-head">
+        <Link to="/" className="cz-brand" aria-label={tx("brand")}>
+          <span className="cz-brand-mark" aria-hidden>
             栈
           </span>
-        }
-        layout="mix"
-        fixSiderbar
-        siderWidth={220}
-        contentWidth="Fluid"
-        location={{ pathname: location.pathname }}
-        route={{ routes: menuRoutes }}
-        menuItemRender={(item, dom) => {
-          if (!item.path) return dom;
-          return (
-            <Link to={item.path} onClick={() => undefined}>
-              {dom}
+          {!narrow ? (
+            <span className="cz-brand-word">
+              <strong>{tx("brand")}</strong>
+              <em>{tx("brandRoman")}</em>
+            </span>
+          ) : null}
+        </Link>
+        {mobile ? (
+          <button type="button" className="cz-icon-btn cz-side-close" onClick={() => setDrawer(false)} aria-label={tx("closeMenu")}>
+            <X size={20} />
+          </button>
+        ) : null}
+      </div>
+
+      <nav className="cz-nav">
+        {groups.map((g) => (
+          <div key={g.key} className="cz-nav-group">
+            {narrow ? <hr className="cz-nav-rule" /> : <p className="cz-nav-label">{g.label}</p>}
+            <ul>
+              {g.items.map((item) => {
+                const count = badgeFor(item.path);
+                const active = current?.path === item.path;
+                return (
+                  <li key={item.path}>
+                    <NavLink
+                      to={item.path}
+                      end={item.end}
+                      className={active ? "is-active" : undefined}
+                      title={narrow ? item.label : undefined}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <item.icon size={19} weight={active ? "fill" : "regular"} aria-hidden />
+                      {!narrow ? <span className="cz-nav-text">{item.label}</span> : null}
+                      {count > 0 ? <span className="cz-nav-count">{count > 99 ? "99+" : count}</span> : null}
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div className="cz-side-foot">
+        {!narrow ? (
+          <div>
+            {orgName ? <p className="cz-tenant">{orgName}</p> : null}
+            <p className="cz-status">
+              <span className={`cz-dot${gemini ? " is-on" : ""}`} aria-hidden />
+              {gemini ? tx("geminiOn") : tx("geminiOff")}
+            </p>
+          </div>
+        ) : (
+          <span className={`cz-dot${gemini ? " is-on" : ""}`} title={gemini ? tx("geminiOn") : tx("geminiOff")} />
+        )}
+        {!mobile ? (
+          <button type="button" className="cz-icon-btn cz-collapse" onClick={toggleCollapsed} aria-label={narrow ? tx("expandMenu") : tx("collapseMenu")} title={narrow ? tx("expandMenu") : tx("collapseMenu")}>
+            <SidebarSimple size={18} />
+          </button>
+        ) : null}
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className={`cz-app${narrow ? " is-narrow" : ""}`}>
+      <a className="skip" href="#main">
+        {tx("skip")}
+      </a>
+      {sidebar}
+      {mobile && drawer ? <button type="button" className="cz-scrim" aria-label={tx("closeMenu")} onClick={() => setDrawer(false)} /> : null}
+
+      <div className="cz-main">
+        <header className="cz-top">
+          {mobile ? (
+            <button type="button" className="cz-icon-btn" onClick={() => setDrawer(true)} aria-label={tx("openMenu")} aria-expanded={drawer}>
+              <List size={22} />
+            </button>
+          ) : null}
+
+          <button type="button" className="cz-search" onClick={() => setCmd(true)}>
+            <MagnifyingGlass size={17} aria-hidden />
+            <span className="cz-search-text">{mobile ? tx("searchShort") : tx("search")}</span>
+            {!mobile ? <kbd>⌘K</kbd> : null}
+          </button>
+
+          <div className="cz-top-actions">
+            {createItems.length ? (
+              <Dropdown
+                trigger={["click"]}
+                placement="bottomRight"
+                menu={{ items: createItems, onClick: ({ key }) => navigate(key) }}
+              >
+                <button type="button" className="cz-create">
+                  <Plus size={16} weight="bold" aria-hidden />
+                  {!mobile ? <span>{tx("quickCreate")}</span> : null}
+                </button>
+              </Dropdown>
+            ) : null}
+
+            <Link to="/notifications" className="cz-icon-btn" aria-label={tx("navNotifications")} title={tx("navNotifications")}>
+              <Badge count={hot} size="small" offset={[2, -2]}>
+                <Bell size={20} />
+              </Badge>
             </Link>
-          );
-        }}
-        subMenuItemRender={(item, dom) => {
-          if (!item.path) return dom;
-          return <Link to={item.path}>{dom}</Link>;
-        }}
-        actionsRender={() => [
-          <form key="search" onSubmit={onSearch} style={{ width: 220 }}>
-            <Input
-              prefix={<MagnifyingGlass size={16} />}
-              placeholder={`${tx("cmdHint")} ⌘K`}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => setCmd(true)}
-              allowClear
-              size="small"
-            />
-          </form>,
-          <Button
-            key="notify"
-            type="text"
-            icon={<Bell size={18} />}
-            onClick={() => navigate("/notifications")}
-          >
-            {hot > 0 ? <Badge count={hot} size="small" /> : null}
-          </Button>,
-          <Link key="inbox" to="/inbox">
-            <Button type="text" icon={<EnvelopeSimple size={18} weight="fill" />}>
-              {unread > 0 ? <Badge count={unread} size="small" /> : null}
-            </Button>
-          </Link>,
-          <LangPicker key="lang" value={locale} onChange={setLocale} compact />,
-        ]}
-        avatarProps={{
-          title: displayName,
-          render: (_, dom) => (
+            {can("/inbox") ? (
+              <Link to="/inbox" className="cz-icon-btn" aria-label={tx("navInbox")} title={tx("navInbox")}>
+                <Badge count={unread} size="small" offset={[2, -2]}>
+                  <EnvelopeSimple size={20} />
+                </Badge>
+              </Link>
+            ) : null}
+            <LangPicker value={locale} onChange={setLocale} compact={mobile} />
+
             <Dropdown
+              trigger={["click"]}
+              placement="bottomRight"
               menu={{
                 items: [
-                  { key: "role", label: displayRole, disabled: true },
+                  { key: "role", label: <span className="cz-menu-meta">{displayRole}</span>, disabled: true },
                   { type: "divider" },
-                  { key: "settings", label: tx("navSettings"), onClick: () => navigate("/settings") },
-                  { key: "logout", label: tx("logout"), onClick: onLeave },
+                  { key: "settings", icon: <Gear size={16} />, label: tx("navSettings"), onClick: () => navigate("/settings") },
+                  { key: "logout", icon: <SignOut size={16} />, label: tx("logout"), danger: true, onClick: onLeave },
                 ],
               }}
             >
-              {dom}
+              <button type="button" className="cz-user" aria-label={tx("account")}>
+                <span className="cz-avatar" aria-hidden>
+                  {initialOf(displayName)}
+                </span>
+                {!mobile ? (
+                  <>
+                    <span className="cz-user-name">{displayName}</span>
+                    <CaretDown size={12} aria-hidden />
+                  </>
+                ) : null}
+              </button>
             </Dropdown>
-          ),
-        }}
-        footerRender={() => (
-          <div style={{ padding: "8px 16px", fontSize: 12, color: "#888" }}>
-            <Typography.Text type="secondary">{tx("tenant")}</Typography.Text>
-            <Space size="middle" style={{ marginLeft: 12 }}>
-              <Link to="/" style={{ color: "inherit" }}>
-                <span className={`gemini-dot ${gemini ? "on" : "off"}`}>✦ {gemini ? tx("geminiOn") : tx("geminiOff")}</span>
-              </Link>
-              {shellUser ? <span>{tx("shellMode")}</span> : mode === "demo" ? <span>{tx("demoMode")}</span> : null}
-            </Space>
           </div>
-        )}
-      >
-        <div id="main" style={{ minHeight: "calc(100vh - 120px)" }}>
+        </header>
+
+        <main id="main" className="cz-content" key={location.pathname}>
           <AppRoutes />
-        </div>
-      </ProLayout>
+        </main>
+      </div>
 
       <CommandPalette open={cmd} onClose={() => setCmd(false)} />
       {toast ? (
@@ -157,6 +273,6 @@ export function V2AppShell() {
           {toast}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

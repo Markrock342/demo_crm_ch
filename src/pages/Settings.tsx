@@ -1,110 +1,157 @@
-import { Cpu, Database, PlugsConnected } from "@phosphor-icons/react";
+import { Buildings, Monitor, PlugsConnected, Translate, UserCircle, UsersThree, type Icon } from "@phosphor-icons/react";
+import { Segmented, Switch } from "antd";
 import { useEffect, useState } from "react";
 import { aiHealth } from "../ai/client";
+import { useAuth } from "../auth/AuthProvider";
 import { locales, type Locale } from "../i18n";
 import { useStore } from "../store";
-import { Button } from "../ui/Button";
-import { PageToolbar } from "../ui/PageToolbar";
-import { Segment } from "../ui/Segment";
-import { Switch } from "../ui/Switch";
+import { IconBadge, PageHeader, Panel, StatusTag, type GraphicTone } from "../v2/components";
+import "../v2/pages/finance/finance.css";
+import { AccountSection } from "./settings/AccountSection.tsx";
+import { CompanySection } from "./settings/CompanySection.tsx";
+import { UsersSection } from "./settings/UsersSection.tsx";
+import { Row } from "./settings/shared.tsx";
+import "./settings/settings.css";
 
-export function SettingsPage() {
-  const { tx, locale, setLocale, reset, compact, setCompact, motion, setMotion } = useStore();
-  const [ok, setOk] = useState<boolean | null>(null);
+type SectionId = "account" | "company" | "users" | "display" | "language" | "system";
+
+function useConnections() {
+  const [ai, setAi] = useState<boolean | null>(null);
   const [model, setModel] = useState("");
-
+  const [db, setDb] = useState<boolean | null>(null);
   useEffect(() => {
     aiHealth()
       .then((h) => {
-        setOk(h.ok);
+        setAi(h.ok);
         setModel(h.model ?? "");
       })
-      .catch(() => setOk(false));
+      .catch(() => setAi(false));
+    fetch("/api/health")
+      .then((r) => r.json() as Promise<{ database?: boolean }>)
+      .then((h) => setDb(Boolean(h.database)))
+      .catch(() => setDb(false));
   }, []);
+  return { ai, model, db };
+}
 
-  const langOptions = locales.map((l) => ({ value: l.id as Locale, label: l.label }));
+function Conn({ ok }: { ok: boolean | null }) {
+  const { tx } = useStore();
+  if (ok === null) return <StatusTag status="PENDING" label={tx("fin_setChecking")} />;
+  return ok ? <StatusTag status="DONE" label={tx("fin_setConnected")} /> : <StatusTag status="OVERDUE" label={tx("fin_setNotConnected")} />;
+}
+
+export function SettingsPage() {
+  const { tx, locale, setLocale, compact, setCompact, motion, setMotion } = useStore();
+  const { user } = useAuth();
+  const { ai, model, db } = useConnections();
+  const [active, setActive] = useState<SectionId>("account");
+  const isAdmin = Boolean(user && (user.roles.includes("SUPER_ADMIN") || user.permissions.includes("user.manage")));
+
+  const sections: { id: SectionId; label: string; icon: Icon; tone: GraphicTone }[] = [
+    { id: "account", label: tx("adm_secAccount"), icon: UserCircle, tone: "info" },
+    { id: "company", label: tx("adm_secCompany"), icon: Buildings, tone: "primary" },
+    { id: "users", label: tx("adm_secUsers"), icon: UsersThree, tone: "success" },
+    { id: "display", label: tx("adm_secDisplay"), icon: Monitor, tone: "accent" },
+    { id: "language", label: tx("adm_secLanguage"), icon: Translate, tone: "warning" },
+    { id: "system", label: tx("adm_secSystem"), icon: PlugsConnected, tone: "neutral" },
+  ];
+  const visible = sections.filter((s) => s.id !== "users" || isAdmin);
+
+  const head = (id: SectionId) => {
+    const sec = sections.find((x) => x.id === id)!;
+    return (
+      <span className="fin-panel-title">
+        <IconBadge icon={sec.icon} tone={sec.tone} size={30} />
+        {sec.label}
+      </span>
+    );
+  };
+
+  function go(id: SectionId) {
+    setActive(id);
+    document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
-    <div className="page page--workspace page--settings">
-      <PageToolbar title={tx("settingsTitle")} hint={tx("settingsHint")} />
+    <div className="cz-stack fin-page adm-page">
+      <PageHeader title={tx("fin_setTitle")} subtitle={tx("adm_pageSub")} />
 
-      <div className="settings-grid">
-        <section className="settings-card">
-          <header className="settings-card-head">
-            <PlugsConnected size={20} weight="regular" aria-hidden />
-            <h2>{tx("settingsSystem")}</h2>
-          </header>
-          <ul className="settings-status">
-            <li>
-              <span className="settings-status-label">Gemini</span>
-              <span className={`settings-pill ${ok ? "is-ok" : ok === false ? "is-off" : "is-pending"}`}>
-                {ok === null ? "…" : ok ? tx("geminiOn") : tx("geminiOff")}
-              </span>
-            </li>
-            <li>
-              <span className="settings-status-label">Model</span>
-              <span className="settings-value mono">{model || "—"}</span>
-            </li>
-            <li>
-              <span className="settings-status-label">{tx("sealNote")}</span>
-              <span className="settings-value mono">{tx("demoMode")}</span>
-            </li>
+      <div className="fin-settings">
+        <nav aria-label={tx("fin_setTitle")}>
+          <ul className="fin-settings-nav">
+            {visible.map((s) => (
+              <li key={s.id}>
+                <a
+                  href={`#settings-${s.id}`}
+                  className={active === s.id ? "is-active" : undefined}
+                  aria-current={active === s.id ? "true" : undefined}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    go(s.id);
+                  }}
+                >
+                  <IconBadge icon={s.icon} tone={s.tone} size={30} />
+                  {s.label}
+                </a>
+              </li>
+            ))}
           </ul>
-        </section>
+        </nav>
 
-        <section className="settings-card">
-          <header className="settings-card-head">
-            <Cpu size={20} weight="regular" aria-hidden />
-            <h2>{tx("settingsDisplay")}</h2>
-          </header>
-          <p className="settings-card-hint">{tx("kitHint")}</p>
-          <Switch checked={compact} onChange={setCompact} label={tx("density")} hint={tx("densityHint")} />
-          <Switch checked={motion} onChange={setMotion} label={tx("motion")} hint={tx("motionHint")} />
-        </section>
-
-        <section className="settings-card">
-          <header className="settings-card-head">
-            <Database size={20} weight="regular" aria-hidden />
-            <h2>{tx("settingsUsersRoles")}</h2>
-          </header>
-          <p className="settings-card-hint">{tx("settingsUsersHint")}</p>
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">{tx("colUser")}</th>
-                  <th scope="col">{tx("colRole")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={2}>
-                    <p className="empty">{tx("emptyUsers")}</p>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <div className="cz-stack fin-settings-body">
+          <div id="settings-account" className="adm-anchor">
+            <Panel title={head("account")}>{user ? <AccountSection /> : null}</Panel>
           </div>
-          <Button variant="ghost" disabled title={tx("apiNotConfigured")}>
-            {tx("addUser")} — {tx("apiNotConfigured")}
-          </Button>
-        </section>
 
-        <section className="settings-card">
-          <header className="settings-card-head">
-            <Database size={20} weight="regular" aria-hidden />
-            <h2>{tx("settingsLanguage")}</h2>
-          </header>
-          <p className="settings-card-hint">{tx("settingsLangHint")}</p>
-          <Segment value={locale} onChange={setLocale} options={langOptions} label={tx("settingsLanguage")} />
-        </section>
+          <div id="settings-company" className="adm-anchor">
+            <Panel title={head("company")}>{user ? <CompanySection canEdit={isAdmin} /> : null}</Panel>
+          </div>
 
-        <section className="settings-card settings-card--reset">
-          <p className="settings-reset-copy">{tx("resetHint")}</p>
-          <Button variant="danger" className="settings-reset-btn" onClick={reset}>
-            {tx("resetDemo")}
-          </Button>
-        </section>
+          {isAdmin ? (
+            <div id="settings-users" className="adm-anchor">
+              <Panel title={head("users")}>
+                <UsersSection canManage={isAdmin} />
+              </Panel>
+            </div>
+          ) : null}
+
+          <div id="settings-display" className="adm-anchor">
+            <Panel title={head("display")}>
+              <Row label={tx("fin_setCompact")} hint={tx("fin_setCompactHint")}>
+                <Switch checked={compact} onChange={setCompact} aria-label={tx("fin_setCompact")} />
+              </Row>
+              <Row label={tx("fin_setMotion")} hint={tx("fin_setMotionHint")}>
+                <Switch checked={motion} onChange={setMotion} aria-label={tx("fin_setMotion")} />
+              </Row>
+            </Panel>
+          </div>
+
+          <div id="settings-language" className="adm-anchor">
+            <Panel title={head("language")}>
+              <Row label={tx("fin_setUiLanguage")} hint={tx("fin_setUiLanguageHint")}>
+                <Segmented
+                  value={locale}
+                  onChange={(v) => setLocale(v as Locale)}
+                  options={locales.map((l) => ({ value: l.id, label: l.id === "en" ? "English" : l.label }))}
+                />
+              </Row>
+            </Panel>
+          </div>
+
+          <div id="settings-system" className="adm-anchor">
+            <Panel title={head("system")}>
+              <Row label={tx("fin_setAi")} hint={tx("fin_setAiHint")}>
+                <Conn ok={ai} />
+              </Row>
+              <Row label={tx("fin_setModel")}>
+                <span className="cz-mono">{model || "—"}</span>
+              </Row>
+              <Row label={tx("adm_database")}>
+                <Conn ok={db} />
+              </Row>
+            </Panel>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,149 +1,196 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Alert, Button, Input } from "antd";
+import { ArrowRight, ShippingContainer, UserCircle } from "@phosphor-icons/react";
+import { TEST_ACCOUNTS, TEST_PASSWORD, testAccountsEnabled } from "../auth/testAccounts";
 import { useAuth } from "../auth/AuthProvider";
-import { homePathFor } from "../shell/nav.ts";
-import { useShellSession } from "../shell/session.tsx";
-import type { Department } from "../shell/types.ts";
-import { DEPARTMENTS } from "../shell/types.ts";
 import { useStore } from "../store";
+import { LangPicker } from "../ui/LangPicker";
+import { IconBadge, RouteTrack, StageFlow, type StageKey } from "../v2/components";
+import "../v2/pages/public.css";
 
-const deptLabelKey: Record<Department, string> = {
-  sales: "deptSales",
-  ops: "deptOps",
-  finance: "deptFinance",
-  admin: "deptAdmin",
+const LOGIN_ERROR_KEY: Record<string, string> = {
+  invalid_credentials: "pub_login_failed",
+  unreachable: "pub_login_no_api",
+  no_organization: "pub_login_no_org",
+  server_error: "pub_login_server_error",
 };
 
 export function LoginPage() {
-  const { tx } = useStore();
-  const { user, loading, mode, login } = useAuth();
-  const { shellUser, enterAs } = useShellSession();
+  const { tx, locale, setLocale } = useStore();
+  const { user, loading, error: sessionError, login, refresh } = useAuth();
   const navigate = useNavigate();
-  const [busyDept, setBusyDept] = useState<Department | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [email, setEmail] = useState("admin@cangzhan.com");
-  const [password, setPassword] = useState("demo123");
-  const [remoteBusy, setRemoteBusy] = useState(false);
-  const production = mode === "production";
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [quick, setQuick] = useState<string | null>(null);
+  const stageLabels = Object.fromEntries(
+    (["booked", "gatein", "sailed", "arrived", "customs", "delivered"] as StageKey[]).map((k) => [k, tx(`stage_${k}`)]),
+  ) as Record<StageKey, string>;
 
-  if (!loading && (user || shellUser)) {
-    const dest = shellUser ? homePathFor(shellUser.department) : "/";
-    return <Navigate to={dest} replace />;
+  if (!loading && user) {
+    return <Navigate to="/" replace />;
   }
 
-  async function pickDept(department: Department) {
-    setBusyDept(department);
+  async function signIn(mail: string, pass: string) {
     setErr(null);
+    await login(mail.trim(), pass);
+    navigate("/", { replace: true });
+  }
+
+  async function quickSignIn(mail: string) {
+    setQuick(mail);
     try {
-      await enterAs(department);
-      navigate(homePathFor(department), { replace: true });
-    } catch {
-      setErr(tx("loginFailed"));
+      await signIn(mail, TEST_PASSWORD);
+    } catch (ex) {
+      const code = ex instanceof Error ? ex.message : "server_error";
+      setErr(tx(LOGIN_ERROR_KEY[code] ?? "pub_login_server_error"));
     } finally {
-      setBusyDept(null);
+      setQuick(null);
     }
   }
 
-  async function onRemote(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!production) return;
-    setRemoteBusy(true);
+    setBusy(true);
     setErr(null);
     try {
       await login(email.trim(), password);
       navigate("/", { replace: true });
-    } catch {
-      setErr(tx("loginFailed"));
+    } catch (ex) {
+      const code = ex instanceof Error ? ex.message : "server_error";
+      setErr(tx(LOGIN_ERROR_KEY[code] ?? "pub_login_server_error"));
     } finally {
-      setRemoteBusy(false);
+      setBusy(false);
     }
   }
 
   return (
-    <div className="login-page">
-      <div className="login-shell">
-        <div className="login-card">
-          <header className="login-head">
-            <span className="bar-mark login-mark" aria-hidden>
-              栈
-            </span>
-            <div className="login-head-copy">
-              <h1>{tx("brand")}</h1>
-              <p className="login-brand-roman">{tx("brandRoman")}</p>
-              <p>{tx("loginDeptHint")}</p>
+    <div className="pub-login">
+      <aside className="pub-login-brand">
+        <div className="pub-login-brand-top">
+          <span className="pub-mark" aria-hidden>
+            栈
+          </span>
+          <span className="pub-login-brand-name">
+            <strong>{tx("brand")}</strong>
+            <span>{tx("brandRoman")}</span>
+          </span>
+        </div>
+        <div className="pub-login-scene" aria-hidden>
+          <div className="pub-login-ghost" />
+          <div className="pub-login-shot">
+            <div className="pub-login-shot-head">
+              <strong>JOB-2026-000142</strong>
+              <span className="pub-login-shot-boxes">
+                <ShippingContainer size={20} weight="duotone" />
+                <ShippingContainer size={20} weight="duotone" />
+                <em>40HC × 2</em>
+              </span>
             </div>
+            <RouteTrack from="CNSHA" to="THLCH" fromName={tx("pub_login_demo_from")} toName={tx("pub_login_demo_to")} progress={62} size="lg" />
+            <StageFlow current={2} labels={stageLabels} size="sm" />
+          </div>
+        </div>
+        <p className="pub-login-tagline">{tx("pub_login_tagline")}</p>
+      </aside>
+
+      <main className="pub-login-main">
+        <div className="pub-login-bar">
+          <LangPicker value={locale} onChange={setLocale} />
+        </div>
+
+        <div className="pub-login-body">
+          <header className="pub-login-head">
+            <h1>{tx("pub_login_title")}</h1>
           </header>
 
-          <section className="login-section" aria-labelledby="login-shell-title">
-            <h2 id="login-shell-title" className="login-section-title">
-              {tx("loginShellTitle")}
-            </h2>
-            <div className="login-dept-grid" role="group" aria-label={tx("loginPickDept")}>
-              {DEPARTMENTS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className="login-dept-btn"
-                  disabled={busyDept !== null}
-                  onClick={() => void pickDept(d)}
-                >
-                  {busyDept === d ? tx("loginBusy") : tx(deptLabelKey[d])}
-                </button>
-              ))}
-            </div>
+          <section className="login-remote" aria-label={tx("pub_login_title")}>
+            <form className="pub-form" onSubmit={(e) => void onSubmit(e)}>
+              {sessionError === "unreachable" && !err ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message={tx("pub_login_no_api")}
+                  action={
+                    <Button size="small" onClick={() => void refresh()}>
+                      {tx("pub_login_retry")}
+                    </Button>
+                  }
+                />
+              ) : null}
+              <label className="pub-field">
+                <span>{tx("pub_login_email")}</span>
+                <Input
+                  size="large"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  autoFocus
+                  required
+                />
+              </label>
+              <label className="pub-field">
+                <span>{tx("pub_login_password")}</span>
+                <Input.Password
+                  size="large"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+              {err ? <Alert type="error" showIcon message={err} role="alert" /> : null}
+              <Button type="primary" htmlType="submit" size="large" block loading={busy}>
+                {busy ? tx("pub_login_busy") : tx("pub_login_submit")}
+              </Button>
+            </form>
           </section>
 
-          {err ? (
-            <p className="field-err login-err" role="alert">
-              {err}
-            </p>
+          {testAccountsEnabled ? (
+            <section className="pub-test" aria-labelledby="pub-test-title">
+              <div className="pub-test-head">
+                <h2 id="pub-test-title">{tx("test_title")}</h2>
+                <p>{tx("test_hint")}</p>
+              </div>
+              <div className="pub-test-grid">
+                {TEST_ACCOUNTS.map((a) => (
+                  <button
+                    key={a.role}
+                    type="button"
+                    className="pub-test-btn"
+                    disabled={Boolean(quick) || busy}
+                    aria-busy={quick === a.email}
+                    onClick={() => void quickSignIn(a.email)}
+                  >
+                    <IconBadge icon={a.icon} tone={a.tone} size={36} />
+                    <span className="pub-test-text">
+                      <strong>{tx(`test_role_${a.role}`)}</strong>
+                      <span>{a.name[locale]}</span>
+                    </span>
+                    {quick === a.email ? <span className="pub-test-spin" aria-hidden /> : <ArrowRight size={14} aria-hidden />}
+                  </button>
+                ))}
+                <Link to="/portal?test=1" className="pub-test-btn">
+                  <IconBadge icon={UserCircle} tone="neutral" size={36} />
+                  <span className="pub-test-text">
+                    <strong>{tx("test_role_customer")}</strong>
+                    <span>hai@huayun-sz.cn</span>
+                  </span>
+                  <ArrowRight size={14} aria-hidden />
+                </Link>
+              </div>
+            </section>
           ) : null}
 
-          <div className="login-divider" role="separator" aria-label={tx("loginOr")}>
-            <span>{tx("loginOr")}</span>
-          </div>
-
-          <section className="login-section login-remote" aria-labelledby="login-remote-title">
-            <h2 id="login-remote-title" className="login-section-title">
-              {tx("loginRemoteTitle")}
-            </h2>
-            {production ? (
-              <form className="login-form" onSubmit={(e) => void onRemote(e)}>
-                <label>
-                  {tx("loginEmail")}
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="username"
-                    required
-                  />
-                </label>
-                <label>
-                  {tx("loginPassword")}
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    required
-                  />
-                </label>
-                <button type="submit" className="btn btn-primary login-submit" disabled={remoteBusy}>
-                  {remoteBusy ? tx("loginBusy") : tx("loginSubmit")}
-                </button>
-              </form>
-            ) : (
-              <div className="login-remote-todo">
-                <p className="meta">{tx("loginRemoteTodo")}</p>
-                <button type="button" className="btn btn-ghost login-submit" disabled title={tx("apiNotConfigured")}>
-                  {tx("loginSubmit")}
-                </button>
-              </div>
-            )}
-          </section>
+          <Link to="/portal" className="pub-login-portal">
+            {tx("pub_login_portal_link")}
+            <ArrowRight size={14} aria-hidden />
+          </Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
