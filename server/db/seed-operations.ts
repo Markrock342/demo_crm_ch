@@ -268,10 +268,20 @@ export async function seedOperations(db: Db, now = new Date()) {
   // Newer demo jobs keep the number they got on their first seed; otherwise take the next one.
   const existing = await db.select({ id: jobs.id, n: jobs.jobNumber }).from(jobs).where(inArray(jobs.id, seededJobs.map((j) => j.id)));
   const numberById = new Map(existing.map((r) => [r.id, r.n]));
-  if (seededJobs.some((j) => !j.jobNumber && !numberById.has(j.id))) await syncDocSequences(db);
+  // Fixed-number jobs go first, and the sequence is synced only right before the first new number,
+  // so on a fresh database a new job can never take a number a fixed demo job needs.
+  const ordered = [...seededJobs].sort((a, b) => Number(!a.jobNumber) - Number(!b.jobNumber));
+  let synced = false;
+  const allocate = async () => {
+    if (!synced) {
+      await syncDocSequences(db);
+      synced = true;
+    }
+    return nextDocNumber(db, "JOB", "JOB");
+  };
 
-  for (const demo of seededJobs) {
-    const jobNumber = demo.jobNumber ?? numberById.get(demo.id) ?? (await nextDocNumber(db, "JOB", "JOB"));
+  for (const demo of ordered) {
+    const jobNumber = demo.jobNumber ?? numberById.get(demo.id) ?? (await allocate());
     const j = { ...demo, jobNumber };
     const containerCount = DEMO_CONTAINERS.filter((c) => c.jobId === j.id).length || Math.max(1, Math.ceil(j.teu / 2));
     const values = {
