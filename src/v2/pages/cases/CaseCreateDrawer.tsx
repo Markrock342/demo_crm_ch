@@ -14,12 +14,14 @@ import {
 import { ApiError } from "../../../api/crm.ts";
 import { useAuth } from "../../../auth/AuthProvider";
 import { useStore } from "../../../store";
+import { useBusinessUnits } from "../../hooks/useBusinessUnits.ts";
 import { useCaseActions, useShipmentLookup } from "../../hooks/useCases.ts";
 import { useCrmBundle } from "../../hooks/useCommercial.ts";
 import { useCustomerLookup } from "../../hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../../hooks/useUserLookup.ts";
 import { CATEGORY_LOOK, CHANNEL_ICON, PriorityMeter } from "./caseLook.tsx";
 import { useIsPhone } from "../jobsShared.ts";
+import { UnitChip } from "./UnitChip.tsx";
 import "./cases.css";
 
 export type CasePrefill = {
@@ -41,6 +43,7 @@ type FormValues = {
   category: CaseCategory;
   priority: CasePriority;
   assigneeUserId?: string | null;
+  businessUnitId?: string | null;
 };
 
 const KIND_ICON = { container: ShippingContainer, job: Boat, booking: Ticket } as const;
@@ -78,6 +81,7 @@ export function CaseCreateDrawer({
   const { customers, nameOf } = useCustomerLookup();
   const bundle = useCrmBundle();
   const assignees = useAssigneeOptions();
+  const { units } = useBusinessUnits();
   const actions = useCaseActions();
   const [shipQ, setShipQ] = useState("");
   const [link, setLink] = useState<LookupHit | null>(null);
@@ -120,6 +124,7 @@ export function CaseCreateDrawer({
         category: v.category,
         priority: v.priority,
         assigneeUserId: v.assigneeUserId ?? null,
+        businessUnitId: v.businessUnitId ?? null,
         jobId: link?.jobId ?? null,
         containerNo: link?.containerNo ?? null,
         bookingId: link && !link.jobId ? link.bookingId : null,
@@ -175,6 +180,15 @@ export function CaseCreateDrawer({
         {contacts.length ? (
           <Form.Item name="contactId" label={tx("cs_contact")}>
             <Select allowClear options={contacts.map((c) => ({ value: c.id, label: c.email ? `${c.name} · ${c.email}` : c.name }))} />
+          </Form.Item>
+        ) : null}
+        {units.length ? (
+          <Form.Item name="businessUnitId" label={tx("cs_unit")}>
+            <Select
+              allowClear
+              placeholder={tx("cs_unit_none")}
+              options={units.map((u) => ({ value: u.id, label: <UnitChip unit={u} />, title: u.name }))}
+            />
           </Form.Item>
         ) : null}
         <Form.Item name="subject" label={tx("cs_subject")} rules={[{ required: true, whitespace: true, message: tx("cs_subject_required") }]}>

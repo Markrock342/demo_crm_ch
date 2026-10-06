@@ -40,6 +40,7 @@ const caseCreateSchema = z
     containerNo: z.string().trim().max(20).optional().nullable(),
     bookingId: optId,
     sourceMailId: optId,
+    businessUnitId: optId,
   })
   .strict();
 
@@ -135,7 +136,7 @@ export function casesRoutes() {
 
   /**
    * GET /cases?status=open|board|all|<status>&assignee=mine|unassigned|all|<userId>&priority=&category=
-   *   &customerId=&jobId=&overdue=1&q=&limit=&offset=
+   *   &customerId=&jobId=&unit=<businessUnitId>|none&channel=&overdue=1&q=&limit=&offset=
    * → { items, total, limit, offset, counts: { <status>: n } } (counts ignore the status filter)
    */
   r.get("/cases", ...gate, canView, async (c) => {
@@ -151,6 +152,8 @@ export function casesRoutes() {
         category: oneOf(CASE_CATEGORIES, q.category),
         customerId: q.customerId || undefined,
         jobId: q.jobId || undefined,
+        businessUnitId: q.unit || undefined,
+        channel: oneOf(CASE_CHANNELS, q.channel),
         overdue: q.overdue === "1" || q.overdue === "true",
         q: q.q,
         limit: qInt(q.limit),

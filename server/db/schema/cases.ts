@@ -1,6 +1,7 @@
 import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./auth.js";
 import { contacts, customers } from "./crm.js";
+import { businessUnits, lineContacts } from "./inbox.js";
 import { bookings, jobs } from "./operations.js";
 import { organizations } from "./tenancy.js";
 
@@ -30,6 +31,9 @@ export const cases = pgTable("cases", {
   containerNo: text("container_no"),
   bookingId: text("booking_id").references(() => bookings.id, { onDelete: "set null" }),
   sourceMailId: text("source_mail_id"),
+  businessUnitId: text("business_unit_id").references(() => businessUnits.id, { onDelete: "set null" }),
+  /** Set when the case came from (or is answered in) a customer's LINE chat. */
+  lineContactId: text("line_contact_id").references(() => lineContacts.id, { onDelete: "set null" }),
   firstResponseDueAt: timestamp("first_response_due_at", { withTimezone: true }),
   resolveDueAt: timestamp("resolve_due_at", { withTimezone: true }),
   firstRespondedAt: timestamp("first_responded_at", { withTimezone: true }),
@@ -40,7 +44,7 @@ export const cases = pgTable("cases", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Case timeline: created, comment (internal note), reply (to the customer), status, assignment, priority, category, link. */
+/** Case timeline: created, comment (internal note), reply (to the customer), inbound (from the customer), status, assignment, priority, category, link. */
 export const caseEvents = pgTable("case_events", {
   id: text("id").primaryKey(),
   organizationId: uuid("organization_id")

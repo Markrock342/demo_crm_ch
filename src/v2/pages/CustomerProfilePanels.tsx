@@ -17,6 +17,7 @@ import {
   Star,
   Tag,
   Trash,
+  TreeStructure,
   Wallet,
   Warning,
   WechatLogo,
@@ -29,6 +30,8 @@ import type { Contact } from "../../crm";
 import { useStore } from "../../store";
 import { Flag, IconBadge, Panel, PersonAvatar, RouteTrack, StatusTag } from "../components";
 import { fmtDate } from "../lib/format.ts";
+import { UnitChips } from "../components/UnitPicker.tsx";
+import { useBusinessUnits } from "../hooks/useBusinessUnits.ts";
 import { BUSINESS_ICON, CURRENCY_FLAG, STATUS_TONE } from "./CustomerForm.tsx";
 import { fmtAmount, portName } from "./salesUtil.ts";
 import "./customer-form.css";
@@ -74,7 +77,11 @@ const has = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Array
 export function CompanyPanel({ c }: { c: CustomerDetail }) {
   const { tx, locale } = useStore();
   const BizIcon = c.businessType ? BUSINESS_ICON[c.businessType] : undefined;
+  const bu = useBusinessUnits(true);
   const items: Fact[] = [];
+  if (c.businessUnits?.some((id) => bu.byId.has(id))) {
+    items.push({ icon: <TreeStructure size={18} aria-hidden />, label: tx("inb_units_title"), value: <UnitChips ids={c.businessUnits} byId={bu.byId} max={6} /> });
+  }
   if (c.industry) items.push({ icon: <Tag size={18} aria-hidden />, label: tx("cust_industry"), value: c.industry });
   if (c.leadSource) items.push({ icon: <Megaphone size={18} aria-hidden />, label: tx("cust_leadSource"), value: tx(`cust_src_${c.leadSource}`) });
   if (c.website) {

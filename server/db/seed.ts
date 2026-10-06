@@ -59,6 +59,7 @@ async function main() {
   const fields = await seedFields(db);
   console.log("Marketing seed:", await (await import("./seed-marketing.js")).seedMarketing(db));
   console.log("Cases seed:", await (await import("./seed-cases.js")).seedCases(db));
+  console.log("LINE inbox seed:", await (await import("./seed-line.js")).seedLineInbox(db));
   await seedTestPortalAccess(db);
   await seedDemoModules(db); // demo company = "marketing + customer service" preset
   await closeDb();

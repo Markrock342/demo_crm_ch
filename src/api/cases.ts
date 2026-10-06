@@ -1,4 +1,5 @@
-/* Customer service cases (เคส / 工单) — /api/cases, canned replies, SLA, status lookup. */
+/* Customer service cases (เคส / 工单) — /api/cases, canned replies, SLA, status lookup, LINE inbox. */
+import type { UnitColor } from "./businessUnits.ts";
 import { ApiError, type ApiIssue } from "./crm.ts";
 
 export const CASE_STATUSES = ["new", "in_progress", "waiting_customer", "resolved", "closed"] as const;
@@ -37,6 +38,11 @@ export type CaseDto = {
   bookingId: string | null;
   bookingNumber: string | null;
   sourceMailId: string | null;
+  businessUnitId: string | null;
+  businessUnit: { id: string; name: string; color: UnitColor | null } | null;
+  lineContactId: string | null;
+  /** The customer's LINE chat this case is answered in (replies via "line" are pushed there; connected=false → only logged). */
+  line: { displayName: string | null; pictureUrl: string | null; channelId: string; channelName: string; connected: boolean } | null;
   firstResponseDueAt: string | null;
   resolveDueAt: string | null;
   firstRespondedAt: string | null;
@@ -50,7 +56,9 @@ export type CaseDto = {
 
 export type CaseEventDto = {
   id: string;
-  type: "created" | "comment" | "reply" | "status" | "assignment" | "priority" | "category" | "link";
+  /** inbound = a message from the customer (LINE): data { via: "line", kind, channel, media?: { mime, size } }.
+   *  reply via line: data { via: "line", channel, delivery: "sent" | "failed" | "not_connected", error }. */
+  type: "created" | "comment" | "reply" | "inbound" | "status" | "assignment" | "priority" | "category" | "link";
   body: string | null;
   data: Record<string, unknown>;
   userId: string | null;
@@ -75,6 +83,9 @@ export type CaseStats = {
   firstResponseMetRate: number | null;
   byCategory: Record<CaseCategory, number>;
   byPriority: Record<CasePriority, number>;
+  /** Open cases per business unit id ("none" = untagged). */
+  byUnit: Record<string, number>;
+  byChannel: Record<CaseChannel, number>;
 };
 
 export type CaseListParams = {
@@ -84,6 +95,9 @@ export type CaseListParams = {
   category?: CaseCategory;
   customerId?: string;
   jobId?: string;
+  /** Business unit id, or "none". */
+  unit?: string;
+  channel?: CaseChannel;
   overdue?: boolean;
   q?: string;
   limit?: number;
@@ -103,6 +117,7 @@ export type CaseInput = {
   containerNo?: string | null;
   bookingId?: string | null;
   sourceMailId?: string | null;
+  businessUnitId?: string | null;
 };
 
 export type CasePatch = Partial<Omit<CaseInput, "sourceMailId">> & { status?: CaseStatus };
@@ -119,6 +134,7 @@ export type ReplyInput = {
 export type ReplyResult = {
   event: CaseEventDto;
   mail: { id: string; status: "sent" | "failed"; error: string | null; to: string[]; cc: string[]; subject: string } | null;
+  line: { delivery: "sent" | "failed" | "not_connected"; error: string | null; channel: string } | null;
   case: CaseDto;
 };
 
@@ -196,3 +212,49 @@ export const fetchSlaPolicy = async () => (await apiFetch<{ policy: SlaPolicy }>
 export const saveSlaPolicy = async (policy: Partial<SlaPolicy>) => (await apiFetch<{ policy: SlaPolicy }>("/api/cases/sla", body("PUT", policy))).policy;
 
 export const lookupShipments = async (q: string) => (await apiFetch<{ items: LookupHit[] }>(`/api/cases/lookup${qs({ q })}`)).items;
+
+/** URL of a picture / file a customer sent on LINE (event.data.media present). */
+export const caseMediaUrl = (caseId: string, eventId: string) => `/api/cases/${enc(caseId)}/media/${enc(eventId)}`;
+
+// ---- LINE inbox: company OAs → cases ----------------------------------------------
+
+export type LineChannel = {
+  id: string;
+  name: string;
+  basicId: string | null;
+  businessUnitId: string | null;
+  /** Instant reply when a chat opens a case; {case} = case number. */
+  ackMessage: string | null;
+  active: boolean;
+  /** Secret + token saved → real LINE traffic. Otherwise only the test sender feeds it. */
+  connected: boolean;
+  /** A channel secret is saved (it is never sent back). */
+  hasSecret: boolean;
+  tokenHint: string | null;
+  /** Prefix with the site origin for the LINE Developers console "Webhook URL". */
+  webhookPath: string;
+  lastEventAt: string | null;
+  friends: number;
+  openCases: number;
+};
+
+/** channelSecret / accessToken: non-empty replaces, null clears, omitted keeps. Never returned by the API. */
+export type LineChannelInput = {
+  name?: string;
+  basicId?: string | null;
+  channelSecret?: string | null;
+  accessToken?: string | null;
+  businessUnitId?: string | null;
+  ackMessage?: string | null;
+  active?: boolean;
+};
+
+export const fetchLineChannels = async () => (await apiFetch<{ items: LineChannel[] }>("/api/cases/line/channels")).items;
+export const createLineChannel = async (input: LineChannelInput) =>
+  (await apiFetch<{ item: LineChannel }>("/api/cases/line/channels", body("POST", input))).item;
+export const patchLineChannel = async (id: string, patch: LineChannelInput) =>
+  (await apiFetch<{ item: LineChannel }>(`/api/cases/line/channels/${enc(id)}`, body("PATCH", patch))).item;
+export const deleteLineChannel = (id: string) => apiFetch(`/api/cases/line/channels/${enc(id)}`, { method: "DELETE" });
+/** Acts like a customer chatting on that OA (nothing goes to LINE) → the case it opened / joined. */
+export const sendLineTestMessage = (id: string, input: { name: string; text: string }) =>
+  apiFetch<{ caseId: string; caseNo: string; created: boolean }>(`/api/cases/line/channels/${enc(id)}/test-message`, body("POST", input));

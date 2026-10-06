@@ -25,6 +25,8 @@ import {
   writeView,
 } from "../components";
 import { useUserLookup } from "../hooks/useUserLookup.ts";
+import { useBusinessUnits } from "../hooks/useBusinessUnits.ts";
+import { UnitChips } from "../components/UnitPicker.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { CompanyMark, LaneRoute, SalesLane, SalesMobileList } from "./SalesMobileList.tsx";
 import type { CustomerMoney } from "./salesData.ts";
@@ -70,8 +72,12 @@ export function CustomersPageV2() {
   const [q, setQ] = useState(params.get("q") ?? "");
   const dq = useDebounced(q.trim(), 300);
   const [owner, setOwner] = useState<string | undefined>();
+  // Business units (ธุรกิจในเครือ): filter + chips; all hidden when the company has none.
+  const bu = useBusinessUnits(true);
+  const activeUnits = bu.units.filter((u) => !u.archived);
+  const [unit, setUnit] = useState<string | undefined>(() => params.get("unit") ?? undefined);
   const [page, setPage] = useState(1);
-  const filters = { q: dq, tab, owner };
+  const filters = { q: dq, tab, owner, unit };
   const filterKey = JSON.stringify(filters);
   useEffect(() => setPage(1), [filterKey, view]);
 
@@ -103,7 +109,7 @@ export function CustomersPageV2() {
   const owners = head?.owners ?? [];
   const activeCount = counts.active;
   const arCount = counts.ar;
-  const hasAny = counts.all > 0 || Boolean(dq || owner);
+  const hasAny = counts.all > 0 || Boolean(dq || owner || unit);
 
   const isArRisk = (c: Row) => (c.arDays ?? 0) >= AR_WARN;
 
@@ -163,6 +169,11 @@ export function CustomersPageV2() {
           </div>
         }
       >
+        {c.businessUnits?.length ? (
+          <div className="cz-unit-row">
+            <UnitChips ids={c.businessUnits} byId={bu.byId} size="sm" />
+          </div>
+        ) : null}
         <LaneRoute lane={laneName(c, locale)} />
       </EntityCard>
     );
@@ -179,6 +190,9 @@ export function CustomersPageV2() {
         </>
       ),
     },
+    ...(bu.units.length
+      ? [{ title: tx("inb_units_title"), key: "units", render: (_: unknown, c: Row) => <UnitChips ids={c.businessUnits} byId={bu.byId} size="sm" max={2} /> }]
+      : []),
     { title: tx("sales_colMainLane"), key: "lane", render: (_, c) => <SalesLane lane={laneName(c, locale)} /> },
     { title: tx("sales_owner"), key: "owner", align: "center", render: (_, c) => <PersonAvatar name={ownerName(c)} /> },
     {
@@ -258,11 +272,24 @@ export function CustomersPageV2() {
               onChange: setOwner,
               width: 160,
             },
+            ...(activeUnits.length || unit
+              ? [
+                  {
+                    key: "unit",
+                    placeholder: tx("inb_unit_all"),
+                    value: unit,
+                    options: activeUnits.map((u) => ({ value: u.id, label: u.name })),
+                    onChange: setUnit,
+                    width: 150,
+                  },
+                ]
+              : []),
           ]}
           onClear={() => {
             setTab("all");
             setQ("");
             setOwner(undefined);
+            setUnit(undefined);
           }}
           count={head ? total : undefined}
         />
@@ -287,6 +314,7 @@ export function CustomersPageV2() {
             sub: (
               <>
                 <PersonAvatar name={ownerName(c)} size={20} />
+                <UnitChips ids={c.businessUnits} byId={bu.byId} size="sm" max={1} />
                 <SalesLane lane={laneName(c, locale)} />
               </>
             ),

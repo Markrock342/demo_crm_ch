@@ -1,4 +1,4 @@
-import { Bell, Buildings, ClockCounterClockwise, FileXls, Monitor, PlugsConnected, PuzzlePiece, Translate, UserCircle, UsersThree, type Icon } from "@phosphor-icons/react";
+import { Bell, Buildings, ClockCounterClockwise, FileXls, Monitor, PlugsConnected, PuzzlePiece, Translate, TreeStructure, UserCircle, UsersThree, type Icon } from "@phosphor-icons/react";
 import { Segmented, Switch } from "antd";
 import { useEffect, useState } from "react";
 import { aiHealth } from "../ai/client";
@@ -13,12 +13,13 @@ import { CompanySection } from "./settings/CompanySection.tsx";
 import { NotifySection } from "./settings/NotifySection.tsx";
 import { UsersSection } from "./settings/UsersSection.tsx";
 import { ModulesSection } from "./settings/ModulesSection.tsx";
+import { BusinessUnitsSection } from "./settings/BusinessUnitsSection.tsx";
 import { Row } from "./settings/shared.tsx";
 import { ImportLink, useCanImport } from "../v2/pages/ImportButton.tsx";
 import { useNavigate } from "react-router-dom";
 import "./settings/settings.css";
 
-type SectionId = "account" | "notify" | "company" | "modules" | "users" | "audit" | "display" | "language" | "system" | "import";
+type SectionId = "account" | "notify" | "company" | "modules" | "units" | "users" | "audit" | "display" | "language" | "system" | "import";
 
 function useConnections() {
   const [ai, setAi] = useState<boolean | null>(null);
@@ -61,6 +62,7 @@ export function SettingsPage() {
     { id: "notify", label: tx("nt_secTitle"), icon: Bell, tone: "warning" },
     { id: "company", label: tx("adm_secCompany"), icon: Buildings, tone: "primary" },
     { id: "modules", label: tx("md_title"), icon: PuzzlePiece, tone: "primary" },
+    { id: "units", label: tx("inb_units_title"), icon: TreeStructure, tone: "primary" },
     { id: "users", label: tx("adm_secUsers"), icon: UsersThree, tone: "success" },
     { id: "audit", label: tx("sm_audit"), icon: ClockCounterClockwise, tone: "neutral" },
     { id: "display", label: tx("adm_secDisplay"), icon: Monitor, tone: "accent" },
@@ -69,7 +71,7 @@ export function SettingsPage() {
     { id: "import", label: tx("im_title"), icon: FileXls, tone: "success" },
   ];
   const visible = sections.filter((s) => {
-    if (s.id === "users" || s.id === "audit" || s.id === "modules") return isAdmin;
+    if (s.id === "users" || s.id === "audit" || s.id === "modules" || s.id === "units") return isAdmin;
     if (s.id === "notify") return Boolean(user);
     if (s.id === "import") return canImport;
     return true;
@@ -131,6 +133,7 @@ export function SettingsPage() {
           </div>
 
           {isAdmin ? <ModulesSection /> : null}
+          {isAdmin ? <BusinessUnitsSection /> : null}
           {isAdmin ? (
             <div id="settings-users" className="adm-anchor">
               <Panel title={head("users")}>

@@ -1,30 +1,42 @@
 import {
+  ArrowBendDownLeft,
   ArrowCounterClockwise,
   Boat,
   ChatCircleDots,
   CheckCircle,
+  DownloadSimple,
   EnvelopeSimple,
+  FloppyDisk,
   Flag as FlagIcon,
+  Image as ImageIcon,
+  Info,
   LinkSimple,
+  MapPin,
+  Microphone,
   NotePencil,
   PaperPlaneTilt,
+  Paperclip,
   Phone,
   ShippingContainer,
   Sparkle,
+  Sticker,
   Tag,
   Ticket,
   Timer,
   UserSwitch,
+  VideoCamera,
+  WarningCircle,
   X,
   type Icon,
 } from "@phosphor-icons/react";
-import { App, Button, Checkbox, Input, Segmented, Select } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { App, Button, Checkbox, Input, Segmented, Select, Tooltip } from "antd";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   CASE_CATEGORIES,
   CASE_PRIORITIES,
   CASE_STATUSES,
+  caseMediaUrl,
   renderCanned,
   type CannedVariable,
   type CaseContact,
@@ -38,8 +50,10 @@ import {
 import { ApiError } from "../../../api/crm.ts";
 import { useStore } from "../../../store";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, PersonAvatar } from "../../components";
+import { useBusinessUnits } from "../../hooks/useBusinessUnits.ts";
 import { useCan } from "../../hooks/useCan.ts";
 import { useCanned, useCase, useCaseActions } from "../../hooks/useCases.ts";
+import { useCustomerLookup } from "../../hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../../hooks/useUserLookup.ts";
 import { fmtDateTime } from "../../lib/format.ts";
 import { useAssigneeOptions } from "./CaseCreateDrawer.tsx";
@@ -56,6 +70,7 @@ import {
   useNow,
 } from "./caseLook.tsx";
 import { StatusLookupPanel, linkPatchFor } from "./StatusLookupPanel.tsx";
+import { LineAvatar, LineBadge, UnitChip } from "./UnitChip.tsx";
 import "./cases.css";
 
 type Tx = (k: string, v?: Record<string, string | number>) => string;
@@ -105,6 +120,7 @@ export function CaseDetailPage() {
             <strong className="cz-mono">{kase.caseNo}</strong>
             <CategoryIcon category={kase.category} tx={tx} size={16} />
             <ChannelIcon channel={kase.channel} tx={tx} />
+            {kase.businessUnit ? <UnitChip unit={kase.businessUnit} size="sm" /> : null}
             <span>{tx("cs_opened", { time: fmtDateTime(kase.createdAt, locale as Locale) })}</span>
           </span>
         }
@@ -137,10 +153,31 @@ export function CaseDetailPage() {
 
       <div className="cs-detail-grid">
         <div className="cz-stack cs-detail-main">
-          <Composer kase={kase} contacts={contacts} />
-          <Panel title={tx("cs_timeline")}>
-            <Timeline kase={kase} events={events} tx={tx} locale={locale as Locale} />
-          </Panel>
+          {kase.line ? (
+            <>
+              {/* A LINE chat reads top-down like the phone app: oldest first, reply box under the newest message. */}
+              <Panel
+                className="cs-chat-panel"
+                title={
+                  <span className="cs-opt">
+                    <LineBadge size={18} />
+                    {tx("cs_line_chat")}
+                  </span>
+                }
+                extra={<span className="cs-quiet">{kase.line.channelName}</span>}
+              >
+                <Timeline kase={kase} events={events} tx={tx} locale={locale as Locale} chat />
+              </Panel>
+              <Composer key={kase.id} kase={kase} contacts={contacts} />
+            </>
+          ) : (
+            <>
+              <Composer key={kase.id} kase={kase} contacts={contacts} />
+              <Panel title={tx("cs_timeline")}>
+                <Timeline kase={kase} events={events} tx={tx} locale={locale as Locale} />
+              </Panel>
+            </>
+          )}
         </div>
         <aside className="cz-stack cs-detail-side">
           <CustomerPanel kase={kase} contacts={contacts} editable={editable} onPatch={patch} />
@@ -226,16 +263,83 @@ function SlaTimers({ kase, now, tx, locale }: { kase: CaseDto; now: number; tx: 
 
 const LINK_ICON: Record<string, Icon> = { job: Boat, container: ShippingContainer, booking: Ticket, customer: LinkSimple };
 
-function Timeline({ kase, events, tx, locale }: { kase: CaseDto; events: CaseEventDto[]; tx: Tx; locale: Locale }) {
+function Timeline({ kase, events, tx, locale, chat = false }: { kase: CaseDto; events: CaseEventDto[]; tx: Tx; locale: Locale; chat?: boolean }) {
   const { nameOf } = useUserLookup();
   const cust = customerLabel(kase, locale, tx("cs_customer"));
   const label = (k: string, v: unknown) => (typeof v === "string" && v ? tx(`${k}${v}`) : "—");
-  const ordered = [...events].reverse();
+  // Chat: oldest first (true time order); on a timestamp tie the "case opened" line goes first.
+  const ordered = chat
+    ? [...events].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || Number(b.type === "created") - Number(a.type === "created"),
+      )
+    : [...events].reverse();
+  const lineName = kase.line?.displayName || kase.contact?.name || cust || tx("cs_line_user");
+  const scroller = useRef<HTMLOListElement>(null);
+  const last = events.length ? events[events.length - 1].id : "";
+  const pinned = useRef(true);
+  // Chat view: keep the newest message in sight (on open, when a message arrives, and as photos load)
+  // unless the person has scrolled up to read older messages.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!chat || !el) return;
+    pinned.current = true;
+    el.scrollTop = el.scrollHeight;
+  }, [chat, last]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!chat || !el) return;
+    const onScroll = () => {
+      pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    // Photos, fonts and avatars settle after the first paint — follow them down while pinned.
+    const ro = new ResizeObserver(() => {
+      if (pinned.current) el.scrollTop = el.scrollHeight;
+    });
+    for (const child of Array.from(el.children)) ro.observe(child);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [chat, events.length]);
   return (
-    <ol className="cs-timeline">
+    <ol className={`cs-timeline${chat ? " is-chat" : ""}`} ref={scroller}>
       {ordered.map((e) => {
         const who = e.userId ? nameOf(e.userId, "") : "";
         const when = fmtDateTime(e.createdAt, locale);
+        if (e.type === "inbound") {
+          return (
+            <li key={e.id} className="cs-tl-item is-inbound">
+              <div className="cs-chat-row is-in">
+                <LineAvatar name={lineName} pictureUrl={kase.line?.pictureUrl} size={32} mark={false} />
+                <div className="cs-bubble is-in is-chat">
+                  <header>
+                    <strong>{lineName}</strong>
+                    <time>{when}</time>
+                  </header>
+                  <InboundContent caseId={kase.id} e={e} tx={tx} />
+                </div>
+              </div>
+            </li>
+          );
+        }
+        if (e.type === "reply" && e.data.via === "line") {
+          return (
+            <li key={e.id} className="cs-tl-item is-reply">
+              <div className="cs-chat-row is-out">
+                <div className="cs-bubble is-out is-chat">
+                  <header>
+                    <strong>{who || tx("cs_title")}</strong>
+                    <time>{when}</time>
+                    <LineDelivery e={e} tx={tx} />
+                  </header>
+                  <p className="cs-bubble-body">{e.body}</p>
+                </div>
+                <PersonAvatar name={who} size={32} />
+              </div>
+            </li>
+          );
+        }
         if (e.type === "reply") {
           const via = String(e.data.via ?? "email");
           const failed = e.data.delivery === "failed";
@@ -281,6 +385,7 @@ function Timeline({ kase, events, tx, locale }: { kase: CaseDto; events: CaseEve
           );
         }
         if (e.type === "created") {
+          const sysText = !e.userId && kase.line ? tx("cs_ev_created_line", { channel: kase.line.channelName }) : `${tx("cs_ev_created")}${who ? ` · ${who}` : ""}`;
           return (
             <li key={e.id} className="cs-tl-item is-created">
               {kase.description ? (
@@ -297,13 +402,16 @@ function Timeline({ kase, events, tx, locale }: { kase: CaseDto; events: CaseEve
                   <p className="cs-bubble-body">{kase.description}</p>
                 </div>
               ) : null}
-              <SysLine icon={Sparkle} text={`${tx("cs_ev_created")}${who ? ` · ${who}` : ""}`} when={when} />
+              <SysLine icon={Sparkle} text={sysText} when={when} />
             </li>
           );
         }
         let icon: Icon = FlagIcon;
         let text = "";
-        if (e.type === "status") {
+        if (e.type === "status" && e.data.auto === "customer_replied") {
+          icon = ArrowBendDownLeft;
+          text = tx("cs_ev_auto_replied", { to: label("cs_status_", e.data.to) });
+        } else if (e.type === "status") {
           icon = STATUS_LOOK[(e.data.to as CaseStatus) ?? "new"]?.icon ?? FlagIcon;
           text = tx("cs_ev_status", { from: label("cs_status_", e.data.from), to: label("cs_status_", e.data.to) });
         } else if (e.type === "assignment") {
@@ -329,6 +437,95 @@ function Timeline({ kase, events, tx, locale }: { kase: CaseDto; events: CaseEve
       })}
     </ol>
   );
+}
+
+const KIND_ICON: Record<string, Icon> = {
+  image: ImageIcon,
+  video: VideoCamera,
+  audio: Microphone,
+  sticker: Sticker,
+  file: Paperclip,
+  location: MapPin,
+  other: ChatCircleDots,
+};
+
+/** What the customer sent on LINE: text, a photo thumbnail, a player, or an icon + label for the rest. */
+function InboundContent({ caseId, e, tx }: { caseId: string; e: CaseEventDto; tx: Tx }) {
+  const kind = typeof e.data.kind === "string" && e.data.kind in KIND_ICON ? e.data.kind : e.body ? "text" : "other";
+  const media = e.data.media && typeof e.data.media === "object" ? (e.data.media as { mime?: string; size?: number }) : null;
+  const url = media ? caseMediaUrl(caseId, e.id) : null;
+  if (kind === "text") return <p className="cs-bubble-body">{e.body}</p>;
+  if (kind === "image" && url) {
+    return (
+      <a className="cs-media-thumb" href={url} target="_blank" rel="noreferrer" title={tx("cs_media_open")}>
+        <img src={url} alt={tx("cs_kind_image")} loading="lazy" />
+      </a>
+    );
+  }
+  if (kind === "video" && url) return <video className="cs-media-video" src={url} controls preload="metadata" aria-label={tx("cs_kind_video")} />;
+  if (kind === "audio" && url) return <audio className="cs-media-audio" src={url} controls preload="none" aria-label={tx("cs_kind_audio")} />;
+  const I = KIND_ICON[kind] ?? ChatCircleDots;
+  const text = kind === "location" || kind === "file" ? e.body : null;
+  return (
+    <p className="cs-kind">
+      <span className="cs-kind-icon">
+        <I size={18} weight="duotone" aria-hidden />
+      </span>
+      <span className="cs-kind-text">{text || tx(`cs_kind_${kind}`)}</span>
+      {url ? (
+        <a className="cs-kind-act" href={url} download aria-label={tx("cs_media_download")} title={tx("cs_media_download")}>
+          <DownloadSimple size={16} weight="bold" aria-hidden />
+        </a>
+      ) : kind === "location" && e.body ? (
+        <a
+          className="cs-kind-act"
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.body)}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={tx("cs_map_open")}
+          title={tx("cs_map_open")}
+        >
+          <MapPin size={16} weight="bold" aria-hidden />
+        </a>
+      ) : null}
+    </p>
+  );
+}
+
+/** Delivery of a staff reply pushed to LINE: sent / failed (with reason) / only logged (OA not connected). */
+function LineDelivery({ e, tx }: { e: CaseEventDto; tx: Tx }) {
+  const d = e.data.delivery;
+  if (d === "sent") {
+    return (
+      <Tooltip title={tx("cs_line_delivered")}>
+        <span className="cs-dlv is-success" role="img" aria-label={tx("cs_line_delivered")}>
+          <CheckCircle size={16} weight="fill" />
+        </span>
+      </Tooltip>
+    );
+  }
+  if (d === "failed") {
+    const err = typeof e.data.error === "string" && e.data.error ? e.data.error : "";
+    return (
+      <Tooltip title={err ? `${tx("cs_line_delivery_failed")}: ${err}` : tx("cs_line_delivery_failed")}>
+        <span className="cs-delivery is-danger" tabIndex={0}>
+          <WarningCircle size={13} weight="fill" aria-hidden />
+          {tx("cs_line_delivery_failed")}
+        </span>
+      </Tooltip>
+    );
+  }
+  if (d === "not_connected") {
+    return (
+      <Tooltip title={tx("cs_line_not_connected")}>
+        <span className="cs-delivery is-neutral" tabIndex={0}>
+          <FloppyDisk size={13} aria-hidden />
+          {tx("cs_line_saved_only")}
+        </span>
+      </Tooltip>
+    );
+  }
+  return null;
 }
 
 function SysLine({ icon: I, text, when }: { icon: Icon; text: string; when: string }) {
@@ -360,7 +557,10 @@ function Composer({ kase, contacts }: { kase: CaseDto; contacts: CaseContact[] }
     return first ? [first.email.trim()] : [];
   }, [kase.contact, contacts]);
   const [mode, setMode] = useState<Mode>("reply");
-  const [via, setVia] = useState<Via>(kase.channel === "line" ? "line" : kase.channel === "phone" || kase.channel === "walk_in" ? "phone" : "email");
+  const [via, setVia] = useState<Via>(
+    kase.line || kase.channel === "line" ? "line" : kase.channel === "phone" || kase.channel === "walk_in" ? "phone" : "email",
+  );
+  const toLine = via === "line" && Boolean(kase.line?.connected);
   const [text, setText] = useState("");
   const [to, setTo] = useState<string[]>(defaultTo);
   const [subject, setSubject] = useState(`[${kase.caseNo}] ${kase.subject}`);
@@ -430,6 +630,9 @@ function Composer({ kase, contacts }: { kase: CaseDto; contacts: CaseContact[] }
       {
         onSuccess: (r) => {
           if (r.mail?.status === "failed") message.warning(tx("cs_send_failed", { error: r.mail.error ?? "" }));
+          else if (r.line?.delivery === "failed") message.warning(tx("cs_line_failed", { error: r.line.error ?? "" }));
+          else if (r.line?.delivery === "not_connected") message.info(tx("cs_line_not_connected"));
+          else if (r.line?.delivery === "sent") message.success(tx("cs_line_sent"));
           else message.success(tx(via === "email" ? "cs_sent" : "cs_logged"));
           reset();
         },
@@ -480,6 +683,19 @@ function Composer({ kase, contacts }: { kase: CaseDto; contacts: CaseContact[] }
               return { value: v, label: <span className="cs-opt"><I size={16} aria-hidden />{tx(`cs_ch_${v}`)}</span> };
             })}
           />
+          {via === "line" && kase.line ? (
+            <p className="cs-line-hint">
+              <LineAvatar name={kase.line.displayName || tx("cs_line_user")} pictureUrl={kase.line.pictureUrl} size={24} />
+              <span>{tx("cs_line_reply_in", { channel: kase.line.channelName })}</span>
+            </p>
+          ) : null}
+          {via === "line" && kase.line && !kase.line.connected ? (
+            <p className="cs-line-off">
+              <FloppyDisk size={14} aria-hidden />
+              <span>{tx("cs_line_off_note")}</span>
+            </p>
+          ) : null}
+          {via === "line" && !kase.line ? <p className="cs-quiet">{tx("cs_line_reply_log")}</p> : null}
           {via === "email" ? (
             <>
               <label className="cs-field">
@@ -524,12 +740,12 @@ function Composer({ kase, contacts }: { kase: CaseDto; contacts: CaseContact[] }
         )}
         <Button
           type="primary"
-          icon={mode === "note" ? <NotePencil size={16} /> : via === "email" ? <PaperPlaneTilt size={16} /> : <CheckCircle size={16} />}
+          icon={mode === "note" ? <NotePencil size={16} /> : via === "email" || toLine ? <PaperPlaneTilt size={16} /> : <CheckCircle size={16} />}
           disabled={!text.trim() || (mode === "reply" && via === "email" && !to.length)}
           loading={busy}
           onClick={send}
         >
-          {mode === "note" ? tx("cs_save_note") : via === "email" ? tx("cs_send_email") : tx("cs_log_reply")}
+          {mode === "note" ? tx("cs_save_note") : via === "email" ? tx("cs_send_email") : toLine ? tx("cs_send_line") : tx("cs_log_reply")}
         </Button>
       </div>
     </Panel>
@@ -548,10 +764,15 @@ function CustomerPanel({
   kase: CaseDto;
   contacts: CaseContact[];
   editable: boolean;
-  onPatch: (p: CasePatch) => void;
+  onPatch: (p: CasePatch, ok?: string) => void;
 }) {
   const { tx, locale } = useStore();
+  const { customers, nameOf } = useCustomerLookup();
   const name = customerLabel(kase, locale);
+  const customerOptions = useMemo(
+    () => customers.map((c) => ({ value: c.id, label: nameOf(c.id) })).sort((a, b) => a.label.localeCompare(b.label)),
+    [customers, nameOf],
+  );
   const contact = contacts.find((c) => c.id === kase.contactId) ?? null;
   const links: { key: "jobId" | "containerNo" | "bookingId"; icon: Icon; label: string; to?: string }[] = [];
   if (kase.jobId) links.push({ key: "jobId", icon: Boat, label: kase.jobNumber ?? "—", to: `/jobs/${kase.jobId}` });
@@ -560,11 +781,43 @@ function CustomerPanel({
 
   return (
     <Panel title={tx("cs_customer")}>
+      {kase.line ? (
+        <div className="cs-line-who">
+          <LineAvatar name={kase.line.displayName || tx("cs_line_user")} pictureUrl={kase.line.pictureUrl} size={40} />
+          <span className="cs-line-who-text">
+            <strong>{kase.line.displayName || tx("cs_line_user")}</strong>
+            <LineBadge label={kase.line.channelName} />
+          </span>
+        </div>
+      ) : null}
       {kase.customerId ? (
         <Link to={`/customers/${kase.customerId}`} className="cs-cust">
           <PersonAvatar name={name} size={40} />
           <strong>{name}</strong>
         </Link>
+      ) : editable ? (
+        <div className={`cs-link-cust${kase.line ? " is-prominent" : ""}`}>
+          <span className="cs-link-cust-label">
+            <LinkSimple size={16} weight="bold" aria-hidden />
+            {tx("cs_link_customer")}
+            {kase.line ? (
+              <Tooltip title={tx("cs_link_customer_tip")}>
+                <span className="cs-tip" tabIndex={0} role="img" aria-label={tx("cs_link_customer_tip")}>
+                  <Info size={15} aria-hidden />
+                </span>
+              </Tooltip>
+            ) : null}
+          </span>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder={tx("cs_link_customer_ph")}
+            options={customerOptions}
+            value={undefined}
+            onChange={(v: string) => onPatch({ customerId: v }, tx("cs_linked"))}
+            aria-label={tx("cs_link_customer")}
+          />
+        </div>
       ) : (
         <p className="cs-quiet">{tx("cs_no_customer")}</p>
       )}
@@ -630,6 +883,10 @@ function CustomerPanel({
 function ControlsPanel({ kase, editable, onPatch }: { kase: CaseDto; editable: boolean; onPatch: (p: CasePatch) => void }) {
   const { tx } = useStore();
   const assignees = useAssigneeOptions();
+  const { units } = useBusinessUnits();
+  const current = kase.businessUnit;
+  // Keep an archived unit selectable/visible while it is still on the case.
+  const unitList = current && !units.some((u) => u.id === current.id) ? [...units, current] : units;
   return (
     <Panel>
       <dl className="cs-controls">
@@ -685,6 +942,18 @@ function ControlsPanel({ kase, editable, onPatch }: { kase: CaseDto; editable: b
               const L = CATEGORY_LOOK[c];
               return { value: c, label: <span className="cs-opt"><L.icon size={14} weight="duotone" aria-hidden />{tx(`cs_cat_${c}`)}</span> };
             })}
+          />
+        </dd>
+        <dt>{tx("cs_unit")}</dt>
+        <dd>
+          <Select
+            value={kase.businessUnitId ?? undefined}
+            disabled={!editable}
+            allowClear
+            placeholder={<span className="cs-unit-none">{tx("cs_unit_none")}</span>}
+            onChange={(v) => onPatch({ businessUnitId: v ?? null })}
+            aria-label={tx("cs_unit")}
+            options={unitList.map((u) => ({ value: u.id, title: u.name, label: <UnitChip unit={u} size="sm" /> }))}
           />
         </dd>
       </dl>

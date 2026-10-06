@@ -1,0 +1,432 @@
+/* Case settings › LINE (company OAs) + the SLA duration editor. */
+
+.ln-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--success);
+}
+.ln-mark.is-off {
+  color: var(--ink-faint);
+}
+.ln-mark svg {
+  display: block;
+}
+
+.ln-manager {
+  display: grid;
+  gap: var(--space-sm);
+}
+.ln-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+.ln-add {
+  flex: 1 1 200px;
+}
+
+/* 3-step how-to */
+.ln-how {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+.ln-how li {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-xs);
+  border-radius: var(--radius);
+  background: var(--fill);
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.ln-how-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--success-soft);
+  color: var(--success);
+}
+.ln-how-icon b {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ln-how.is-compact li {
+  padding: var(--space-xs) 6px;
+  background: var(--paper);
+}
+
+/* OA cards */
+.ln-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ln-card {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.ln-card.is-off {
+  background: var(--fill);
+}
+.ln-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.ln-title {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ln-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+.ln-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ln-basic {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.ln-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ln-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ln-status.is-connected {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+.ln-status.is-connected i {
+  background: var(--primary);
+}
+.ln-status.is-not_connected {
+  background: var(--paper);
+  color: var(--ink-soft);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.ln-status.is-not_connected i {
+  border: 2px solid var(--ink-faint);
+}
+.ln-status.is-off {
+  background: var(--fill-strong);
+  color: var(--ink-faint);
+}
+.ln-status.is-off i {
+  background: var(--ink-faint);
+}
+
+.ln-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-sm);
+}
+.ln-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+.ln-stat b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ln-stat.is-hot {
+  color: var(--primary);
+}
+.ln-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.ln-webhook {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 2px 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  color: var(--ink-faint);
+}
+.ln-webhook code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-soft);
+  direction: ltr;
+}
+
+/* Test sender */
+.ln-test {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border-radius: var(--radius);
+  background: var(--success-soft);
+}
+.ln-test-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+.ln-test-name {
+  flex: 0 1 160px;
+  min-width: 120px;
+}
+.ln-test-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.ln-test-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.ln-test-result {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--primary-deep);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.ln-test-result:hover {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+.ln-test-result svg:first-child {
+  color: var(--success);
+}
+
+/* Add / edit form */
+.ln-form-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.ln-form-head strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+.ln-cred {
+  display: grid;
+  gap: 0;
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--fill);
+  min-width: 0;
+}
+.ln-cred > legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.ln-cred .ln-how {
+  margin-bottom: var(--space-sm);
+}
+.ln-cred .ant-form-item {
+  margin-bottom: var(--space-sm);
+}
+.ln-cred-webhook {
+  display: grid;
+  gap: 4px;
+  margin-bottom: var(--space-xs);
+}
+.ln-cred-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.ln-cred .ln-webhook {
+  background: var(--paper);
+}
+.ln-disconnect {
+  justify-self: start;
+  padding-inline: 0;
+}
+.ln-ack-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-sm);
+}
+.ln-ack-insert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.ln-var-chip {
+  padding: 1px 8px;
+  border: 1px dashed var(--primary);
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ln-active .ant-form-item-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.ln-active .ant-form-item-label {
+  padding: 0 !important;
+}
+.ln-form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.ln-form-foot-right {
+  display: inline-flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+/* SLA editor: one row per priority, two duration inputs */
+.sla-ed {
+  display: grid;
+  gap: var(--space-md);
+}
+.sla-ed-grid {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  font-size: 13px;
+}
+.sla-ed-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-faint);
+}
+.sla-ed-row {
+  display: contents;
+}
+.sla-ed-dur {
+  display: flex !important;
+  width: 100%;
+}
+.sla-ed-dur .ant-input-number {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sla-ed-dur .ant-select {
+  flex: 0 0 74px;
+}
+
+@media (max-width: 520px) {
+  .cs-tab-ico {
+    display: none;
+  }
+  .ln-how li {
+    font-size: 12px;
+  }
+  .ln-test-name {
+    flex: 1 1 100%;
+  }
+  .sla-ed-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .sla-ed-grid > .sla-ed-corner {
+    display: none;
+  }
+  .sla-ed-row > [role="rowheader"] {
+    grid-column: 1 / -1;
+    margin-top: var(--space-xs);
+  }
+}
+
+.sla-ed-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+}

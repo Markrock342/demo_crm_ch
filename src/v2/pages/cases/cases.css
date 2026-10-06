@@ -140,6 +140,117 @@
   color: var(--success);
 }
 
+/* Business unit chip + LINE marks */
+.cs-unit {
+  --tone: var(--ink-faint);
+  --tone-soft: var(--fill);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 1px 9px 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--tone-soft);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.cs-unit.is-sm {
+  padding: 0 7px 0 6px;
+  font-size: 12px;
+}
+.cs-unit.is-primary {
+  --tone: var(--primary);
+  --tone-soft: var(--primary-soft);
+}
+.cs-unit.is-info {
+  --tone: var(--info);
+  --tone-soft: var(--info-soft);
+}
+.cs-unit.is-success {
+  --tone: var(--success);
+  --tone-soft: var(--success-soft);
+}
+.cs-unit.is-warning {
+  --tone: var(--warning);
+  --tone-soft: var(--warning-soft);
+}
+.cs-unit.is-accent {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+}
+.cs-unit.is-danger {
+  --tone: var(--danger);
+  --tone-soft: var(--danger-soft);
+}
+.cs-unit-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex: none;
+}
+.cs-unit-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cs-unit-none {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.cs-line-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success);
+  flex: none;
+}
+.cs-line-badge.has-label {
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 8px 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--success-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.cs-line-badge.has-label > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cs-line-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.cs-line-avatar > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--fill);
+}
+.cs-line-avatar-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--success);
+  line-height: 0;
+}
+.cs-channel.is-line {
+  color: var(--success);
+}
+
 /* ── List page ───────────────────────────────── */
 
 .cs-page .cz-board {
@@ -166,6 +277,12 @@
 .cs-card-body .cs-cat-icon {
   width: 28px;
   height: 28px;
+}
+.cs-card-text {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
 }
 .cs-card-subject {
   color: var(--ink);
@@ -218,6 +335,43 @@
   border-radius: var(--radius);
 }
 
+.cs-line-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cs-line-toggle:hover,
+.cs-line-toggle:focus-visible {
+  border-color: var(--success);
+}
+.cs-line-toggle.is-on {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+.cs-line-toggle-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.cs-line-toggle.is-on .cs-line-toggle-n {
+  background: var(--paper);
+}
 .cs-overdue-toggle {
   display: inline-flex;
   align-items: center;
@@ -651,6 +805,164 @@
   color: var(--ink-faint);
 }
 
+/* LINE chat */
+.cs-timeline.is-chat {
+  max-height: min(68vh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 2px var(--space-xs);
+  scroll-padding-bottom: var(--space-sm);
+}
+.cs-chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-xs);
+  max-width: 85%;
+  min-width: 0;
+}
+.cs-chat-row.is-in {
+  justify-self: start;
+}
+.cs-chat-row.is-out {
+  justify-self: end;
+}
+.cs-chat-row > .cz-person,
+.cs-chat-row > .cs-line-avatar {
+  margin-bottom: 2px;
+}
+.cs-bubble.is-chat {
+  max-width: none;
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+}
+.cs-bubble.is-chat header {
+  flex-wrap: nowrap;
+  font-size: 12.5px;
+}
+.cs-bubble.is-chat header strong {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cs-bubble.is-chat .cs-bubble-body {
+  margin-top: 2px;
+}
+.cs-bubble.is-in.is-chat {
+  background: var(--fill);
+  border-color: transparent;
+}
+.cs-dlv {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.cs-dlv.is-success {
+  color: var(--success);
+}
+.cs-delivery {
+  flex: none;
+  white-space: nowrap;
+}
+.cs-delivery.is-neutral {
+  background: var(--fill);
+  color: var(--ink-soft);
+}
+.cs-media-thumb {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  line-height: 0;
+  background: var(--paper);
+}
+.cs-media-thumb img {
+  display: block;
+  max-width: min(260px, 58vw);
+  max-height: 260px;
+  object-fit: cover;
+}
+.cs-media-thumb:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.cs-media-video {
+  display: block;
+  margin-top: 6px;
+  max-width: min(320px, 100%);
+  max-height: 260px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+}
+.cs-media-audio {
+  display: block;
+  margin-top: 6px;
+  max-width: 100%;
+}
+.cs-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.cs-kind-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--primary);
+  flex: none;
+}
+.cs-kind-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cs-kind-act {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: var(--primary);
+  flex: none;
+}
+.cs-kind-act:hover,
+.cs-kind-act:focus-visible {
+  background: var(--primary-soft);
+}
+.cs-line-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cs-line-off {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
 /* Composer */
 .cs-composer .cz-panel-body {
   display: grid;
@@ -706,6 +1018,52 @@
 }
 .cs-cust:hover strong {
   color: var(--primary);
+}
+.cs-line-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  min-width: 0;
+}
+.cs-line-who-text {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
+}
+.cs-line-who-text strong {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cs-link-cust {
+  display: grid;
+  gap: 6px;
+}
+.cs-link-cust.is-prominent {
+  padding: var(--space-sm);
+  border: 1.5px dashed var(--primary);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+.cs-link-cust-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--primary-deep);
+}
+.cs-link-cust .ant-select {
+  width: 100%;
+}
+.cs-tip {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-faint);
+  cursor: help;
 }
 .cs-contact-select {
   width: 100%;
@@ -866,6 +1224,12 @@
   }
   .cs-bubble {
     max-width: 100%;
+  }
+  .cs-chat-row {
+    max-width: 92%;
+  }
+  .cs-timeline.is-chat {
+    max-height: 70vh;
   }
   .cs-step {
     min-width: 64px;

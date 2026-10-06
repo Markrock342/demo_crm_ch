@@ -1,0 +1,97 @@
+/* Business unit chips, swatches and picker (UnitChip.tsx). Tone vars --t / --t-soft / --t-ink come from graphics.css. */
+
+.cz-unit-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.cz-unit-more {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+.cz-unit-swatches {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cz-unit-swatch {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--t);
+  color: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+.cz-unit-swatch:hover {
+  box-shadow: 0 0 0 2px var(--t-soft), 0 0 0 3px var(--t);
+}
+.cz-unit-swatch.is-on {
+  box-shadow: 0 0 0 2px var(--t);
+}
+.cz-unit-swatch:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.cz-unit-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cz-unit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 12px 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.cz-unit-toggle > i {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--t);
+  color: var(--paper);
+}
+.cz-unit-toggle:hover {
+  border-color: var(--t);
+}
+.cz-unit-toggle.is-on {
+  border-color: var(--t);
+  background: var(--t-soft);
+  color: var(--t-ink);
+  font-weight: 600;
+}
+.cz-unit-toggle.is-on > i {
+  background: var(--t);
+}
+.cz-unit-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* A row of chips above other card content. */
+.cz-unit-row {
+  display: flex;
+  min-width: 0;
+  margin-bottom: 6px;
+}

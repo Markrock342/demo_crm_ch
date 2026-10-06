@@ -47,6 +47,8 @@ export const customers = pgTable("customers", {
   incoterms: text("incoterms"),
   customsBroker: boolean("customs_broker"),
   handlingNotes: text("handling_notes"),
+  /** Business unit ids (ธุรกิจในเครือ) this customer uses. */
+  businessUnits: jsonb("business_units").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

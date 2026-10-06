@@ -183,7 +183,7 @@ export function invoicesCsvUrl(p: InvoiceListParams & { ids?: string[]; lang?: s
 
 export type CustomerTab = "all" | "active" | "ar";
 export type CustomerMoney = { activeJobs: number; balance: number; currency: string; aging: { current: number; late: number; veryLate: number } };
-export type CustomerPageRow = Customer & { boxes?: number; arDays?: number; ownerUserId?: string | null; money: CustomerMoney };
+export type CustomerPageRow = Customer & { boxes?: number; arDays?: number; ownerUserId?: string | null; businessUnits?: string[]; money: CustomerMoney };
 export type CustomerPage = {
   items: CustomerPageRow[];
   total: number;
@@ -193,9 +193,9 @@ export type CustomerPage = {
   owners: string[];
 };
 
-export function fetchCustomersPage(p: { q?: string; tab?: CustomerTab; owner?: string; limit?: number; offset?: number }) {
+export function fetchCustomersPage(p: { q?: string; tab?: CustomerTab; owner?: string; unit?: string; limit?: number; offset?: number }) {
   return apiFetch<CustomerPage>(
-    `/api/customers${qs({ stats: 1, q: p.q?.trim(), tab: p.tab === "all" ? undefined : p.tab, owner: p.owner, limit: p.limit ?? 50, offset: p.offset })}`,
+    `/api/customers${qs({ stats: 1, q: p.q?.trim(), tab: p.tab === "all" ? undefined : p.tab, owner: p.owner, unit: p.unit, limit: p.limit ?? 50, offset: p.offset })}`,
   );
 }
 

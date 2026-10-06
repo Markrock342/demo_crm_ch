@@ -30,6 +30,7 @@ import {
   writeView,
 } from "../../components";
 import { useCan } from "../../hooks/useCan.ts";
+import { useBusinessUnits } from "../../hooks/useBusinessUnits.ts";
 import { useCaseStats, useCases } from "../../hooks/useCases.ts";
 import { useUserLookup } from "../../hooks/useUserLookup.ts";
 import { CaseCreateDrawer, type CasePrefill } from "./CaseCreateDrawer.tsx";
@@ -45,6 +46,7 @@ import {
   liveSla,
   useNow,
 } from "./caseLook.tsx";
+import { LineAvatar, LineBadge, UnitChip } from "./UnitChip.tsx";
 import "./cases.css";
 
 type Scope = "mine" | "all" | "unassigned";
@@ -56,6 +58,7 @@ export function CasesPage() {
   const can = useCan();
   const navigate = useNavigate();
   const { nameOf } = useUserLookup();
+  const { units, byId: unitById } = useBusinessUnits();
   const now = useNow();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState(() => readView("cases", "cards"));
@@ -67,6 +70,9 @@ export function CasesPage() {
   const priority = (CASE_PRIORITIES as readonly string[]).includes(params.get("priority") ?? "") ? (params.get("priority") as CasePriority) : undefined;
   const category = (CASE_CATEGORIES as readonly string[]).includes(params.get("category") ?? "") ? (params.get("category") as CaseCategory) : undefined;
   const overdue = params.get("overdue") === "1";
+  const unitParam = params.get("unit") ?? undefined;
+  const unit = unitParam === "none" || (unitParam && unitById.has(unitParam)) ? unitParam : units.length ? undefined : unitParam;
+  const lineOnly = params.get("channel") === "line";
   const statusParam = params.get("status") ?? "open";
   const listStatus = (["open", "all", ...CASE_STATUSES] as string[]).includes(statusParam) ? (statusParam as CaseListParams["status"]) : "open";
 
@@ -94,6 +100,8 @@ export function CasesPage() {
     priority,
     category,
     overdue,
+    unit,
+    channel: lineOnly ? "line" : undefined,
     q: q.trim() || undefined,
   };
   const listParams: CaseListParams = view === "cards" ? { ...common, status: "board", limit: 300 } : { ...common, status: listStatus, limit };
@@ -112,7 +120,8 @@ export function CasesPage() {
   const card = (c: CaseDto) => {
     const sla = liveSla(c, now);
     const tone = sla.current?.state === "breached" ? "danger" : sla.current?.state === "warning" ? "warning" : "default";
-    const cust = customerLabel(c, locale, tx("cs_no_customer"));
+    const cust = customerLabel(c, locale, "");
+    const lineName = c.line ? c.line.displayName || tx("cs_line_user") : "";
     const owner = c.assigneeUserId ? nameOf(c.assigneeUserId, "") : "";
     return (
       <EntityCard
@@ -123,10 +132,17 @@ export function CasesPage() {
         badge={<SlaChip t={sla.current ?? (c.status === "resolved" ? sla.resolve : null)} tx={tx} which={sla.active} />}
         footer={
           <span className="cs-card-foot">
-            <span className="cs-card-cust">
-              <PersonAvatar name={cust} size={22} />
-              <span>{cust}</span>
-            </span>
+            {cust || !c.line ? (
+              <span className="cs-card-cust">
+                <PersonAvatar name={cust || tx("cs_no_customer")} size={22} />
+                <span>{cust || tx("cs_no_customer")}</span>
+              </span>
+            ) : (
+              <span className="cs-card-cust">
+                <LineAvatar name={lineName} pictureUrl={c.line.pictureUrl} size={22} />
+                <span>{lineName}</span>
+              </span>
+            )}
             <span className="cs-card-meta">
               <ChannelIcon channel={c.channel} tx={tx} />
               <PriorityMeter priority={c.priority} tx={tx} />
@@ -147,7 +163,10 @@ export function CasesPage() {
       >
         <span className="cs-card-body">
           <CategoryIcon category={c.category} tx={tx} size={16} />
-          <span className="cs-card-subject">{c.subject}</span>
+          <span className="cs-card-text">
+            <span className="cs-card-subject">{c.subject}</span>
+            {c.businessUnit ? <UnitChip unit={c.businessUnit} size="sm" /> : null}
+          </span>
         </span>
       </EntityCard>
     );
@@ -171,14 +190,30 @@ export function CasesPage() {
       key: "customer",
       title: tx("cs_col_customer"),
       render: (_: unknown, c: CaseDto) => {
-        const n = customerLabel(c, locale, "—");
-        return (
+        const n = customerLabel(c, locale, "");
+        if (!n && c.line) {
+          const ln = c.line.displayName || tx("cs_line_user");
+          return (
+            <span className="cs-row-cust">
+              <LineAvatar name={ln} pictureUrl={c.line.pictureUrl} size={22} />
+              {ln}
+            </span>
+          );
+        }
+        return n ? (
           <span className="cs-row-cust">
             <PersonAvatar name={n} size={22} />
             {n}
           </span>
+        ) : (
+          <span className="cz-muted">—</span>
         );
       },
+    },
+    {
+      key: "unit",
+      title: tx("cs_col_unit"),
+      render: (_: unknown, c: CaseDto) => (c.businessUnit ? <UnitChip unit={c.businessUnit} size="sm" /> : <span className="cz-muted">—</span>),
     },
     {
       key: "status",
@@ -215,7 +250,7 @@ export function CasesPage() {
     },
   ];
 
-  const filtered = Boolean(q || priority || category || overdue || scope !== "mine");
+  const filtered = Boolean(q || priority || category || overdue || unit || lineOnly || scope !== "mine");
   const empty = (
     <EmptyState
       title={filtered ? tx("cs_empty_filtered") : tx("cs_empty_title")}
@@ -303,10 +338,38 @@ export function CasesPage() {
             onChange: (v) => setParam({ category: v }),
             width: 180,
           },
+          ...(units.length
+            ? [
+                {
+                  key: "unit",
+                  placeholder: tx("cs_unit"),
+                  value: unit,
+                  options: [
+                    ...units.map((u) => ({ value: u.id, label: u.name, count: s?.byUnit[u.id] })),
+                    { value: "none", label: tx("cs_unit_none"), count: s?.byUnit.none },
+                  ],
+                  onChange: (v: string | undefined) => setParam({ unit: v }),
+                  width: 160,
+                },
+              ]
+            : []),
         ]}
         onClear={() => setParams(new URLSearchParams({ scope: "mine" }), { replace: true })}
         extra={
           <>
+            <Tooltip title={tx("cs_line_filter")}>
+              <button
+                type="button"
+                className={`cs-line-toggle${lineOnly ? " is-on" : ""}`}
+                aria-pressed={lineOnly}
+                aria-label={tx("cs_line_filter")}
+                onClick={() => setParam({ channel: lineOnly ? undefined : "line" })}
+              >
+                <LineBadge size={16} />
+                <span>{tx("cs_ch_line")}</span>
+                {s?.byChannel?.line ? <span className="cs-line-toggle-n">{s.byChannel.line}</span> : null}
+              </button>
+            </Tooltip>
             <label className="cs-overdue-toggle">
               <Switch size="small" checked={overdue} onChange={(v) => setParam({ overdue: v ? "1" : undefined })} />
               <span>{tx("cs_overdue_only")}</span>

@@ -29,7 +29,7 @@ function likeEscape(s: string) {
 export async function listCustomersPage(
   db: Db,
   organizationId: string,
-  o: { q?: string; tab?: CustomerTab; owner?: string; limit: number; offset: number },
+  o: { q?: string; tab?: CustomerTab; owner?: string; unit?: string; limit: number; offset: number },
 ) {
   const where: SQL[] = [sql`cu.organization_id = ${organizationId}`];
   const q = o.q?.trim();
@@ -40,6 +40,7 @@ export async function listCustomersPage(
       OR cu.lane_zh ILIKE ${like} OR cu.lane_th ILIKE ${like} OR cu.lane_en ILIKE ${like} OR cu.owner ILIKE ${like})`);
   }
   if (o.owner) where.push(sql`cu.owner = ${o.owner}`);
+  if (o.unit) where.push(sql`cu.business_units ? ${o.unit}`);
   const tabF = o.tab === "active" ? sql`c.boxes > 0` : o.tab === "ar" ? sql`c.ar_days >= ${AR_WARN}` : sql`true`;
 
   const [head] = (await db.execute(sql`
@@ -130,7 +131,7 @@ export async function customerMoney(db: Db, organizationId: string, customerIds:
 }
 
 export function wantsPagedCustomers(get: (k: string) => string | undefined): boolean {
-  return ["tab", "owner", "stats"].some((k) => get(k) !== undefined);
+  return ["tab", "owner", "stats", "unit"].some((k) => get(k) !== undefined);
 }
 
 export function parseCustomerListQuery(get: (k: string) => string | undefined) {
@@ -139,6 +140,7 @@ export function parseCustomerListQuery(get: (k: string) => string | undefined) {
     q: get("q")?.slice(0, 100) || undefined,
     tab: (CUSTOMER_TABS as readonly string[]).includes(tab ?? "") ? (tab as CustomerTab) : undefined,
     owner: get("owner") || undefined,
+    unit: get("unit")?.slice(0, 80) || undefined,
     limit: Math.min(Math.max(Number(get("limit") || 50) || 50, 1), 200),
     offset: Math.max(Number(get("offset") || 0) || 0, 0),
   };

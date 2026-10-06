@@ -1,6 +1,7 @@
 import { asc, desc, eq, ilike, inArray, or, sql, and } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { contacts, customers, leads, opportunities, type LanePair } from "../db/schema/crm.js";
+import { businessUnits } from "../db/schema/inbox.js";
 import { users } from "../db/schema/auth.js";
 import { organizationMembers } from "../db/schema/tenancy.js";
 import {
@@ -53,6 +54,7 @@ export type CustomerDto = {
   incoterms: string | null;
   customsBroker: boolean | null;
   handlingNotes: string | null;
+  businessUnits: string[];
   createdAt: string;
   /** Customer portal sign-in is enabled (a hashed access code is stored). */
   portalAccess: boolean;
@@ -134,6 +136,7 @@ export function toCustomer(row: typeof customers.$inferSelect, boxes = 0): Custo
     incoterms: row.incoterms,
     customsBroker: row.customsBroker,
     handlingNotes: row.handlingNotes,
+    businessUnits: row.businessUnits ?? [],
     createdAt: row.createdAt.toISOString(),
     portalAccess: typeof row.portalPin === "string" && row.portalPin.startsWith("$2"),
   };
@@ -301,6 +304,7 @@ function profileColumns(input: CustomerPatchInput, present: (k: string) => boole
     "incoterms",
     "customsBroker",
     "handlingNotes",
+    "businessUnits",
   ] as const;
   for (const k of keys) {
     if (!present(k)) continue;
@@ -309,6 +313,17 @@ function profileColumns(input: CustomerPatchInput, present: (k: string) => boole
     (out as Record<string, unknown>)[k] = v;
   }
   return out;
+}
+
+/** Keeps only business unit ids that belong to the organization. */
+async function ownUnits(tx: Tx, organizationId: string, cols: Partial<typeof customers.$inferInsert>) {
+  if (!cols.businessUnits?.length) return cols;
+  const known = await tx
+    .select({ id: businessUnits.id })
+    .from(businessUnits)
+    .where(and(eq(businessUnits.organizationId, organizationId), inArray(businessUnits.id, cols.businessUnits)));
+  const ok = new Set(known.map((u) => u.id));
+  return { ...cols, businessUnits: cols.businessUnits.filter((id) => ok.has(id)) };
 }
 
 async function writeContacts(tx: Tx, customerId: string, list: ContactInput[], existingIds: Set<string>) {
@@ -371,7 +386,7 @@ export async function createCustomer(
         ownerUserId: input.ownerUserId ?? null,
         updated: stamp,
         arDays: 0,
-        ...profileColumns(input, present),
+        ...(await ownUnits(tx, organizationId, profileColumns(input, present))),
       })
       .returning();
     if (input.contacts?.length) await writeContacts(tx, id, input.contacts, new Set());
@@ -399,7 +414,7 @@ export async function updateCustomer(
       .limit(1);
     if (!before) return null;
 
-    const set: Partial<typeof customers.$inferInsert> = profileColumns(input, present);
+    const set: Partial<typeof customers.$inferInsert> = await ownUnits(tx, organizationId, profileColumns(input, present));
 
     if (present("nameZh") || present("nameTh") || present("nameEn")) {
       const typed = new Set(before.nameLangs ? before.nameLangs.split(",") : ["zh", "th", "en"]);

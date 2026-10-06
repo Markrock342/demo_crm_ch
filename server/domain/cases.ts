@@ -107,6 +107,30 @@ export function caseSla(c: CaseSlaInput, now = new Date()): CaseSla {
 }
 
 // ---------------------------------------------------------------------------
+// LINE inbox: first guess at a chat's category and container number
+
+/** ISO 6346 shape: 4 letters + 7 digits ("TCLU 330881-2" too). */
+const BOX_RE = /\b([A-Z]{3}[UJZ])\s?(\d{6})-?(\d)\b/i;
+
+export function findContainerNo(text: string): string | null {
+  const m = BOX_RE.exec(text);
+  return m ? `${m[1]}${m[2]}${m[3]}`.toUpperCase() : null;
+}
+
+const CATEGORY_HINTS: [CaseCategory, RegExp][] = [
+  ["complaint", /ร้องเรียน|เสียหาย|บุบ|แตก|รอนาน|นานมาก|ชั่วโมงแล้ว|ช้ามาก|ไม่พอใจ|complain|damage/i],
+  ["documents", /ใบเสร็จ|ใบแจ้งหนี้|ใบกำกับ|เอกสาร|d\/o|\bdo\b|eir|invoice|receipt/i],
+  ["pricing", /ราคา|ค่าบริการ|ค่าฝาก|ค่าภาระ|อัตรา|เท่าไร|เท่าไหร่|quote|rate/i],
+  ["status_inquiry", /สถานะ|ตู้|คิว|จอง|เช็ค|เช็ก|ถึง|ออก|เข้า|status|booking|container/i],
+];
+
+/** Cheap keyword guess so LINE cases land in a sensible column; staff can change it. */
+export function guessCategory(text: string): CaseCategory {
+  for (const [cat, re] of CATEGORY_HINTS) if (re.test(text)) return cat;
+  return findContainerNo(text) ? "status_inquiry" : "other";
+}
+
+// ---------------------------------------------------------------------------
 // Canned replies
 
 export const CANNED_VARIABLES = ["customer", "container", "eta", "vessel", "job", "agent"] as const;

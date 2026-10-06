@@ -4,10 +4,12 @@ import type { Db } from "../db/index.js";
 import { users } from "../db/schema/auth.js";
 import { cannedReplies, caseEvents, caseSlaPolicies, cases } from "../db/schema/cases.js";
 import { contacts, customers } from "../db/schema/crm.js";
+import { businessUnits, lineChannels, lineContacts } from "../db/schema/inbox.js";
 import { bookings, containers, jobs } from "../db/schema/operations.js";
 import { organizationMembers, organizations } from "../db/schema/tenancy.js";
 import {
   CASE_CATEGORIES,
+  CASE_CHANNELS,
   CASE_OPEN_STATUSES,
   CASE_PRIORITIES,
   caseSla,
@@ -22,8 +24,10 @@ import {
   type CaseStatus,
   type SlaPolicy,
 } from "../domain/cases.js";
+import { openSecret } from "../lib/secret-box.js";
 import { writeAudit } from "./audit.service.js";
 import { notifyCaseAssigned } from "./automation.service.js";
+import { pushLineWith } from "./line.service.js";
 import { normalizeRecipients, sendAndRecord, textToHtml } from "./outbound-mail.service.js";
 import { nextDocNumber } from "./sequence.service.js";
 
@@ -70,6 +74,12 @@ export type CaseDto = {
   bookingId: string | null;
   bookingNumber: string | null;
   sourceMailId: string | null;
+  businessUnitId: string | null;
+  businessUnit: { id: string; name: string; color: string | null } | null;
+  lineContactId: string | null;
+  /** The customer's LINE chat this case is answered in. */
+  /** connected = that OA has LINE credentials; false → replies are only logged, not sent. */
+  line: { displayName: string | null; pictureUrl: string | null; channelId: string; channelName: string; connected: boolean } | null;
   firstResponseDueAt: string | null;
   resolveDueAt: string | null;
   firstRespondedAt: string | null;
@@ -101,6 +111,13 @@ const caseSelect = {
   contactPhone: contacts.phone,
   jobNumber: jobs.jobNumber,
   bookingNumber: bookings.bookingNumber,
+  unitName: businessUnits.name,
+  unitColor: businessUnits.color,
+  lineName: lineContacts.displayName,
+  linePicture: lineContacts.pictureUrl,
+  lineChannelId: lineContacts.channelId,
+  lineChannelName: lineChannels.name,
+  lineConnected: sql<boolean>`(${lineChannels.active} and ${lineChannels.accessTokenEnc} is not null)`,
 };
 
 type CaseRow = {
@@ -113,6 +130,13 @@ type CaseRow = {
   contactPhone: string | null;
   jobNumber: string | null;
   bookingNumber: string | null;
+  unitName: string | null;
+  unitColor: string | null;
+  lineName: string | null;
+  linePicture: string | null;
+  lineChannelId: string | null;
+  lineChannelName: string | null;
+  lineConnected: boolean | null;
 };
 
 function toDto(r: CaseRow, now: Date): CaseDto {
@@ -137,6 +161,13 @@ function toDto(r: CaseRow, now: Date): CaseDto {
     bookingId: c.bookingId,
     bookingNumber: r.bookingNumber,
     sourceMailId: c.sourceMailId,
+    businessUnitId: c.businessUnitId,
+    businessUnit: c.businessUnitId && r.unitName !== null ? { id: c.businessUnitId, name: r.unitName, color: r.unitColor } : null,
+    lineContactId: c.lineContactId,
+    line:
+      c.lineContactId && r.lineChannelId
+        ? { displayName: r.lineName, pictureUrl: r.linePicture, channelId: r.lineChannelId, channelName: r.lineChannelName ?? "LINE", connected: Boolean(r.lineConnected) }
+        : null,
     firstResponseDueAt: iso(c.firstResponseDueAt),
     resolveDueAt: iso(c.resolveDueAt),
     firstRespondedAt: iso(c.firstRespondedAt),
@@ -160,7 +191,10 @@ function baseQuery(db: Db) {
     .leftJoin(customers, eq(cases.customerId, customers.id))
     .leftJoin(contacts, eq(cases.contactId, contacts.id))
     .leftJoin(jobs, eq(cases.jobId, jobs.id))
-    .leftJoin(bookings, eq(cases.bookingId, bookings.id));
+    .leftJoin(bookings, eq(cases.bookingId, bookings.id))
+    .leftJoin(businessUnits, eq(cases.businessUnitId, businessUnits.id))
+    .leftJoin(lineContacts, eq(cases.lineContactId, lineContacts.id))
+    .leftJoin(lineChannels, eq(lineContacts.channelId, lineChannels.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +276,15 @@ async function assertBooking(db: Db, organizationId: string, id: string) {
   return b;
 }
 
+async function assertUnit(db: Db, organizationId: string, id: string) {
+  const [u] = await db
+    .select({ id: businessUnits.id })
+    .from(businessUnits)
+    .where(and(eq(businessUnits.id, id), eq(businessUnits.organizationId, organizationId)))
+    .limit(1);
+  if (!u) throw new CaseInputError("unknown_business_unit", "businessUnitId");
+}
+
 /** Container numbers are free text (may be another line's box), normalized to upper case. */
 const normBox = (v: string | null | undefined) => clean(v)?.toUpperCase().replace(/\s+/g, "") ?? null;
 
@@ -257,6 +300,9 @@ export type CaseListFilter = {
   category?: CaseCategory;
   customerId?: string;
   jobId?: string;
+  /** A business unit id, or "none" for cases without one. */
+  businessUnitId?: string;
+  channel?: CaseChannel;
   overdue?: boolean;
   q?: string;
   limit?: number;
@@ -288,6 +334,9 @@ function filterConds(organizationId: string, actor: CaseActor, f: CaseListFilter
   if (f.category) conds.push(eq(cases.category, f.category));
   if (f.customerId) conds.push(eq(cases.customerId, f.customerId));
   if (f.jobId) conds.push(eq(cases.jobId, f.jobId));
+  if (f.businessUnitId === "none") conds.push(isNull(cases.businessUnitId));
+  else if (f.businessUnitId) conds.push(eq(cases.businessUnitId, f.businessUnitId));
+  if (f.channel) conds.push(eq(cases.channel, f.channel));
   if (f.overdue) conds.push(breachedSql(now));
   if (f.q?.trim()) {
     const l = like(f.q);
@@ -301,6 +350,7 @@ function filterConds(organizationId: string, actor: CaseActor, f: CaseListFilter
         ilike(customers.nameZh, l),
         ilike(jobs.jobNumber, l),
         ilike(bookings.bookingNumber, l),
+        ilike(lineContacts.displayName, l),
       ),
     );
   }
@@ -333,6 +383,7 @@ export async function listCases(db: Db, organizationId: string, actor: CaseActor
       .leftJoin(customers, eq(cases.customerId, customers.id))
       .leftJoin(jobs, eq(cases.jobId, jobs.id))
       .leftJoin(bookings, eq(cases.bookingId, bookings.id))
+      .leftJoin(lineContacts, eq(cases.lineContactId, lineContacts.id))
       .where(where),
     db
       .select({ status: cases.status, n: sql<number>`count(*)::int` })
@@ -340,6 +391,7 @@ export async function listCases(db: Db, organizationId: string, actor: CaseActor
       .leftJoin(customers, eq(cases.customerId, customers.id))
       .leftJoin(jobs, eq(cases.jobId, jobs.id))
       .leftJoin(bookings, eq(cases.bookingId, bookings.id))
+      .leftJoin(lineContacts, eq(cases.lineContactId, lineContacts.id))
       .where(and(...base))
       .groupBy(cases.status),
   ]);
@@ -358,7 +410,7 @@ export async function caseStats(db: Db, organizationId: string, actor: CaseActor
   const n = now.toISOString();
   const today = sql`(${n}::timestamptz at time zone ${tz})::date`;
   const org = eq(cases.organizationId, organizationId);
-  const [[agg], byCat, byPri] = await Promise.all([
+  const [[agg], byCat, byPri, byUnitRows, byChan] = await Promise.all([
     db
       .select({
         open: sql<number>`count(*) filter (where ${cases.status} in ('new','in_progress','waiting_customer'))::int`,
@@ -386,6 +438,16 @@ export async function caseStats(db: Db, organizationId: string, actor: CaseActor
       .from(cases)
       .where(and(org, inArray(cases.status, OPEN_LIST)))
       .groupBy(cases.priority),
+    db
+      .select({ key: cases.businessUnitId, n: sql<number>`count(*)::int` })
+      .from(cases)
+      .where(and(org, inArray(cases.status, OPEN_LIST)))
+      .groupBy(cases.businessUnitId),
+    db
+      .select({ key: cases.channel, n: sql<number>`count(*)::int` })
+      .from(cases)
+      .where(and(org, inArray(cases.status, OPEN_LIST)))
+      .groupBy(cases.channel),
   ]);
   const fill = (keys: readonly string[], rows: { key: string; n: number }[]) =>
     Object.fromEntries(keys.map((k) => [k, rows.find((r) => r.key === k)?.n ?? 0]));
@@ -400,6 +462,9 @@ export async function caseStats(db: Db, organizationId: string, actor: CaseActor
     firstResponseMetRate: agg && agg.responded30 ? Math.round((agg.respondedOnTime30 / agg.responded30) * 100) : null,
     byCategory: fill(CASE_CATEGORIES, byCat),
     byPriority: fill(CASE_PRIORITIES, byPri),
+    /** Open cases per business unit id ("none" = untagged). */
+    byUnit: Object.fromEntries(byUnitRows.map((r) => [r.key ?? "none", r.n])),
+    byChannel: fill(CASE_CHANNELS, byChan),
   };
 }
 
@@ -442,10 +507,11 @@ async function addEvent(
   body: string | null,
   data: Record<string, unknown> = {},
   mailId: string | null = null,
+  at?: Date,
 ) {
   const [row] = await db
     .insert(caseEvents)
-    .values({ id: `ce_${randomUUID()}`, organizationId, caseId, type, body, data, userId, mailId })
+    .values({ id: `ce_${randomUUID()}`, organizationId, caseId, type, body, data, userId, mailId, ...(at ? { createdAt: at } : {}) })
     .returning();
   return toEventDto(row!);
 }
@@ -466,9 +532,13 @@ export type CaseInput = {
   containerNo?: string | null;
   bookingId?: string | null;
   sourceMailId?: string | null;
+  businessUnitId?: string | null;
 };
 
-export async function createCase(db: Db, organizationId: string, actor: CaseActor, input: CaseInput, now = new Date()) {
+/** Cases opened by the system (a LINE message) have no actor: unassigned, created by nobody. */
+type SystemCaseInput = CaseInput & { lineContactId?: string | null };
+
+export async function createCase(db: Db, organizationId: string, actor: CaseActor | null, input: SystemCaseInput, now = new Date()) {
   let customerId = clean(input.customerId);
   if (customerId) await assertCustomer(db, organizationId, customerId);
   const contactId = clean(input.contactId);
@@ -481,8 +551,10 @@ export async function createCase(db: Db, organizationId: string, actor: CaseActo
   if (jobId) customerId ??= (await assertJob(db, organizationId, jobId)).customerId;
   const bookingId = clean(input.bookingId);
   if (bookingId) customerId ??= (await assertBooking(db, organizationId, bookingId)).customerId;
-  const assigneeUserId = input.assigneeUserId === undefined ? actor.userId : input.assigneeUserId || null;
+  const assigneeUserId = input.assigneeUserId === undefined ? (actor?.userId ?? null) : input.assigneeUserId || null;
   if (assigneeUserId) await assertMember(db, organizationId, assigneeUserId, "assigneeUserId");
+  const businessUnitId = clean(input.businessUnitId);
+  if (businessUnitId) await assertUnit(db, organizationId, businessUnitId);
 
   const priority = input.priority ?? "normal";
   const policy = await getSlaPolicy(db, organizationId);
@@ -503,21 +575,23 @@ export async function createCase(db: Db, organizationId: string, actor: CaseActo
     description: clean(input.description),
     assigneeUserId,
     assignedAt: assigneeUserId ? now : null,
-    assignedBy: assigneeUserId ? actor.userId : null,
+    assignedBy: assigneeUserId ? (actor?.userId ?? null) : null,
     jobId,
     containerNo: normBox(input.containerNo),
     bookingId,
     sourceMailId: clean(input.sourceMailId),
+    businessUnitId,
+    lineContactId: clean(input.lineContactId),
     firstResponseDueAt: due.firstResponseDueAt,
     resolveDueAt: due.resolveDueAt,
-    createdBy: actor.userId,
+    createdBy: actor?.userId ?? null,
     createdAt: now,
     updatedAt: now,
   });
-  await addEvent(db, organizationId, id, actor.userId, "created", null, { channel: input.channel ?? "phone", assignee: assigneeUserId });
+  await addEvent(db, organizationId, id, actor?.userId ?? null, "created", null, { channel: input.channel ?? "phone", assignee: assigneeUserId }, null, now);
   const dto = (await loadCase(db, organizationId, id, now))!;
-  await writeAudit(db, { userId: actor.userId, organizationId, action: "CASE_CREATED", entityType: "case", entityId: id, newValue: dto });
-  if (assigneeUserId && assigneeUserId !== actor.userId) await notifyCaseAssigned(db, organizationId, dto, actor.userId, now);
+  await writeAudit(db, { userId: actor?.userId ?? null, organizationId, action: "CASE_CREATED", entityType: "case", entityId: id, newValue: dto });
+  if (actor && assigneeUserId && assigneeUserId !== actor.userId) await notifyCaseAssigned(db, organizationId, dto, actor.userId, now);
   return dto;
 }
 
@@ -557,6 +631,14 @@ export async function updateCase(db: Db, organizationId: string, actor: CaseActo
       set.assignedBy = next ? actor.userId : null;
       assignedTo = next;
       events.push({ type: "assignment", data: { from: before.assigneeUserId, to: next } });
+    }
+  }
+
+  if (patch.businessUnitId !== undefined) {
+    const v = clean(patch.businessUnitId);
+    if (v !== before.businessUnitId) {
+      if (v) await assertUnit(db, organizationId, v);
+      set.businessUnitId = v;
     }
   }
 
@@ -645,6 +727,16 @@ export async function updateCase(db: Db, organizationId: string, actor: CaseActo
     await addEvent(db, organizationId, id, actor.userId, ev.type, null, ev.data);
   }
 
+  // A LINE chat linked to a customer stays linked: that chat's next cases arrive with the customer set.
+  if (before.lineContactId && (set.customerId !== undefined || set.contactId !== undefined)) {
+    const customerId = set.customerId !== undefined ? set.customerId : before.customerId;
+    const contactId = set.contactId !== undefined ? set.contactId : customerId === before.customerId ? before.contactId : null;
+    await db
+      .update(lineContacts)
+      .set({ customerId: customerId ?? null, contactId: contactId ?? null, updatedAt: now })
+      .where(and(eq(lineContacts.id, before.lineContactId), eq(lineContacts.organizationId, organizationId)));
+  }
+
   const after = (await loadCase(db, organizationId, id, now))!;
   await writeAudit(db, { userId: actor.userId, organizationId, action: "CASE_UPDATED", entityType: "case", entityId: id, oldValue: before, newValue: after });
   if (assignedTo && assignedTo !== actor.userId) await notifyCaseAssigned(db, organizationId, after, actor.userId, now);
@@ -671,7 +763,7 @@ export async function addCaseNote(db: Db, organizationId: string, actor: CaseAct
 // Reply to the customer
 
 export type ReplyInput = {
-  /** email = sent through the outbound mail service; phone / line = logged only. */
+  /** email = sent through the outbound mail service; line = pushed to the case's LINE chat when it has one; phone = logged only. */
   via: "email" | "phone" | "line";
   body: string;
   to?: string[];
@@ -723,7 +815,26 @@ export async function replyToCase(db: Db, organizationId: string, actor: CaseAct
     mail = { id: rec.id, status: rec.status, error: rec.error, to: rec.to, cc: rec.cc, subject };
   }
 
-  const delivered = input.via !== "email" || mail?.status === "sent";
+  // LINE: push into the customer's chat on the OA the case came from.
+  // An OA without credentials (demo / not set up yet) only logs the reply, like a phone call.
+  let line: { delivery: "sent" | "failed" | "not_connected"; error: string | null; channel: string } | null = null;
+  if (input.via === "line" && kase.lineContactId) {
+    const [target] = await db
+      .select({ lineUserId: lineContacts.lineUserId, token: lineChannels.accessTokenEnc, channel: lineChannels.name, active: lineChannels.active })
+      .from(lineContacts)
+      .innerJoin(lineChannels, eq(lineContacts.channelId, lineChannels.id))
+      .where(and(eq(lineContacts.id, kase.lineContactId), eq(lineContacts.organizationId, organizationId)))
+      .limit(1);
+    const token = target?.active ? openSecret(target.token) : null;
+    if (!target || !token) {
+      line = { delivery: "not_connected", error: null, channel: target?.channel ?? "LINE" };
+    } else {
+      const res = await pushLineWith(token, target.lineUserId, body);
+      line = { delivery: res.ok ? "sent" : "failed", error: res.error, channel: target.channel };
+    }
+  }
+
+  const delivered = input.via === "email" ? mail?.status === "sent" : line?.delivery !== "failed";
   const event = await addEvent(
     db,
     organizationId,
@@ -733,7 +844,9 @@ export async function replyToCase(db: Db, organizationId: string, actor: CaseAct
     body,
     mail
       ? { via: "email", to: mail.to, cc: mail.cc, subject: mail.subject, delivery: mail.status, error: mail.error }
-      : { via: input.via },
+      : line
+        ? { via: "line", channel: line.channel, delivery: line.delivery, error: line.error }
+        : { via: input.via },
     mail?.id ?? null,
   );
 
@@ -745,7 +858,7 @@ export async function replyToCase(db: Db, organizationId: string, actor: CaseAct
   const after = nextStatus && nextStatus !== kase.status
     ? await updateCase(db, organizationId, actor, id, { status: nextStatus }, now)
     : await loadCase(db, organizationId, id, now);
-  return { event, mail, case: after! };
+  return { event, mail, line, case: after! };
 }
 
 // ---------------------------------------------------------------------------

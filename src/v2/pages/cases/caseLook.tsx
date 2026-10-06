@@ -83,8 +83,8 @@ export function ChannelIcon({ channel, tx, size = 16 }: { channel: CaseChannel; 
   const I = CHANNEL_ICON[channel] ?? ChatCircleDots;
   return (
     <Tooltip title={tx(`cs_ch_${channel}`)}>
-      <span className="cs-channel" role="img" aria-label={tx(`cs_ch_${channel}`)}>
-        <I size={size} />
+      <span className={`cs-channel${channel === "line" ? " is-line" : ""}`} role="img" aria-label={tx(`cs_ch_${channel}`)}>
+        <I size={size} weight={channel === "line" ? "fill" : "regular"} />
       </span>
     </Tooltip>
   );

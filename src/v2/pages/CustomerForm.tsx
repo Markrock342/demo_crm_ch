@@ -49,6 +49,8 @@ import { cityName } from "../../data";
 import { useStore } from "../../store";
 import { useMedia } from "../../ui/useMedia";
 import { Flag, IconBadge, PersonAvatar } from "../components";
+import { UnitPicker } from "../components/UnitPicker.tsx";
+import { useBusinessUnits } from "../hooks/useBusinessUnits.ts";
 import { userDisplayName, useUserLookup } from "../hooks/useUserLookup.ts";
 import { queryKeys } from "../queries/keys.ts";
 import { SALES_PORTS, laneRoute, portName } from "./salesUtil.ts";
@@ -114,6 +116,7 @@ type FormValues = {
   billingEmail?: string;
   lanes: LaneRow[];
   containerTypes: string[];
+  businessUnits?: string[];
   commodities: string[];
   incoterms?: string;
   customsBroker?: "yes" | "no";
@@ -242,6 +245,7 @@ function initialValues(c: CustomerDetail | null | undefined, ownerId: string | u
       creditTermDays: 30,
       lanes: [{}],
       containerTypes: [],
+      businessUnits: [],
       commodities: [],
       contacts: [{ primary: true }],
     };
@@ -277,6 +281,7 @@ function initialValues(c: CustomerDetail | null | undefined, ownerId: string | u
     billingEmail: c.billingEmail ?? undefined,
     lanes,
     containerTypes: c.containerTypes ?? [],
+    businessUnits: c.businessUnits ?? [],
     commodities: c.commodities ?? [],
     incoterms: c.incoterms ?? undefined,
     customsBroker: c.customsBroker === true ? "yes" : c.customsBroker === false ? "no" : undefined,
@@ -331,6 +336,8 @@ function toPayload(v: FormValues, initial: FormValues, editing: boolean): Custom
     handlingNotes: trimOrNull(v.handlingNotes),
     contacts,
   };
+  // Only when the picker was on screen (the company has business units).
+  if (v.businessUnits) out.businessUnits = v.businessUnits;
   // City is stored per language on older rows; only overwrite it when the person changed it.
   if (!editing || (v.city ?? "") !== (initial.city ?? "")) out.city = trimOrNull(v.city);
   if (lanes.length) {
@@ -391,6 +398,9 @@ export function CustomerFormDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [customer?.id, open],
   );
+  // Business units (ธุรกิจในเครือ): active ones, plus archived ones this customer already has.
+  const bu = useBusinessUnits(true);
+  const unitChoices = bu.units.filter((u) => !u.archived || initial.businessUnits?.includes(u.id));
 
   useEffect(() => {
     if (open) {
@@ -583,6 +593,12 @@ export function CustomerFormDrawer({
             <Form.Item name="businessType" label={tx("cust_businessType")}>
               <ChoiceCards label={tx("cust_businessType")} options={BUSINESS_TYPES.map((b) => ({ value: b, label: tx(`cust_bt_${b}`), icon: BUSINESS_ICON[b]! }))} />
             </Form.Item>
+
+            {unitChoices.length ? (
+              <Form.Item name="businessUnits" label={tx("inb_units_title")} tooltip={tx("inb_units_hint")}>
+                <UnitPicker units={unitChoices} label={tx("inb_units_title")} />
+              </Form.Item>
+            ) : null}
 
             <div className="cf-grid">
               <Form.Item name="ownerUserId" label={tx("cust_owner")} rules={[{ required: true, message: tx("cust_ownerPh") }]}>

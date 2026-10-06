@@ -120,6 +120,12 @@ const customerFields = z.object({
   incoterms: enumOrNull(INCOTERMS),
   customsBroker: z.boolean().nullish(),
   handlingNotes: text(2000),
+  /** Business unit ids (ธุรกิจในเครือ); unknown ids are dropped by the service. */
+  businessUnits: z
+    .array(z.string().trim().min(1).max(80))
+    .max(20)
+    .optional()
+    .transform((v) => (v ? [...new Set(v)] : undefined)),
 
   contacts: z.array(contactInputSchema).max(50).optional(),
 

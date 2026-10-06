@@ -305,6 +305,10 @@ describe("case APIs (HTTP, local DB)", () => {
       assert.equal((await call(salesTok, "POST", "/api/cases", { subject: marker })).status, 403);
       assert.equal((await call(salesTok, "GET", "/api/cases")).status, 200);
 
+      // The demo company's own SLA targets (seeded: 30-minute first response).
+      const policy = (await json<{ policy: Record<string, { firstResponseMinutes: number; resolveMinutes: number }> }>(call(csTok, "GET", "/api/cases/sla"))).policy;
+      const M = 60_000;
+
       // CS creates an urgent case on a job: customer inherited, assignee defaults to self, SLA from priority.
       const res = await call(csTok, "POST", "/api/cases", {
         subject: `${marker} where is my box`,
@@ -322,8 +326,8 @@ describe("case APIs (HTTP, local DB)", () => {
       assert.equal(k.containerNo, "TCLU3308812");
       assert.equal(k.assigneeUserId, cs.id);
       assert.equal(k.status, "new");
-      assert.equal(new Date(k.firstResponseDueAt).getTime() - new Date(k.createdAt).getTime(), 1 * H);
-      assert.equal(new Date(k.resolveDueAt).getTime() - new Date(k.createdAt).getTime(), 4 * H);
+      assert.equal(new Date(k.firstResponseDueAt).getTime() - new Date(k.createdAt).getTime(), policy.urgent!.firstResponseMinutes * M);
+      assert.equal(new Date(k.resolveDueAt).getTime() - new Date(k.createdAt).getTime(), policy.urgent!.resolveMinutes * M);
       assert.equal(k.sla.active, "first");
 
       // List filters + counts.
@@ -338,7 +342,7 @@ describe("case APIs (HTTP, local DB)", () => {
       // Reassign to admin → a "case_assigned" notification for admin.
       const assigned = await json<{ case: CaseBody }>(call(csTok, "PATCH", `/api/cases/${k.id}`, { assigneeUserId: admin.id, priority: "high" }));
       assert.equal(assigned.case.assigneeUserId, admin.id);
-      assert.equal(new Date(assigned.case.resolveDueAt).getTime() - new Date(k.createdAt).getTime(), 24 * H);
+      assert.equal(new Date(assigned.case.resolveDueAt).getTime() - new Date(k.createdAt).getTime(), policy.high!.resolveMinutes * M);
       const notes = await db
         .select({ kind: notifications.kind })
         .from(notifications)

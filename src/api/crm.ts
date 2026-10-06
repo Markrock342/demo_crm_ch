@@ -57,6 +57,8 @@ export type CustomerProfile = {
   billingEmail: string | null;
   preferredLanes: LanePair[];
   containerTypes: string[];
+  /** Business unit ids (ธุรกิจในเครือ) this customer uses. */
+  businessUnits: string[];
   commodities: string[];
   incoterms: string | null;
   customsBroker: boolean | null;
@@ -106,6 +108,7 @@ export type CustomerInput = {
   billingEmail?: string | null;
   preferredLanes?: LanePair[];
   containerTypes?: string[];
+  businessUnits?: string[];
   commodities?: string[];
   incoterms?: string | null;
   customsBroker?: boolean | null;
