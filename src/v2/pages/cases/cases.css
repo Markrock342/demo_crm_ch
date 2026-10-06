@@ -849,6 +849,14 @@
 }
 
 @media (max-width: 640px) {
+  /* One status column per screen on phones; swipe snaps to the next column. */
+  .cs-page .cz-board {
+    grid-auto-columns: 86vw;
+    scroll-snap-type: x mandatory;
+  }
+  .cs-page .cz-board-col {
+    scroll-snap-align: start;
+  }
   .cs-timers {
     grid-template-columns: minmax(0, 1fr);
   }
