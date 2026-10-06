@@ -1,7 +1,7 @@
-import { Bank, Buildings, FileText, ImageSquare, MapPin, Receipt } from "@phosphor-icons/react";
+import { Bank, Buildings, FileText, ImageSquare, MapPin, Receipt, UploadSimple } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Form, Input, Radio, Select } from "antd";
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   organizationLogoUrl,
   removeOrganizationLogo,
@@ -12,10 +12,14 @@ import {
 } from "../../api/admin.ts";
 import { useAuth } from "../../auth/AuthProvider";
 import { useStore } from "../../store";
-import { ErrorState, IconBadge, LoadingState, type GraphicTone } from "../../v2/components";
+import { BrandMark, ErrorState, IconBadge, LoadingState, type GraphicTone } from "../../v2/components";
+import { publicBrandingQueryKey, useSquareIcon } from "../../v2/hooks/useBranding.ts";
 import { organizationDisplayName, organizationQueryKey, useOrganization } from "../../v2/hooks/useOrganization.ts";
 import { errorText } from "./shared.tsx";
 import type { Icon } from "@phosphor-icons/react";
+
+/** Same rule as the server (magic bytes): PNG / JPEG only — SVG can carry scripts, WebP does not embed in PDFs. */
+const LOGO_ACCEPT = ["image/png", "image/jpeg"];
 
 const CURRENCIES = ["THB", "USD", "CNY", "EUR", "SGD", "HKD", "JPY", "MYR", "VND"];
 
@@ -38,57 +42,119 @@ function LogoPicker({ org, canEdit }: { org: Organization; canEdit: boolean }) {
   const { message } = App.useApp();
   const qc = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const onSaved = (o: Organization) => {
+    qc.setQueryData(organizationQueryKey, o);
+    void qc.invalidateQueries({ queryKey: publicBrandingQueryKey });
+  };
   const upload = useMutation({
     mutationFn: uploadOrganizationLogo,
     onSuccess: (o) => {
-      qc.setQueryData(organizationQueryKey, o);
+      onSaved(o);
       message.success(tx("adm_saved"));
     },
     onError: (e) => message.error(errorText(tx, e)),
   });
   const remove = useMutation({
     mutationFn: removeOrganizationLogo,
-    onSuccess: (o) => qc.setQueryData(organizationQueryKey, o),
+    onSuccess: onSaved,
     onError: (e) => message.error(errorText(tx, e)),
   });
   const url = organizationLogoUrl(org);
   const name = organizationDisplayName(org, locale);
+  const tabIcon = useSquareIcon(url);
+  const [ratio, setRatio] = useState(1);
+
+  function pick(f: File | undefined) {
+    if (!f) return;
+    if (!LOGO_ACCEPT.includes(f.type)) return void message.error(tx("adm_err_logo_invalid_type"));
+    if (f.size > 1024 * 1024) return void message.error(tx("adm_err_logo_too_large"));
+    upload.mutate(f);
+  }
+
+  const frame = url ? <img src={url} alt={name} /> : <ImageSquare size={32} aria-hidden />;
 
   return (
-    <div className="adm-logo">
-      <div className="adm-logo-frame" aria-label={tx("adm_logo")}>
-        {url ? <img src={url} alt={name} /> : <ImageSquare size={32} aria-hidden />}
-      </div>
-      <div className="adm-logo-side">
-        <strong>{tx("adm_logo")}</strong>
-        <span className="cz-muted adm-small">{tx("adm_logoHint")}</span>
+    <section className="adm-brand" aria-label={tx("adm_logo")}>
+      <div className="adm-logo">
         {canEdit ? (
-          <span className="adm-actions">
-            <Button size="small" loading={upload.isPending} onClick={() => input.current?.click()}>
-              {url ? tx("adm_logoReplace") : tx("adm_logoUpload")}
-            </Button>
-            {url ? (
-              <Button size="small" type="text" danger loading={remove.isPending} onClick={() => remove.mutate()}>
-                {tx("adm_logoRemove")}
+          <button
+            type="button"
+            className={`adm-logo-frame is-drop${over ? " is-over" : ""}`}
+            onClick={() => input.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              pick(e.dataTransfer.files?.[0]);
+            }}
+            aria-label={url ? tx("adm_logoReplace") : tx("adm_logoUpload")}
+            disabled={upload.isPending}
+          >
+            {frame}
+            {!url ? <UploadSimple size={16} className="adm-logo-plus" aria-hidden /> : null}
+          </button>
+        ) : (
+          <div className="adm-logo-frame">{frame}</div>
+        )}
+        <div className="adm-logo-side">
+          <strong>{tx("adm_logo")}</strong>
+          <span className="cz-muted adm-small">{tx("brand_logoHint")}</span>
+          <span className="cz-muted adm-small">{tx("brand_logoWhere")}</span>
+          {canEdit ? (
+            <span className="adm-actions">
+              <Button size="small" type={url ? "default" : "primary"} icon={<UploadSimple size={14} aria-hidden />} loading={upload.isPending} onClick={() => input.current?.click()}>
+                {url ? tx("adm_logoReplace") : tx("adm_logoUpload")}
               </Button>
-            ) : null}
-            <input
-              ref={input}
-              type="file"
-              accept="image/png,image/jpeg"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (!f) return;
-                if (f.size > 1024 * 1024) return void message.error(tx("adm_err_logo_too_large"));
-                upload.mutate(f);
-              }}
-            />
-          </span>
-        ) : null}
+              {url ? (
+                <Button size="small" type="text" danger loading={remove.isPending} onClick={() => remove.mutate()}>
+                  {tx("adm_logoRemove")}
+                </Button>
+              ) : null}
+              <input
+                ref={input}
+                type="file"
+                accept={LOGO_ACCEPT.join(",")}
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  pick(f);
+                }}
+              />
+            </span>
+          ) : null}
+        </div>
       </div>
-    </div>
+
+      <div className="adm-brand-pv" role="group" aria-label={tx("brand_preview")}>
+        <figure>
+          <div className={`adm-pv-side${url && ratio >= 1.8 ? " is-stacked" : ""}`}>
+            <BrandMark name={name} logoUrl={url} size={40} fit="auto" maxRatio={4.4} onRatio={setRatio} decorative />
+            <strong>{name}</strong>
+          </div>
+          <figcaption>{tx("brand_previewSidebar")}</figcaption>
+        </figure>
+        <figure>
+          <div className="adm-pv-narrow">
+            <BrandMark name={name} logoUrl={url} size={40} decorative />
+          </div>
+          <figcaption>{tx("brand_previewCollapsed")}</figcaption>
+        </figure>
+        <figure>
+          <div className="adm-pv-tab">
+            <img src={tabIcon ?? "/favicon.svg"} alt="" width={16} height={16} />
+            <span>{name}</span>
+          </div>
+          <figcaption>{tx("brand_previewTab")}</figcaption>
+        </figure>
+      </div>
+      {!url ? <p className="cz-muted adm-small adm-brand-note">{tx("brand_noLogo")}</p> : null}
+    </section>
   );
 }
 

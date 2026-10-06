@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Hono } from "hono";
+import { getBranding, quoteTokenOrganizationId } from "../services/branding.service.js";
 import { getDb, hasDatabase } from "../db/index.js";
 import { authMiddleware, requireAuth, requirePermission, requireTenant, type AuthEnv } from "../middleware/auth.js";
 import { writeAudit } from "../services/audit.service.js";
@@ -814,9 +815,12 @@ export function publicQuoteRoutes() {
     if (!hasDatabase()) return c.json({ error: "database_unconfigured" }, 503);
     const db = getDb();
     if (!db) return c.json({ error: "database_unavailable" }, 503);
-    const quote = await getPublicQuotation(db, c.req.param("token"));
+    const token = c.req.param("token");
+    const quote = await getPublicQuotation(db, token);
     if (!quote) return c.json({ error: "not_found" }, 404);
-    return c.json(quote);
+    // Issuing company's name + logo for the page header (white-label; nothing else from its profile).
+    const branding = await getBranding(db, await quoteTokenOrganizationId(db, token), `/api/public/quotes/${encodeURIComponent(token)}/logo`);
+    return c.json({ ...quote, branding });
   });
 
   r.post("/quotes/:token/sign", async (c) => {

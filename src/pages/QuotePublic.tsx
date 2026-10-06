@@ -7,6 +7,9 @@ import { useStore } from "../store.tsx";
 import { LangPicker } from "../ui/LangPicker";
 import { LoadingState, RouteTrack } from "../v2/components";
 import { fmtDate, fmtMoney } from "../v2/lib/format.ts";
+import { brandNameFor, type PublicBranding } from "../api/branding.ts";
+import { BrandMark } from "../v2/components/BrandMark.tsx";
+import { useBrandHead, type Brand } from "../v2/hooks/useBranding.ts";
 import "../v2/pages/public.css";
 
 type PublicQuote = {
@@ -24,21 +27,28 @@ type PublicQuote = {
   termsAndConditions: string | null;
   charges: Array<{ description: string; sellAmount: string; currency: string }>;
   totalSell: string;
+  /** Issuing company's name + logo (white-label). */
+  branding?: PublicBranding;
 };
 
-/** Page frame for public quote pages: brand + language + optional print. */
-export function QuoteFrame({ children, printable }: { children: ReactNode; printable?: boolean }) {
-  const { tx, locale, setLocale } = useStore();
+/** Page frame for public quote pages: issuing company + language + optional print. */
+export function QuoteFrame({ children, printable, brand }: { children: ReactNode; printable?: boolean; brand?: Brand }) {
+  const { locale, setLocale, tx } = useStore();
+  const showBrand = Boolean(brand && (brand.name || brand.logoUrl));
   return (
     <div className="pub-quote">
       <div className="pub-quote-bar pub-no-print">
-        <span className="pub-sheet-from" style={printable ? { visibility: "hidden" } : undefined}>
-          <span className="pub-mark is-sm" aria-hidden>
-            栈
-          </span>
-          <span className="pub-sheet-from-text">
-            <strong>{tx("brand")}</strong>
-          </span>
+        <span className="pub-sheet-from" style={printable || !showBrand ? { visibility: "hidden" } : undefined}>
+          {showBrand ? (
+            <>
+              <BrandMark name={brand!.name} logoUrl={brand!.logoUrl} size={32} fit="auto" decorative />
+              {brand!.name ? (
+                <span className="pub-sheet-from-text">
+                  <strong>{brand!.name}</strong>
+                </span>
+              ) : null}
+            </>
+          ) : null}
         </span>
         <span className="pub-quote-bar-tools">
           {printable ? (
@@ -83,6 +93,8 @@ type SheetProps = {
   currency: string;
   terms?: string | null;
   badge?: ReactNode;
+  /** Issuing company (white-label); without it the product name is shown. */
+  brand?: Brand;
 };
 
 /** Printable quotation document. */
@@ -92,13 +104,17 @@ export function QuoteSheet(p: SheetProps) {
     <article className="pub-sheet">
       <header className="pub-sheet-head">
         <div className="pub-sheet-from">
-          <span className="pub-mark" aria-hidden>
-            栈
-          </span>
-          <span className="pub-sheet-from-text">
-            <strong>{tx("brand")}</strong>
-            <span>{tx("brandRoman")}</span>
-          </span>
+          <BrandMark name={p.brand?.name ?? ""} logoUrl={p.brand?.logoUrl ?? null} size={44} fit="auto" decorative />
+          {p.brand?.name ? (
+            <span className="pub-sheet-from-text">
+              <strong>{p.brand.name}</strong>
+            </span>
+          ) : (
+            <span className="pub-sheet-from-text">
+              <strong>{tx("brand")}</strong>
+              <span>{tx("brandRoman")}</span>
+            </span>
+          )}
         </div>
         <div className="pub-sheet-title">
           <h1>{tx("pub_q_doc")}</h1>
@@ -186,7 +202,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function QuotePublicPage() {
   const { token } = useParams();
-  const { tx } = useStore();
+  const { tx, locale } = useStore();
   const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -196,6 +212,8 @@ export function QuotePublicPage() {
   const [form, setForm] = useState({ signerName: "", signerEmail: "", signerCompany: "", acceptedTerms: false });
   const nameRef = useRef<InputRef>(null);
   const emailRef = useRef<InputRef>(null);
+  const brand: Brand = { name: brandNameFor(quote?.branding?.name, locale), logoUrl: quote?.branding?.logoUrl ?? null };
+  useBrandHead(quote ? `${tx("pub_q_doc")} ${quote.quotationNumber}` : tx("pub_q_doc"), brand);
 
   useEffect(() => {
     if (!token) return;
@@ -261,7 +279,7 @@ export function QuotePublicPage() {
 
   if (done) {
     return (
-      <QuoteFrame>
+      <QuoteFrame brand={brand}>
         {done === "ACCEPTED" ? (
           <QuoteResult tone="success" title={tx("pub_q_accepted_title")} desc={tx("pub_q_accepted_desc")} meta={quote.quotationNumber} />
         ) : (
@@ -274,6 +292,7 @@ export function QuotePublicPage() {
   return (
     <QuoteFrame printable>
       <QuoteSheet
+        brand={brand}
         number={quote.quotationNumber}
         revision={quote.revisionNumber}
         validUntil={quote.validUntil}

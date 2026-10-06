@@ -1,0 +1,40 @@
+/* Client company mark (logo chip / monogram) — sidebar, login, portal, public quote, settings preview. */
+
+.cz-bm {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--side);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.cz-bm.is-circle {
+  border-radius: 50% !important;
+}
+
+.cz-bm.has-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cz-bm.is-circle.has-logo img {
+  width: 76%;
+  height: 76%;
+}
+
+/* "ระบบโดย LimitCode Studio" — quiet vendor credit */
+.cz-vendor {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: var(--ink-faint);
+  opacity: 0.85;
+}

@@ -20,6 +20,7 @@ import { bulkRoutes } from "./routes/bulk.js";
 import { marketingRoutes } from "./routes/marketing.js";
 import { moduleGate, modulesRoutes } from "./routes/modules.js";
 import { casesRoutes } from "./routes/cases.js";
+import { publicBrandingRoutes } from "./routes/branding.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
@@ -45,6 +46,7 @@ export function createApp() {
   app.route("/", bookingRoutes());
   app.route("/", notificationsRoutes());
   app.route("/public", publicQuoteRoutes());
+  app.route("/public", publicBrandingRoutes()); // white-label name + logo for pre-login screens
   app.route("/", bulkRoutes());
   app.route("/", marketingRoutes());
   app.route("/", casesRoutes());

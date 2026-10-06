@@ -42,21 +42,6 @@
   min-width: 0;
 }
 
-.cz-brand-mark {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--side);
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .cz-brand-word {
   display: flex;
   flex-direction: column;
@@ -77,6 +62,29 @@
   font-size: 10.5px;
   letter-spacing: 0.18em;
   color: var(--side-muted);
+}
+
+.cz-brand.is-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cz-brand.is-stacked .cz-brand-word.is-org strong {
+  font-size: 13px;
+}
+
+/* Client company name next to its logo: up to two lines, then an ellipsis. */
+.cz-brand-word.is-org strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.25;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .cz-nav {
@@ -204,9 +212,10 @@
   padding-inline: 0;
 }
 
-.cz-tenant {
-  margin: 0;
-  color: var(--side-text);
+.cz-side .cz-vendor {
+  margin-top: 6px;
+  color: var(--side-muted);
+  opacity: 0.7;
 }
 
 .cz-status {

@@ -1,3 +1,4 @@
+import type { PublicBranding } from "./branding.ts";
 async function apiFetch(path: string, init?: RequestInit) {
   const res = await fetch(path, { credentials: "include", ...init });
   const data: unknown = await res.json().catch(() => ({}));
@@ -43,6 +44,8 @@ export type PortalMe = {
   nameZh: string;
   nameTh?: string | null;
   nameEn: string;
+  /** The freight company's name + logo for the portal header (white-label). */
+  branding?: PublicBranding;
 };
 
 /** Contact e-mail + access code. Throws Error("invalid_credentials" | "too_many_attempts" | "unreachable" | …). */

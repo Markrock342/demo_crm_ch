@@ -25,6 +25,8 @@ import { useTasks } from "./hooks/useTasks.ts";
 import { useShellSession } from "../shell/session.tsx";
 import { useStore } from "../store";
 import { initialOf } from "./components/Visuals.tsx";
+import { BrandMark } from "./components/BrandMark.tsx";
+import { useAppBranding, useBrandHead } from "./hooks/useBranding.ts";
 import { startOnboardingTour } from "./components/HelpButton.tsx";
 import { OnboardingTour } from "./components/OnboardingTour.tsx";
 import { localizedUserName } from "./lib/demoText.ts";
@@ -47,7 +49,10 @@ function readCollapsed() {
 export function V2AppShell() {
   const { tx, locale, setLocale, mails, toast } = useStore();
   const { user, logout } = useAuth();
-  const orgName = user?.organizationName?.trim() || "";
+  const brand = useAppBranding();
+  // Wide logos sit on their own row above the name (a square chip would shrink them to a sliver).
+  const [logoRatio, setLogoRatio] = useState(1);
+  useEffect(() => setLogoRatio(1), [brand.logoUrl]);
   const { shellUser, leave } = useShellSession();
   const navigate = useNavigate();
   const location = useLocation();
@@ -99,9 +104,7 @@ export function V2AppShell() {
     setDrawer(false);
   }, [location.pathname]);
 
-  useEffect(() => {
-    document.title = current ? `${current.label} · ${tx("brand")}` : tx("brand");
-  }, [current, tx]);
+  useBrandHead(current?.label, brand);
 
   function toggleCollapsed() {
     setCollapsed((v) => {
@@ -132,15 +135,24 @@ export function V2AppShell() {
   const sidebar = (
     <aside className={`cz-side${narrow ? " is-narrow" : ""}${mobile ? " is-drawer" : ""}${drawer ? " is-open" : ""}`} aria-label={tx("mobileMenu")}>
       <div className="cz-side-head">
-        <Link to="/" className="cz-brand" aria-label={tx("brand")}>
-          <span className="cz-brand-mark" aria-hidden>
-            栈
-          </span>
+        <Link
+          to="/"
+          className={`cz-brand${!narrow && brand.logoUrl && logoRatio >= 1.8 ? " is-stacked" : ""}`}
+          aria-label={brand.name || tx("brand")}
+          title={narrow ? brand.name || undefined : undefined}
+        >
+          <BrandMark name={brand.name} logoUrl={brand.logoUrl} size={40} fit={narrow ? "square" : "auto"} maxRatio={4.4} onRatio={setLogoRatio} decorative />
           {!narrow ? (
-            <span className="cz-brand-word">
-              <strong>{tx("brand")}</strong>
-              <em>{tx("brandRoman")}</em>
-            </span>
+            brand.name ? (
+              <span className="cz-brand-word is-org" title={brand.name}>
+                <strong>{brand.name}</strong>
+              </span>
+            ) : (
+              <span className="cz-brand-word">
+                <strong>{tx("brand")}</strong>
+                <em>{tx("brandRoman")}</em>
+              </span>
+            )
           ) : null}
         </Link>
         {mobile ? (
@@ -182,11 +194,11 @@ export function V2AppShell() {
       <div className="cz-side-foot">
         {!narrow ? (
           <div>
-            {orgName ? <p className="cz-tenant">{orgName}</p> : null}
             <p className="cz-status">
               <span className={`cz-dot${gemini ? " is-on" : ""}`} aria-hidden />
               {gemini ? tx("geminiOn") : tx("geminiOff")}
             </p>
+            <p className="cz-vendor">{tx("brand_vendor")}</p>
           </div>
         ) : (
           <span className={`cz-dot${gemini ? " is-on" : ""}`} title={gemini ? tx("geminiOn") : tx("geminiOff")} />

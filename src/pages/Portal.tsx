@@ -28,6 +28,9 @@ import {
 import { useMedia } from "../ui/useMedia";
 import { fmtDate, fmtMoney } from "../v2/lib/format.ts";
 import { LangPicker } from "../ui/LangPicker";
+import { brandNameFor } from "../api/branding.ts";
+import { BrandMark } from "../v2/components/BrandMark.tsx";
+import { useBrandHead, usePublicBranding } from "../v2/hooks/useBranding.ts";
 import "../v2/pages/public.css";
 
 /* ── Shipment model ──────────────────────────────────────────── */
@@ -161,6 +164,16 @@ function PortalChrome({ children }: { children: ReactNode }) {
   const customerLabel = portalCustomerName(portal.session, locale);
   const { pathname } = useLocation();
   const narrow = useMedia("(max-width: 760px)");
+  const brand = {
+    name: brandNameFor(portal.session?.branding?.name, locale),
+    logoUrl: portal.session?.branding?.logoUrl ?? null,
+  };
+  const pageLabel = pathname.startsWith("/portal/docs")
+    ? tx("pub_portal_nav_docs")
+    : pathname.startsWith("/portal/invoices")
+      ? tx("pub_portal_nav_invoices")
+      : tx("pub_portal_nav_shipments");
+  useBrandHead(pageLabel, brand);
 
   async function leave() {
     await portal.leave();
@@ -171,11 +184,9 @@ function PortalChrome({ children }: { children: ReactNode }) {
       <header className="pub-portal-bar">
         <div className="pub-portal-bar-in">
           <Link to="/portal/home" className="pub-portal-id">
-            <span className="pub-mark is-sm" aria-hidden>
-              栈
-            </span>
+            <BrandMark name={brand.name} logoUrl={brand.logoUrl} size={36} fit="auto" decorative />
             <span className="pub-portal-id-text">
-              <strong>{tx("pub_portal_brand")}</strong>
+              <strong>{brand.name || tx("pub_portal_brand")}</strong>
               {customerLabel ? <span>{customerLabel}</span> : null}
             </span>
           </Link>
@@ -215,6 +226,8 @@ export function PortalEnterPage() {
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const brand = usePublicBranding();
+  useBrandHead(tx("pub_portal_enter_title"), brand);
 
   if (portal.loading) return <LoadingState tip={tx("pub_loading")} />;
   if (portal.session) return <Navigate to="/portal/home" replace />;
@@ -253,8 +266,9 @@ export function PortalEnterPage() {
       <div className="pub-card">
         <header className="pub-card-head">
           <div className="pub-card-brand">
-            <span className="pub-mark" aria-hidden>
-              栈
+            <span className="pub-card-org">
+              {brand.ready ? <BrandMark name={brand.name} logoUrl={brand.logoUrl} size={44} fit="auto" decorative /> : null}
+              {brand.name ? <strong>{brand.name}</strong> : null}
             </span>
             <LangPicker value={locale} onChange={setLocale} />
           </div>
@@ -315,6 +329,7 @@ export function PortalEnterPage() {
         <div className="pub-card-foot">
           <Link to="/login">{tx("pub_portal_staff_link")}</Link>
         </div>
+        <p className="pub-vendor-line">{tx("brand_vendor")}</p>
       </div>
     </div>
   );

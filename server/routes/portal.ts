@@ -1,6 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import { Hono } from "hono";
+import { getBranding, logoHeaders } from "../services/branding.service.js";
+import { readOrganizationLogo } from "../services/organization.service.js";
 import { eq } from "drizzle-orm";
 import { getDb, hasDatabase } from "../db/index.js";
 import { customers } from "../db/schema/crm.js";
@@ -118,7 +120,17 @@ export function portalRoutes() {
       nameZh: cust.nameZh,
       nameTh: cust.nameTh,
       organizationId: cust.organizationId,
+      // The freight company's name + logo for the portal header (white-label).
+      branding: await getBranding(db, cust.organizationId, "/api/portal/logo"),
     });
+  });
+
+  r.get("/logo", portalMiddleware, requirePortalSession(), async (c) => {
+    const db = dbOr503(c);
+    if (typeof db !== "object" || !("select" in db)) return db;
+    const logo = await readOrganizationLogo(db, c.get("portalOrganizationId")!);
+    if (!logo) return c.json({ error: "not_found" }, 404);
+    return new Response(new Uint8Array(logo.bytes), { headers: logoHeaders(logo.mime, "private") });
   });
 
   r.get("/jobs", portalMiddleware, requirePortalSession(), async (c) => {

@@ -7,6 +7,8 @@ import { useAuth } from "../auth/AuthProvider";
 import { useStore } from "../store";
 import { LangPicker } from "../ui/LangPicker";
 import { IconBadge, RouteTrack, StageFlow, type StageKey } from "../v2/components/Graphics.tsx";
+import { BrandMark } from "../v2/components/BrandMark.tsx";
+import { useBrandHead, usePublicBranding } from "../v2/hooks/useBranding.ts";
 import "../v2/pages/public.css";
 
 const LOGIN_ERROR_KEY: Record<string, string> = {
@@ -29,6 +31,8 @@ export function LoginPage() {
   const stageLabels = Object.fromEntries(
     (["booked", "gatein", "sailed", "arrived", "customs", "delivered"] as StageKey[]).map((k) => [k, tx(`stage_${k}`)]),
   ) as Record<StageKey, string>;
+  const brand = usePublicBranding();
+  useBrandHead(tx("pub_login_title"), brand);
 
   if (!loading && user) {
     return <Navigate to="/" replace />;
@@ -71,13 +75,18 @@ export function LoginPage() {
     <div className="pub-login">
       <aside className="pub-login-brand">
         <div className="pub-login-brand-top">
-          <span className="pub-mark" aria-hidden>
-            栈
-          </span>
-          <span className="pub-login-brand-name">
-            <strong>{tx("brand")}</strong>
-            <span>{tx("brandRoman")}</span>
-          </span>
+          {brand.ready ? <BrandMark name={brand.name} logoUrl={brand.logoUrl} size={48} fit="auto" decorative /> : null}
+          {brand.name ? (
+            <span className="pub-login-brand-name is-org">
+              <strong>{brand.name}</strong>
+              <span className="pub-vendor">{tx("brand_vendor")}</span>
+            </span>
+          ) : brand.ready ? (
+            <span className="pub-login-brand-name">
+              <strong>{tx("brand")}</strong>
+              <span>{tx("brandRoman")}</span>
+            </span>
+          ) : null}
         </div>
         <div className="pub-login-scene" aria-hidden>
           <div className="pub-login-ghost" />

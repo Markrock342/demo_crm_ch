@@ -34,6 +34,8 @@ import { useShellSession } from "./shell/session.tsx";
 import { AppRoutes } from "./AppRoutes.tsx";
 import { useStore } from "./store";
 import { departmentFromRoles } from "./v2/navConfig.ts";
+import { BrandMark } from "./v2/components/BrandMark.tsx";
+import { useAppBranding, useBrandHead } from "./v2/hooks/useBranding.ts";
 
 /** Pre-v2 shell (VITE_UI_V2=false rollback). Loaded lazily from App.tsx. */
 const groups = [
@@ -91,6 +93,8 @@ const groups = [
 export function LegacyAppShell() {
   const s = useStore();
   const { tx, locale, setLocale, query, setQuery, mails, toast, compact, motion } = s;
+  const brand = useAppBranding();
+  useBrandHead(null, brand);
   const { user, logout } = useAuth();
   const { shellUser, leave } = useShellSession();
   const navigate = useNavigate();
@@ -172,13 +176,11 @@ export function LegacyAppShell() {
           {menuOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
         </button>
 
-        <Link className="bar-brand" to="/" aria-label={tx("brand")} onClick={() => setMenuOpen(false)}>
-          <span className="bar-mark" aria-hidden>
-            栈
-          </span>
+        <Link className="bar-brand" to="/" aria-label={brand.name || tx("brand")} onClick={() => setMenuOpen(false)}>
+          <BrandMark name={brand.name} logoUrl={brand.logoUrl} size={34} fit="auto" decorative />
           <span className="bar-word">
-            <strong>{tx("brand")}</strong>
-            <em>{tx("brandRoman")}</em>
+            <strong>{brand.name || tx("brand")}</strong>
+            {brand.name ? null : <em>{tx("brandRoman")}</em>}
           </span>
         </Link>
 
@@ -282,7 +284,7 @@ export function LegacyAppShell() {
             ))}
           </div>
           <div className="side-foot">
-            {user?.organizationName ? <p className="tenant">{user.organizationName}</p> : null}
+            <p className="tenant">{tx("brand_vendor")}</p>
             <p className={`gemini-dot ${gemini ? "on" : "off"}`}>{gemini ? tx("geminiOn") : tx("geminiOff")}</p>
           </div>
         </aside>

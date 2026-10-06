@@ -156,14 +156,155 @@
 }
 
 .adm-logo-frame img {
-  max-width: 100%;
-  max-height: 100%;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   object-fit: contain;
 }
 
 .adm-logo-side {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+/* Logo: big drop zone + previews at the sizes the app uses */
+.adm-brand {
+  flex: 1 1 100%;
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.adm-brand .adm-logo {
+  align-items: flex-start;
+}
+
+.adm-logo-frame.is-drop {
+  position: relative;
+  width: 144px;
+  height: 96px;
+  padding: 10px;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.adm-logo-frame.is-drop:hover,
+.adm-logo-frame.is-drop:focus-visible,
+.adm-logo-frame.is-drop.is-over {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.adm-logo-plus {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+.adm-brand-pv {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.adm-brand-pv figure {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.adm-brand-pv figcaption {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.adm-pv-side,
+.adm-pv-narrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 64px;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius);
+  background: var(--side);
+}
+
+.adm-pv-side {
+  width: 244px;
+  max-width: 100%;
+}
+
+/* Same rule as the real sidebar: a wide logo sits above the name. */
+.adm-pv-side.is-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  height: auto;
+  padding-block: 12px;
+}
+
+.adm-pv-side.is-stacked strong {
+  font-size: 13px;
+}
+
+.adm-pv-side strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--on-primary);
+  overflow-wrap: anywhere;
+}
+
+.adm-pv-narrow {
+  justify-content: center;
+  width: 68px;
+  padding: 0;
+}
+
+.adm-pv-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 220px;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: var(--canvas);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.adm-pv-tab img {
+  flex: none;
+}
+
+.adm-pv-tab span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.adm-brand-note {
+  margin: 0;
 }
 
 .adm-group {

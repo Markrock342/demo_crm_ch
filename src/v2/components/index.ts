@@ -32,3 +32,4 @@ export {
   readView,
   writeView,
 } from "./Graphics.tsx";
+export { BrandMark, brandInitial } from "./BrandMark.tsx";
