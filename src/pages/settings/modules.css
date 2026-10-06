@@ -1,0 +1,222 @@
+/* Settings › Modules + the "module not enabled" page. Tokens only. */
+
+.md-count {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.md-label {
+  margin: 0 0 var(--space-xs);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.md-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.md-preset {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  text-align: start;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.md-preset:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.md-preset:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.md-preset.is-active {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  cursor: default;
+}
+
+.md-preset:disabled:not(.is-active) {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.md-preset-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.md-preset-head strong {
+  font-size: 15px;
+}
+
+.md-preset-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: var(--radius-pill);
+}
+
+.md-preset-icons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.md-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--ink-faint);
+  background: var(--fill);
+  opacity: 0.55;
+}
+
+.md-dot.is-on {
+  opacity: 1;
+}
+.md-dot.is-on.is-primary {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.md-dot.is-on.is-info {
+  color: var(--info);
+  background: var(--info-soft);
+}
+.md-dot.is-on.is-success {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.md-dot.is-on.is-warning {
+  color: var(--warning-text);
+  background: var(--warning-soft);
+}
+.md-dot.is-on.is-accent {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.md-dot.is-on.is-neutral {
+  color: var(--ink-soft);
+  background: var(--fill-strong);
+}
+
+.md-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.md-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: background-color 0.15s;
+}
+
+.md-card.is-off {
+  background: var(--fill);
+}
+
+.md-card.is-off .md-card-text {
+  color: var(--ink-faint);
+}
+
+.md-card-text {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.md-card-text strong {
+  font-size: 14.5px;
+}
+
+.md-card-desc {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+
+/* "Module not enabled" page */
+.md-offpage {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: var(--space-xl) var(--space-md);
+}
+
+.md-offcard {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-sm);
+  max-width: 420px;
+  text-align: center;
+}
+
+.md-offcard h1 {
+  margin: var(--space-xs) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--h1);
+  color: var(--ink);
+}
+
+.md-offcard p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.md-officon {
+  position: relative;
+}
+
+.md-offlock {
+  position: absolute;
+  inset-inline-end: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+}
+
+.md-offactions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}

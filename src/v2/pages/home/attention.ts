@@ -14,6 +14,7 @@ import { useStore } from "../../../store";
 import { fmtDate, fmtMoney } from "../../lib/format.ts";
 import { useAppMode } from "../../hooks/useAppMode.ts";
 import { useCan } from "../../hooks/useCan.ts";
+import { useModules } from "../../hooks/useModules.ts";
 import { queryKeys } from "../../queries/keys.ts";
 import { useCustomerLookup } from "../../hooks/useCustomerLookup.ts";
 import type { Locale } from "../../../i18n";
@@ -140,13 +141,16 @@ export function useModeInvoices(): InvoiceLite[] {
   const billing = useShellBilling();
   const { live } = useAppMode();
   const can = useCan();
+  const mods = useModules();
   // Open receivables only (balance > 0, issued / part-paid) — all that the home page and alerts use.
   const liveInv = useQuery({
     queryKey: ["invoices", "home-open"],
     queryFn: async () => (await fetchInvoicesPage({ view: "open", limit: 500 })).items,
-    enabled: live && can("invoice.view"),
+    enabled: live && can("invoice.view") && mods.ready && mods.modules.finance,
   });
+  const financeOn = mods.ready && mods.modules.finance;
   return useMemo(() => {
+    if (!financeOn) return [];
     if (shell) {
       return billing.invoices.map((i) => ({
         id: i.id,
@@ -177,7 +181,7 @@ export function useModeInvoices(): InvoiceLite[] {
         overdue: bal > 0 && Boolean(due) && isBeforeToday(due!) && i.status !== "PAID" && i.status !== "DRAFT",
       };
     });
-  }, [billing.invoices, liveInv.data, shell]);
+  }, [billing.invoices, financeOn, liveInv.data, shell]);
 }
 
 /** Everything that needs a person, as one prioritized list (shell + live). */

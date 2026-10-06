@@ -67,6 +67,7 @@ export async function seedAuth(db: Db) {
     OPERATIONS: "Operations",
     ACCOUNTING: "Accounting",
     VIEWER: "Viewer",
+    MARKETING: "Marketing",
   };
 
   for (const code of ROLES) {
@@ -97,6 +98,7 @@ export async function seedAuth(db: Db) {
     { email: "ops@cangzhan.com", password: "demo123", name: "Ma Siyuan", nameZh: "马思远", nameTh: "หม่า ซือหยวน", role: "OPERATIONS" },
     { email: "cs@cangzhan.com", password: "demo123", name: "Napat Srisuk", nameZh: "纳帕·西苏", nameTh: "ณภัทร ศรีสุข", role: "CUSTOMER_SERVICE" },
     { email: "finance@cangzhan.com", password: "demo123", name: "Siriporn Wongsakul", nameZh: "诗丽蓬·旺萨功", nameTh: "ศิริพร วงศ์สกุล", role: "ACCOUNTING" },
+    { email: "marketing@cangzhan.com", password: "demo123", name: "Pimchanok Rattanakul", nameZh: "宾查诺·叻达纳功", nameTh: "พิมพ์ชนก รัตนกุล", role: "MARKETING" },
   ];
 
   for (const u of demoUsers) {

@@ -7,6 +7,7 @@ export const ROLES = [
   "OPERATIONS",
   "ACCOUNTING",
   "VIEWER",
+  "MARKETING",
 ] as const;
 
 export type RoleCode = (typeof ROLES)[number];
@@ -49,6 +50,12 @@ export const PERMISSIONS = [
   "task.view_all",
   /** Log calls / mails / meetings / notes on customers and jobs. */
   "activity.create",
+  /** Marketing analytics (funnel, lead sources, segments). */
+  "report.marketing.view",
+  /** Customer service cases: see / work cases; manage = canned replies, SLA targets, delete. */
+  "case.view",
+  "case.edit",
+  "case.manage",
   // legacy aliases
   "rate.buy.view",
   "rate.sell.view",
@@ -94,6 +101,10 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "billing.edit",
     "task.view_all",
     "activity.create",
+    "report.marketing.view",
+    "case.view",
+    "case.edit",
+    "case.manage",
   ],
   SALES: [
     "customer.view",
@@ -111,6 +122,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "invoice.view",
     "report.sales.view",
     "activity.create",
+    "report.marketing.view",
+    "case.view",
   ],
   PRICING: [
     "customer.view",
@@ -129,7 +142,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "report.sales.view",
     "activity.create",
   ],
-  CUSTOMER_SERVICE: ["customer.view", "customer.edit", "shipment.view", "shipment.edit", "container.edit", "activity.create"],
+  CUSTOMER_SERVICE: ["customer.view", "customer.edit", "shipment.view", "shipment.edit", "container.edit", "activity.create", "case.view", "case.edit"],
   OPERATIONS: ["customer.view", "shipment.view", "shipment.edit", "container.edit", "finance.cost.view", "activity.create"],
   ACCOUNTING: [
     "customer.view",
@@ -153,6 +166,23 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
     "activity.create",
   ],
   VIEWER: ["customer.view", "quotation.view", "shipment.view", "invoice.view"],
+  /** Marketing: like sales for customers / leads / quotations, sell rates only, no finance, no shipment edits. */
+  MARKETING: [
+    "customer.view",
+    "customer.create",
+    "customer.edit",
+    "rate.view_sell",
+    "rate.sell.view",
+    "quotation.view",
+    "quotation.create",
+    "quotation.edit",
+    "quotation.send",
+    "shipment.view",
+    "report.sales.view",
+    "report.marketing.view",
+    "activity.create",
+    "case.view",
+  ],
 };
 
 export function permissionsForRoles(roles: RoleCode[]): Set<PermissionCode> {

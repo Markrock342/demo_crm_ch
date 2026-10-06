@@ -4,6 +4,7 @@ import {
   Calculator,
   Handshake,
   Headset,
+  Megaphone,
   ShieldCheck,
   Tag,
   Truck,
@@ -34,6 +35,7 @@ export const ROLE_LOOK: Record<RoleCode, { icon: Icon; tone: GraphicTone }> = {
   OPERATIONS: { icon: Truck, tone: "success" },
   ACCOUNTING: { icon: Calculator, tone: "accent" },
   VIEWER: { icon: Binoculars, tone: "neutral" },
+  MARKETING: { icon: Megaphone, tone: "warning" },
 };
 
 export function roleLook(code: string | undefined) {

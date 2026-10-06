@@ -7,6 +7,7 @@ import { useMedia } from "../../ui/useMedia";
 import { AiBriefCard, EmptyState, PageHeader, Panel, PersonAvatar } from "../components";
 import { AiMailPanel, MailTags } from "../components/AiMailPanel.tsx";
 import { fmtMailTime } from "../lib/time.ts";
+import { CaseFromMailButton } from "./cases/CaseFromMailButton.tsx";
 import "./home/home.css";
 
 type Loc = "zh" | "th" | "en";
@@ -192,6 +193,7 @@ export function InboxPageV2() {
             </Button>
           </Popconfirm>
           <span className="hm-mail-actions-end">
+            <CaseFromMailButton mail={{ id: mail.id, subject: pick(mail, "subject", loc), body: pick(mail, "body", loc), customerId: mail.customerId, from: mail.from }} />
             {canApply ? (
               <Popconfirm
                 title={tx("home_mail_apply_q")}

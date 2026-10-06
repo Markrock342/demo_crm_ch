@@ -17,14 +17,19 @@ import { bookingRoutes } from "./routes/bookings.js";
 import { importRoutes } from "./routes/import.js";
 import { secmailRoutes } from "./routes/secmail.js";
 import { bulkRoutes } from "./routes/bulk.js";
+import { marketingRoutes } from "./routes/marketing.js";
+import { moduleGate, modulesRoutes } from "./routes/modules.js";
+import { casesRoutes } from "./routes/cases.js";
 import { briefRequestSchema, mailRequestSchema } from "./schema.js";
 
 export function createApp() {
   const app = new Hono().basePath("/api");
 
   app.use("*", authMiddleware);
+  app.use("*", moduleGate); // 403 module_disabled for modules the company turned off
 
   app.route("/", systemRoutes());
+  app.route("/", modulesRoutes());
   app.route("/auth", authRoutes());
   app.route("/", crmRoutes());
   app.route("/", ratesRoutes()); // before commercialRoutes: tenant-scoped rate endpoints
@@ -41,6 +46,8 @@ export function createApp() {
   app.route("/", notificationsRoutes());
   app.route("/public", publicQuoteRoutes());
   app.route("/", bulkRoutes());
+  app.route("/", marketingRoutes());
+  app.route("/", casesRoutes());
 
   app.get("/ai/health", (c) => {
     return c.json({ ok: hasGeminiKey(), model: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash" });

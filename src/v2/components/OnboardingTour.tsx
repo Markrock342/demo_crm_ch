@@ -43,12 +43,21 @@ const TOURS: Record<HelpRole, StepDef[]> = {
     HELP,
     MENU,
   ],
+  marketing: [
+    WELCOME,
+    { nav: "/leads", descKey: "hp_tour_marketing_1" },
+    { nav: "/customers", descKey: "hp_tour_marketing_2" },
+    { nav: "/quotations", descKey: "hp_tour_marketing_3" },
+    { nav: "/reports/marketing", descKey: "hp_tour_marketing_4" },
+    HELP,
+    MENU,
+  ],
   cs: [
     WELCOME,
-    { nav: "/inbox", descKey: "hp_tour_cs_1" },
-    { nav: "/shipments", descKey: "hp_tour_cs_2" },
+    { nav: "/cases", descKey: "hp_tour_cs_1" },
+    { nav: "/inbox", descKey: "hp_tour_cs_2" },
     { nav: "/jobs", descKey: "hp_tour_cs_3" },
-    { nav: "/tasks", descKey: "hp_tour_cs_4" },
+    { nav: "/customers", descKey: "hp_tour_cs_4" },
     HELP,
     MENU,
   ],
@@ -63,8 +72,9 @@ const TOURS: Record<HelpRole, StepDef[]> = {
   ],
 };
 
-/** Server key for a role's tour. Bump the suffix when a tour changes enough to re-show it. */
-export const tourKeyFor = (role: HelpRole) => `role-${role}`;
+/** Server key for a role's tour. Bump the version when a tour changes enough to re-show it. */
+const TOUR_VERSION: Partial<Record<HelpRole, number>> = { cs: 2 };
+export const tourKeyFor = (role: HelpRole) => (TOUR_VERSION[role] ? `role-${role}-v${TOUR_VERSION[role]}` : `role-${role}`);
 
 /** Element if it is actually on screen (the mobile sidebar drawer is off-canvas when closed). */
 function visible(sel: string): HTMLElement | null {

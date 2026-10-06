@@ -140,12 +140,19 @@ export type CrmBundle = {
   deals: Deal[];
 };
 
-export async function fetchCrmBundle(): Promise<CrmBundle> {
+export function fetchCrmBundle(): Promise<CrmBundle> {
+  return fetchCrmBundleFor({});
+}
+
+/** Same as fetchCrmBundle; `sales: false` skips leads / deals (sales module off for this company). */
+export async function fetchCrmBundleFor(opts: { sales?: boolean }): Promise<CrmBundle> {
+  // Leads / deals belong to the sales module; a company without it gets empty lists (403 module_disabled).
+  const offIsEmpty = (e: unknown) => (e instanceof Error && e.message === "module_disabled" ? { items: [] } : Promise.reject(e));
   const [custRes, contactRes, leadRes, dealRes] = await Promise.all([
     apiFetch("/api/customers?limit=200"),
     apiFetch("/api/contacts"),
-    apiFetch("/api/leads"),
-    apiFetch("/api/opportunities"),
+    opts.sales === false ? { items: [] } : apiFetch("/api/leads").catch(offIsEmpty),
+    opts.sales === false ? { items: [] } : apiFetch("/api/opportunities").catch(offIsEmpty),
   ]);
   return {
     customers: (custRes.items as Customer[]) ?? [],

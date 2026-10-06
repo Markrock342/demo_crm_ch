@@ -51,6 +51,7 @@ import { useCustomerDocs, useCustomerMails, useJobContainers } from "../hooks/us
 import { fetchInvoicesPage } from "../../api/lists.ts";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { useCan } from "../hooks/useCan.ts";
+import { useModules } from "../hooks/useModules.ts";
 import { useTaskActions, useTasks } from "../hooks/useTasks.ts";
 import { fetchJob } from "../../api/commercial.ts";
 import type { Cutoffs } from "../../api/bookings.ts";
@@ -104,6 +105,10 @@ export function JobDetailLiveV2({ job }: Props) {
   const jobTasksQuery = useJobTasks(job.id);
   const patchTask = usePatchJobTask(job.id);
   const can = useCan();
+  // Company modules: money / documents parts disappear when finance / documents are off.
+  const mods = useModules();
+  const financeOn = mods.ready && mods.modules.finance;
+  const docsOn = mods.ready && mods.modules.docs;
   // Org to-dos linked to this job (also listed on /tasks); the legacy job checklist (job_tasks) is merged in below.
   const orgTasks = useTasks({ jobId: job.id, scope: "all", status: "all", limit: 200 });
   const taskActions = useTaskActions();
@@ -124,7 +129,7 @@ export function JobDetailLiveV2({ job }: Props) {
   const invoices = useQuery({
     queryKey: [...queryKeys.invoices.list(job.customerId), "job", job.id],
     queryFn: async () => (await fetchInvoicesPage({ jobId: job.id, limit: 200 })).items,
-    enabled: live && can("invoice.view"),
+    enabled: live && can("invoice.view") && financeOn,
   });
 
   const invalidateMails = () => void qc.invalidateQueries({ queryKey: queryKeys.mails.byCustomer(job.customerId) });
@@ -290,7 +295,7 @@ export function JobDetailLiveV2({ job }: Props) {
     { label: tx("jobs_fConsignee"), value: known(job.consignee) },
     { label: tx("jobs_fIncoterm"), value: known(job.incoterm) },
     { label: tx("jobs_fOwner"), value: people.length ? <PeopleStack names={people} /> : "" },
-    { label: tx("jobs_fBilling"), value: <StatusTag status={job.billingStatus} /> },
+    { label: tx("jobs_fBilling"), value: financeOn ? <StatusTag status={job.billingStatus} /> : "" },
   ].filter((f) => Boolean(f.value));
 
   const emptyLine = (text: string) => <p className="jobs-empty-line">{text}</p>;
@@ -330,7 +335,7 @@ export function JobDetailLiveV2({ job }: Props) {
     </div>
   );
 
-  const moneyPanel = <Panel title={tx("jobs_money")}>{moneyViz}</Panel>;
+  const moneyPanel = financeOn ? <Panel title={tx("jobs_money")}>{moneyViz}</Panel> : null;
 
   const timeline = (compact = false) =>
     milestoneRows.length === 0 ? (
@@ -374,7 +379,7 @@ export function JobDetailLiveV2({ job }: Props) {
       label: tx("jobs_tabOverview"),
       children: (
         <div className="cz-stack">
-          <div className="cz-split">
+          <div className={moneyPanel ? "cz-split" : undefined}>
             <Panel title={tx("jobs_shipment")}>
               <dl className="jobs-dl">
                 {facts.map((f) => (
@@ -798,7 +803,7 @@ export function JobDetailLiveV2({ job }: Props) {
             label={tx("jobs_tileContainers")}
             to={`/jobs/${job.id}?tab=containers`}
           />
-          <Tile
+          {financeOn ? <Tile
             icon={CurrencyCircleDollar}
             tone={(gp ?? job.listGrossProfit ?? 0) < 0 ? "danger" : "success"}
             value={money(gp ?? job.listGrossProfit ?? null)}
@@ -815,8 +820,8 @@ export function JobDetailLiveV2({ job }: Props) {
               ) : undefined
             }
             to={`/jobs/${job.id}?tab=money`}
-          />
-          <Tile
+          /> : null}
+          {docsOn ? <Tile
             icon={FileText}
             tone={docLate ? "danger" : docWait ? "warning" : "info"}
             value={docRows.length ? `${docOk}/${docRows.length}` : "—"}
@@ -834,7 +839,7 @@ export function JobDetailLiveV2({ job }: Props) {
               ) : undefined
             }
             to={`/jobs/${job.id}?tab=documents`}
-          />
+          /> : null}
           <Tile
             icon={nextMs ? CalendarCheck : CheckCircle}
             tone={nextMs && isLate(nextMs) ? "danger" : nextMs ? "accent" : "success"}
@@ -846,7 +851,12 @@ export function JobDetailLiveV2({ job }: Props) {
         </TileRow>
       </div>
 
-      <Tabs className="jobs-tabs" activeKey={tab} onChange={setTab} items={tabItems} />
+      <Tabs
+        className="jobs-tabs"
+        activeKey={tab}
+        onChange={setTab}
+        items={tabItems.filter((t) => (t.key !== "money" || financeOn) && (t.key !== "documents" || docsOn))}
+      />
 
       <Modal
         title={tx("jobs_mailCompose")}

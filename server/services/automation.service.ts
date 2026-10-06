@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import {
   automationRules,
+  cases,
   containers,
   crmDocs,
   customers,
@@ -17,6 +18,8 @@ import {
   users,
 } from "../db/schema/index.js";
 import { lineConfigured, pushLine } from "./line.service.js";
+import { getOrganizationModules } from "./modules.service.js";
+import { rulesOffByModules } from "../domain/modules.js";
 
 /**
  * Server-side automation: rules evaluate real org data and create per-user notifications.
@@ -27,7 +30,17 @@ import { lineConfigured, pushLine } from "./line.service.js";
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type DbLike = Db | Tx;
 
-export const RULE_KEYS = ["job_delayed", "eta_changed", "doc_missing", "free_time", "invoice_overdue", "quote_expiring"] as const;
+export const RULE_KEYS = [
+  "job_delayed",
+  "eta_changed",
+  "doc_missing",
+  "free_time",
+  "invoice_overdue",
+  "quote_expiring",
+  // Customer service cases (appended)
+  "case_assigned",
+  "case_sla",
+] as const;
 export type RuleKey = (typeof RULE_KEYS)[number];
 export const CHANNELS = ["in_app", "line"] as const;
 
@@ -110,7 +123,31 @@ export type Snapshot = {
   docs: SnapDoc[];
   invoices: SnapInvoice[];
   quotations: SnapQuote[];
+  /** Open customer service cases (optional so older callers / tests need not pass it). */
+  cases?: SnapCase[];
 };
+
+export type SnapCase = {
+  id: string;
+  caseNo: string;
+  subject: string;
+  customerId: string | null;
+  status: string;
+  priority: string;
+  assigneeUserId: string | null;
+  assignedAt: Date | null;
+  assignedBy: string | null;
+  firstResponseDueAt: Date | null;
+  resolveDueAt: Date | null;
+  firstRespondedAt: Date | null;
+  resolvedAt: Date | null;
+};
+
+/** Assignment notices older than this are not sent (first run on old data stays quiet). */
+export const CASE_ASSIGN_FRESH_DAYS = 7;
+/** SLA breaches older than this are history, not news. */
+export const CASE_SLA_STALE_DAYS = 14;
+const CASE_OPEN = new Set(["new", "in_progress", "waiting_customer"]);
 
 export type Candidate = {
   rule: RuleKey;
@@ -330,6 +367,9 @@ export function evaluateRules(snap: Snapshot, enabled: Set<RuleKey>, state: Part
     }
   }
 
+  // Customer service cases: assigned → assignee; SLA breached → assignee + CS managers.
+  for (const c of evaluateCaseRules(snap, enabled)) push(c);
+
   return { candidates, matched, nextState };
 }
 
@@ -370,6 +410,8 @@ const LINE_HEAD: Record<RuleKey, string> = {
   free_time: "วันฟรีใกล้หมด",
   invoice_overdue: "ใบแจ้งหนี้เกินกำหนด",
   quote_expiring: "ใบเสนอราคาใกล้หมดอายุ",
+  case_assigned: "มอบหมายเคสให้คุณ",
+  case_sla: "เคสเกิน SLA",
 };
 
 export function lineText(
@@ -398,6 +440,12 @@ export function lineText(
       break;
     case "quote_expiring":
       detail = Number(p.days) === 0 ? `หมดอายุวันนี้ (${p.until})` : `หมดอายุใน ${p.days} วัน (${p.until})`;
+      break;
+    case "case_assigned":
+      detail = String(p.subject ?? "");
+      break;
+    case "case_sla":
+      detail = `${p.timer === "first" ? "ยังไม่ได้ตอบลูกค้า" : "ยังไม่ปิดเคส"} เกินเวลา ${p.hours} ชม. · ${p.subject ?? ""}`;
       break;
   }
   return [`[${LINE_HEAD[rule]}] ${title}`, customerName || null, detail].filter(Boolean).join("\n");
@@ -564,6 +612,24 @@ export async function loadSnapshot(db: DbLike, organizationId: string, now = new
     docs: docRows,
     invoices: invRows,
     quotations: quoteRows,
+    cases: await db
+      .select({
+        id: cases.id,
+        caseNo: cases.caseNo,
+        subject: cases.subject,
+        customerId: cases.customerId,
+        status: cases.status,
+        priority: cases.priority,
+        assigneeUserId: cases.assigneeUserId,
+        assignedAt: cases.assignedAt,
+        assignedBy: cases.assignedBy,
+        firstResponseDueAt: cases.firstResponseDueAt,
+        resolveDueAt: cases.resolveDueAt,
+        firstRespondedAt: cases.firstRespondedAt,
+        resolvedAt: cases.resolvedAt,
+      })
+      .from(cases)
+      .where(and(eq(cases.organizationId, organizationId), inArray(cases.status, [...CASE_OPEN]))),
   };
 }
 
@@ -580,6 +646,8 @@ export async function runAutomation(db: DbLike, organizationId: string, opts: { 
   const ruleRows = await db.select().from(automationRules).where(eq(automationRules.organizationId, organizationId));
   const rules = await listRules(db, organizationId);
   const enabled = new Set(rules.filter((r) => r.enabled).map((r) => r.key));
+  // Company modules: automation off = nothing runs; finance / docs / … rules skip when their module is off.
+  for (const k of rulesOffByModules(await getOrganizationModules(db, organizationId), [...enabled])) enabled.delete(k as RuleKey);
   const state = Object.fromEntries(ruleRows.map((r) => [r.key, (r.state ?? {}) as RuleState])) as Partial<Record<RuleKey, RuleState>>;
 
   const snap = await loadSnapshot(db, organizationId, now);
@@ -672,4 +740,119 @@ export async function runAutomationAllOrgs(db: Db): Promise<RunResult[]> {
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Customer service cases (appended)
+
+function caseManagers(snap: Snapshot): string[] {
+  const managers = snap.members.filter((m) => m.roles.includes("MANAGEMENT")).map((m) => m.id);
+  if (managers.length) return managers;
+  return snap.members.filter((m) => m.roles.includes("SUPER_ADMIN") || m.orgRole === "owner" || m.orgRole === "admin").map((m) => m.id);
+}
+
+export function caseAssignedCandidate(c: SnapCase): Candidate | null {
+  if (!c.assigneeUserId || !c.assignedAt || c.assignedBy === c.assigneeUserId) return null;
+  return {
+    rule: "case_assigned",
+    userIds: [c.assigneeUserId],
+    title: c.caseNo,
+    body: c.subject,
+    params: { subject: c.subject, priority: c.priority, customerId: c.customerId },
+    refType: "case",
+    refId: c.id,
+    href: `/cases/${c.id}`,
+    dedupeKey: `case_assigned:${c.id}:${c.assigneeUserId}:${c.assignedAt.toISOString()}`,
+  };
+}
+
+/** Pure: case rules for the snapshot (assignment notices + SLA breaches). */
+export function evaluateCaseRules(snap: Snapshot, enabled: Set<RuleKey>): Candidate[] {
+  const out: Candidate[] = [];
+  const memberIds = new Set(snap.members.map((m) => m.id));
+  const now = snap.now.getTime();
+  const managers = caseManagers(snap);
+  for (const c of snap.cases ?? []) {
+    if (!CASE_OPEN.has(c.status)) continue;
+    if (enabled.has("case_assigned")) {
+      const cand = caseAssignedCandidate(c);
+      if (cand && memberIds.has(cand.userIds[0]!) && now - c.assignedAt!.getTime() <= CASE_ASSIGN_FRESH_DAYS * 86_400_000) out.push(cand);
+    }
+    if (enabled.has("case_sla")) {
+      const timers: ["first" | "resolve", Date | null, Date | null][] = [
+        ["first", c.firstResponseDueAt, c.firstRespondedAt],
+        ["resolve", c.resolveDueAt, c.resolvedAt],
+      ];
+      for (const [timer, due, done] of timers) {
+        if (!due || done || due.getTime() >= now) continue;
+        const lateMs = now - due.getTime();
+        if (lateMs > CASE_SLA_STALE_DAYS * 86_400_000) continue;
+        const userIds = uniq([c.assigneeUserId, ...managers], memberIds);
+        out.push({
+          rule: "case_sla",
+          userIds,
+          title: c.caseNo,
+          body: `${timer === "first" ? "First response" : "Resolution"} SLA breached`,
+          params: { timer, hours: Math.max(1, Math.round(lateMs / 3_600_000)), subject: c.subject, priority: c.priority, customerId: c.customerId },
+          refType: "case",
+          refId: c.id,
+          href: `/cases/${c.id}`,
+          dedupeKey: `case_sla:${c.id}:${timer}:${due.toISOString()}`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Immediate "assigned to you" notice when a case changes hands (the scheduled run would send the
+ * same one later; the shared dedupe key keeps it to one). Skipped when the rule is switched off.
+ */
+export async function notifyCaseAssigned(
+  db: DbLike,
+  organizationId: string,
+  c: { id: string; caseNo: string; subject: string; customerId: string | null; status: string; priority: string; assigneeUserId: string | null },
+  assignedBy: string,
+  now = new Date(),
+): Promise<number> {
+  const rule = (await listRules(db, organizationId)).find((r) => r.key === "case_assigned");
+  if (!rule?.enabled) return 0;
+  const [row] = await db.select({ assignedAt: cases.assignedAt }).from(cases).where(eq(cases.id, c.id)).limit(1);
+  const cand = caseAssignedCandidate({
+    ...c,
+    assignedAt: row?.assignedAt ?? now,
+    assignedBy,
+    firstResponseDueAt: null,
+    resolveDueAt: null,
+    firstRespondedAt: null,
+    resolvedAt: null,
+  });
+  if (!cand) return 0;
+  const rows = expandCandidates(organizationId, [cand]).map(({ rule: _rule, ...r }) => r);
+  const out = await db
+    .insert(notifications)
+    .values(rows)
+    .onConflictDoNothing({ target: [notifications.organizationId, notifications.userId, notifications.dedupeKey] })
+    .returning({ id: notifications.id, userId: notifications.userId, kind: notifications.kind, title: notifications.title, params: notifications.params });
+  if (out.length && lineConfigured() && rule.channels.includes("line")) {
+    const [cust] = c.customerId
+      ? await db.select({ nameTh: customers.nameTh, nameEn: customers.nameEn }).from(customers).where(eq(customers.id, c.customerId))
+      : [];
+    const [link] = await db
+      .select({ address: notificationChannels.address })
+      .from(notificationChannels)
+      .where(
+        and(
+          eq(notificationChannels.organizationId, organizationId),
+          eq(notificationChannels.userId, out[0]!.userId),
+          eq(notificationChannels.channel, "line"),
+          eq(notificationChannels.enabled, true),
+        ),
+      );
+    if (link?.address && (await pushLine(link.address, lineText("case_assigned", c.caseNo, cand.params, cust ? cust.nameTh || cust.nameEn : null)))) {
+      await db.update(notifications).set({ lineSentAt: new Date() }).where(eq(notifications.id, out[0]!.id));
+    }
+  }
+  return out.length;
 }

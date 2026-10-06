@@ -1,0 +1,198 @@
+/* Customer service cases (เคส / 工单) — /api/cases, canned replies, SLA, status lookup. */
+import { ApiError, type ApiIssue } from "./crm.ts";
+
+export const CASE_STATUSES = ["new", "in_progress", "waiting_customer", "resolved", "closed"] as const;
+export const CASE_OPEN_STATUSES = ["new", "in_progress", "waiting_customer"] as const;
+export const CASE_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+export const CASE_CATEGORIES = ["status_inquiry", "documents", "pricing", "complaint", "other"] as const;
+export const CASE_CHANNELS = ["phone", "email", "line", "walk_in", "portal"] as const;
+export const CANNED_VARIABLES = ["customer", "container", "eta", "vessel", "job", "agent"] as const;
+
+export type CaseStatus = (typeof CASE_STATUSES)[number];
+export type CasePriority = (typeof CASE_PRIORITIES)[number];
+export type CaseCategory = (typeof CASE_CATEGORIES)[number];
+export type CaseChannel = (typeof CASE_CHANNELS)[number];
+export type CannedVariable = (typeof CANNED_VARIABLES)[number];
+
+export type SlaState = "ok" | "warning" | "breached" | "met" | "late" | "none";
+export type SlaTimer = { state: SlaState; dueAt: string | null; doneAt: string | null; leftMinutes: number | null; fractionLeft: number | null };
+
+export type CaseDto = {
+  id: string;
+  caseNo: string;
+  subject: string;
+  description: string | null;
+  channel: CaseChannel;
+  category: CaseCategory;
+  priority: CasePriority;
+  status: CaseStatus;
+  customerId: string | null;
+  customer: { th: string; en: string; zh: string } | null;
+  contactId: string | null;
+  contact: { name: string; email: string; phone: string } | null;
+  assigneeUserId: string | null;
+  jobId: string | null;
+  jobNumber: string | null;
+  containerNo: string | null;
+  bookingId: string | null;
+  bookingNumber: string | null;
+  sourceMailId: string | null;
+  firstResponseDueAt: string | null;
+  resolveDueAt: string | null;
+  firstRespondedAt: string | null;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sla: { first: SlaTimer; resolve: SlaTimer; active: "first" | "resolve" | null; state: SlaState; breached: boolean };
+};
+
+export type CaseEventDto = {
+  id: string;
+  type: "created" | "comment" | "reply" | "status" | "assignment" | "priority" | "category" | "link";
+  body: string | null;
+  data: Record<string, unknown>;
+  userId: string | null;
+  mailId: string | null;
+  createdAt: string;
+};
+
+export type CaseContact = { id: string; name: string; title: string; email: string; phone: string; lineId: string; primary: boolean };
+export type CaseDetail = { case: CaseDto; events: CaseEventDto[]; contacts: CaseContact[] };
+
+export type CaseCounts = Record<CaseStatus, number>;
+export type CasePage = { items: CaseDto[]; total: number; limit: number; offset: number; counts: CaseCounts };
+
+export type CaseStats = {
+  open: number;
+  mine: number;
+  unassigned: number;
+  overdue: number;
+  dueToday: number;
+  resolvedToday: number;
+  avgFirstResponseMinutes: number | null;
+  firstResponseMetRate: number | null;
+  byCategory: Record<CaseCategory, number>;
+  byPriority: Record<CasePriority, number>;
+};
+
+export type CaseListParams = {
+  status?: CaseStatus | "open" | "board" | "all";
+  assignee?: string;
+  priority?: CasePriority;
+  category?: CaseCategory;
+  customerId?: string;
+  jobId?: string;
+  overdue?: boolean;
+  q?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type CaseInput = {
+  subject: string;
+  description?: string | null;
+  channel?: CaseChannel;
+  category?: CaseCategory;
+  priority?: CasePriority;
+  customerId?: string | null;
+  contactId?: string | null;
+  assigneeUserId?: string | null;
+  jobId?: string | null;
+  containerNo?: string | null;
+  bookingId?: string | null;
+  sourceMailId?: string | null;
+};
+
+export type CasePatch = Partial<Omit<CaseInput, "sourceMailId">> & { status?: CaseStatus };
+
+export type ReplyInput = {
+  via: "email" | "phone" | "line";
+  body: string;
+  to?: string[];
+  cc?: string[];
+  subject?: string;
+  status?: CaseStatus;
+};
+
+export type ReplyResult = {
+  event: CaseEventDto;
+  mail: { id: string; status: "sent" | "failed"; error: string | null; to: string[]; cc: string[]; subject: string } | null;
+  case: CaseDto;
+};
+
+export type CannedReply = { id: string; title: string; body: string; category: CaseCategory | null; sortOrder: number; updatedAt: string };
+export type CannedInput = { title: string; body: string; category?: CaseCategory | null; sortOrder?: number };
+export type CannedRender = { text: string; missing: CannedVariable[]; values: Partial<Record<CannedVariable, string | null>> };
+
+export type SlaPolicy = Record<CasePriority, { firstResponseMinutes: number; resolveMinutes: number }>;
+
+export type LookupHit = {
+  kind: "container" | "job" | "booking";
+  ref: string;
+  jobId: string | null;
+  jobNumber: string | null;
+  containerNo: string | null;
+  bookingId: string | null;
+  bookingNumber: string | null;
+  customerId: string | null;
+  customer: { th: string; en: string; zh: string } | null;
+  pol: string | null;
+  pod: string | null;
+  vessel: string | null;
+  voyage: string | null;
+  etd: string | null;
+  eta: string | null;
+  status: string;
+  stage: number;
+  problem: boolean;
+  containers: string[];
+};
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    credentials: "include",
+    ...init,
+    headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new ApiError(String(data.error ?? `api_${res.status}`), res.status, (data.issues as ApiIssue[]) ?? []);
+  return data as T;
+}
+
+function qs(params: Record<string, string | number | boolean | undefined>) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === "" || v === false) continue;
+    q.set(k, v === true ? "1" : String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+const enc = encodeURIComponent;
+const body = (method: string, b: unknown): RequestInit => ({ method, body: JSON.stringify(b) });
+
+export const fetchCases = (p: CaseListParams = {}) => apiFetch<CasePage>(`/api/cases${qs(p)}`);
+export const fetchCaseStats = () => apiFetch<CaseStats>("/api/cases/stats");
+export const fetchCase = (id: string) => apiFetch<CaseDetail>(`/api/cases/${enc(id)}`);
+export const createCase = async (input: CaseInput) => (await apiFetch<{ case: CaseDto }>("/api/cases", body("POST", input))).case;
+export const patchCase = async (id: string, patch: CasePatch) =>
+  (await apiFetch<{ case: CaseDto }>(`/api/cases/${enc(id)}`, body("PATCH", patch))).case;
+export const addCaseNote = async (id: string, text: string) =>
+  (await apiFetch<{ event: CaseEventDto }>(`/api/cases/${enc(id)}/notes`, body("POST", { body: text }))).event;
+export const replyToCase = (id: string, input: ReplyInput) => apiFetch<ReplyResult>(`/api/cases/${enc(id)}/reply`, body("POST", input));
+
+export const fetchCanned = async () => (await apiFetch<{ items: CannedReply[] }>("/api/cases/canned")).items;
+export const createCanned = async (input: CannedInput) => (await apiFetch<{ item: CannedReply }>("/api/cases/canned", body("POST", input))).item;
+export const patchCanned = async (id: string, patch: Partial<CannedInput>) =>
+  (await apiFetch<{ item: CannedReply }>(`/api/cases/canned/${enc(id)}`, body("PATCH", patch))).item;
+export const deleteCanned = (id: string) => apiFetch(`/api/cases/canned/${enc(id)}`, { method: "DELETE" });
+export const renderCanned = (input: { caseId: string; cannedId?: string; body?: string; lang?: string }) =>
+  apiFetch<CannedRender>("/api/cases/canned/render", body("POST", input));
+
+export const fetchSlaPolicy = async () => (await apiFetch<{ policy: SlaPolicy }>("/api/cases/sla")).policy;
+export const saveSlaPolicy = async (policy: Partial<SlaPolicy>) => (await apiFetch<{ policy: SlaPolicy }>("/api/cases/sla", body("PUT", policy))).policy;
+
+export const lookupShipments = async (q: string) => (await apiFetch<{ items: LookupHit[] }>(`/api/cases/lookup${qs({ q })}`)).items;

@@ -19,6 +19,8 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/calendar",
     "/settings",
   ]),
+  marketing: new Set(["/", "/tasks", "/calendar", "/leads", "/pipeline", "/customers", "/contacts", "/quotations", "/rates", "/notifications", "/settings"]),
+  cs: new Set(["/", "/inbox", "/tasks", "/calendar", "/customers", "/contacts", "/jobs", "/shipments", "/boxes", "/notifications", "/settings"]),
   ops: new Set([
     "/",
     "/exceptions",

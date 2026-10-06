@@ -5,6 +5,7 @@ export const ROLE_CODES = [
   "MANAGEMENT",
   "SALES",
   "PRICING",
+  "MARKETING",
   "CUSTOMER_SERVICE",
   "OPERATIONS",
   "ACCOUNTING",

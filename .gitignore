@@ -29,3 +29,8 @@ dist-ssr
 # Playwright
 test-results/
 playwright-report/
+
+# Local AI tooling
+.agents/
+.claude/
+skills-lock.json

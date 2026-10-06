@@ -8,21 +8,19 @@ import { useMedia } from "../../ui/useMedia";
 import { departmentFromRoles, v2NavGroups } from "../navConfig.ts";
 import "./help.css";
 
-/** The five staff roles that get their own first-run tour and tutorial video. */
-export type HelpRole = "admin" | "sales" | "ops" | "cs" | "finance";
+/** The staff departments that get their own first-run tour and tutorial video. */
+export type HelpRole = "admin" | "sales" | "marketing" | "ops" | "cs" | "finance";
 
-/** Department from the signed-in user's roles; customer service gets its own tour (menu = ops). */
+/** Department (menu) from the signed-in user's roles — each one has its own tour. */
 export function helpRoleFromRoles(roles: readonly string[] | undefined | null): HelpRole | null {
-  const dept = departmentFromRoles(roles);
-  if (!dept) return null;
-  if (dept === "ops" && roles?.includes("CUSTOMER_SERVICE") && !roles.includes("OPERATIONS")) return "cs";
-  return dept;
+  return departmentFromRoles(roles);
 }
 
 /** Tutorial videos served from public/tutorials (copied from docs/tutorials). */
 export const TUTORIAL_VIDEO: Record<HelpRole, string> = {
   admin: "/tutorials/admin.mp4",
   sales: "/tutorials/sales.mp4",
+  marketing: "/tutorials/sales.mp4",
   ops: "/tutorials/ops.mp4",
   cs: "/tutorials/cs.mp4",
   finance: "/tutorials/finance.mp4",
@@ -38,6 +36,8 @@ export function startOnboardingTour() {
 const HELP_ROUTES: Record<string, { key: string; n: number; nav: string }> = {
   "/": { key: "overview", n: 3, nav: "/" },
   "/exceptions": { key: "exceptions", n: 3, nav: "/exceptions" },
+  "/cases": { key: "cases", n: 3, nav: "/cases" },
+  "/reports/marketing": { key: "mktreports", n: 3, nav: "/reports/marketing" },
   "/tasks": { key: "tasks", n: 3, nav: "/tasks" },
   "/inbox": { key: "inbox", n: 3, nav: "/inbox" },
   "/calendar": { key: "calendar", n: 3, nav: "/calendar" },
@@ -64,6 +64,8 @@ const HELP_ROUTES: Record<string, { key: string; n: number; nav: string }> = {
 /** Help entry for a pathname: exact main route, else its first segment (detail pages share the list help). */
 export function helpForPath(pathname: string) {
   if (HELP_ROUTES[pathname]) return HELP_ROUTES[pathname];
+  const two = "/" + pathname.split("/").slice(1, 3).join("/");
+  if (HELP_ROUTES[two]) return HELP_ROUTES[two];
   const first = "/" + (pathname.split("/")[1] ?? "");
   return HELP_ROUTES[first] ?? null;
 }

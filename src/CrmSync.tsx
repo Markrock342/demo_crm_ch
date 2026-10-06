@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthProvider.tsx";
 import { fetchCrmDocs, fetchMails } from "./api/comms.ts";
-import { fetchCrmBundle } from "./api/crm.ts";
+import { fetchCrmBundleFor } from "./api/crm.ts";
+import { fetchModules } from "./api/modules.ts";
 import { useStore } from "./store.tsx";
 
 /** Loads CRM + mail/docs from the API once a user is signed in; retries with back-off on failure. */
@@ -19,7 +20,10 @@ export function CrmSync() {
     if (loading || !user || loaded.current) return;
     loaded.current = true;
     let timer: number | undefined;
-    void Promise.all([fetchCrmBundle(), fetchMails(), fetchCrmDocs()])
+    // Skip what the company's modules turn off (documents, leads / deals) so nothing answers 403.
+    void fetchModules()
+      .catch(() => null)
+      .then((m) => Promise.all([fetchCrmBundleFor({ sales: m?.modules.sales !== false }), fetchMails(), m?.modules.docs === false ? [] : fetchCrmDocs()]))
       .then(([crm, mails, docs]) => {
         hydrateCrm(crm);
         hydrateComms({ mails, docs });

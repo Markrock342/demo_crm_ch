@@ -28,7 +28,7 @@ type Group = { key: string; title: string; hits: Hit[] };
 
 const pages = v2NavGroups.flatMap((g) => g.items.filter((i) => !i.yardModule));
 
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandPalette({ open, onClose, allowed }: { open: boolean; onClose: () => void; allowed?: (path: string) => boolean }) {
   const { tx, query, setQuery, boxes, shipments } = useStore();
   const { customers, nameOf } = useCustomerLookup();
   const navigate = useNavigate();
@@ -46,6 +46,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const groups = useMemo<Group[]>(() => {
     const pageHits: Hit[] = pages
+      .filter((p) => !allowed || allowed(p.path))
       .filter((p) => !nq || tx(p.labelKey).toLowerCase().includes(nq) || p.path.includes(nq))
       .map((p) => {
         const Icon = p.icon;
@@ -92,7 +93,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       { key: "bookings", title: tx("pub_cmd_group_bookings"), hits: shipHits },
       { key: "pages", title: tx("pub_cmd_group_pages"), hits: pageHits.slice(0, 6) },
     ].filter((g) => g.hits.length > 0);
-  }, [boxes, customers, nameOf, nq, shipments, tx]);
+  }, [allowed, boxes, customers, nameOf, nq, shipments, tx]);
 
   const flat = useMemo(() => groups.flatMap((g) => g.hits), [groups]);
   const current = Math.min(active, Math.max(flat.length - 1, 0));

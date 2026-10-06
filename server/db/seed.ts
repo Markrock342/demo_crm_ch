@@ -13,6 +13,7 @@ import { seedFinance } from "./seed-finance.js";
 import { seedTasks } from "./seed-tasks.js";
 import { seedFields } from "./seed-fields.js";
 import { syncDocSequences } from "./seed-sequences.js";
+import { seedDemoModules } from "../services/modules.service.js";
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
@@ -56,7 +57,10 @@ async function main() {
   const finance = await seedFinance(db);
   const todo = await seedTasks(db);
   const fields = await seedFields(db);
+  console.log("Marketing seed:", await (await import("./seed-marketing.js")).seedMarketing(db));
+  console.log("Cases seed:", await (await import("./seed-cases.js")).seedCases(db));
   await seedTestPortalAccess(db);
+  await seedDemoModules(db); // demo company = "marketing + customer service" preset
   await closeDb();
   console.log("Seed complete — demo users: admin@cangzhan.com / demo123 (+ sales, ops, finance)");
   if (!crm.skipped) {

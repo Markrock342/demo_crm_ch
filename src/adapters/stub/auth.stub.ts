@@ -11,6 +11,22 @@ const profiles: Record<Department, ShellUser> = {
     department: "sales",
     roles: ["SALES"],
   },
+  marketing: {
+    id: "shell-marketing",
+    email: "marketing@shell.local",
+    name: "Marketing Desk",
+    nameZh: "市场席",
+    department: "marketing",
+    roles: ["MARKETING"],
+  },
+  cs: {
+    id: "shell-cs",
+    email: "cs@shell.local",
+    name: "Service Desk",
+    nameZh: "客服席",
+    department: "cs",
+    roles: ["CUSTOMER_SERVICE"],
+  },
   ops: {
     id: "shell-ops",
     email: "ops@shell.local",

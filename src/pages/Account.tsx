@@ -3,6 +3,7 @@ import {
   ClockCountdown,
   Coins,
   FileText,
+  Headset,
   Star,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -59,6 +60,7 @@ import {
   useLiveQuotations,
 } from "../v2/hooks/useCommercial.ts";
 import { useCan } from "../v2/hooks/useCan.ts";
+import { useModules } from "../v2/hooks/useModules.ts";
 import { useCustomerLookup } from "../v2/hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../v2/hooks/useUserLookup.ts";
 import { CustomerFormDrawer, customerDetailKey, useRefreshCrm } from "../v2/pages/CustomerForm.tsx";
@@ -164,6 +166,17 @@ export function AccountPage() {
 
   const liveId = live ? id : undefined;
   const can = useCan();
+  // Company modules: no invoice / document / quotation parts when those modules are off.
+  const mods = useModules();
+  const financeOn = mods.ready && mods.modules.finance;
+  const hiddenTabs = new Set<string>([
+    ...(financeOn ? [] : ["invoices"]),
+    ...(mods.ready && mods.modules.docs ? [] : ["docs"]),
+    ...(mods.ready && mods.modules.sales ? [] : ["quotes"]),
+  ]);
+  // Header actions: new case (customer service) / new quotation (sales), each only when its module is on.
+  const caseOn = mods.ready && mods.modules.cs && can("case.edit");
+  const quoteOn = mods.ready && mods.modules.sales && can("quotation.create");
   // This customer's jobs / invoices from the paged list APIs (newest 500 rows; counts come from SQL).
   const jobsPage = useQuery({
     queryKey: [...queryKeys.jobs.list(id), "page"],
@@ -176,7 +189,7 @@ export function AccountPage() {
   const invoicesLive = useQuery({
     queryKey: [...queryKeys.invoices.list(id), "page"],
     queryFn: async () => (await fetchInvoicesPage({ customerId: id, limit: 500 })).items,
-    enabled: live && Boolean(id) && can("invoice.view"),
+    enabled: live && Boolean(id) && can("invoice.view") && financeOn,
   });
   const docsLive = useCustomerDocs(liveId);
   const mailsLive = useCustomerMails(liveId);
@@ -377,7 +390,7 @@ export function AccountPage() {
         value={openQuotes.length}
         label={tx("sales_statOpenQuotes")}
       />
-      <Tile
+      {financeOn ? <Tile
         icon={Coins}
         tone={overdueInv.length ? "danger" : "success"}
         value={
@@ -389,13 +402,13 @@ export function AccountPage() {
             <SegmentBar parts={agingParts} height={6} />
           ) : undefined
         }
-      />
-      <Tile
+      /> : null}
+      {financeOn ? <Tile
         icon={ClockCountdown}
         tone={arDays > 0 ? arTone : "neutral"}
         value={arDays > 0 ? tx("sales_days", { n: arDays }) : "—"}
         label={tx("sales_statArDays")}
-      />
+      /> : null}
     </TileRow>
   );
 
@@ -887,7 +900,7 @@ export function AccountPage() {
         className="sales-tabs"
         activeKey={tab}
         onChange={(k) => setTab(k as Tab)}
-        items={tabItems}
+        items={tabItems.filter((t) => !hiddenTabs.has(t.key))}
       />
     </Panel>
   );
@@ -944,9 +957,16 @@ export function AccountPage() {
                 {tx("cust_editBtn")}
               </Button>
             ) : null}
-            <Button type="primary" onClick={() => navigate(quoteHref)}>
-              {tx("sales_newQuote")}
-            </Button>
+            {caseOn ? (
+              <Button type={quoteOn ? "default" : "primary"} icon={<Headset size={16} aria-hidden />} onClick={() => navigate(`/cases?new=1&customerId=${encodeURIComponent(customer.id)}`)}>
+                {tx("md_new_case")}
+              </Button>
+            ) : null}
+            {quoteOn ? (
+              <Button type="primary" onClick={() => navigate(quoteHref)}>
+                {tx("sales_newQuote")}
+              </Button>
+            ) : null}
           </>
         }
       >

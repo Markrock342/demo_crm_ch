@@ -1,5 +1,5 @@
 import type { Icon } from "@phosphor-icons/react";
-import { Calculator, Crown, Headset, Package, Storefront } from "@phosphor-icons/react";
+import { Calculator, Crown, Headset, Megaphone, Package, Storefront } from "@phosphor-icons/react";
 
 /**
  * One-click sign-in buttons for trying each role (real accounts, real API).
@@ -23,6 +23,7 @@ export const TEST_ACCOUNTS: TestAccount[] = [
   { role: "ops", email: "ops@cangzhan.com", name: { zh: "马思远", th: "หม่า ซือหยวน", en: "Ma Siyuan" }, icon: Package, tone: "info" },
   { role: "cs", email: "cs@cangzhan.com", name: { zh: "纳帕·西苏", th: "ณภัทร ศรีสุข", en: "Napat Srisuk" }, icon: Headset, tone: "success" },
   { role: "finance", email: "finance@cangzhan.com", name: { zh: "诗丽蓬·旺萨功", th: "ศิริพร วงศ์สกุล", en: "Siriporn Wongsakul" }, icon: Calculator, tone: "warning" },
+  { role: "marketing", email: "marketing@cangzhan.com", name: { zh: "宾查诺·叻达纳功", th: "พิมพ์ชนก รัตนกุล", en: "Pimchanok Rattanakul" }, icon: Megaphone, tone: "info" },
 ];
 
 /** Test customer for the portal (code seeded by server/db/seed.ts). */

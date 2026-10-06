@@ -1,4 +1,4 @@
-export type Department = "sales" | "finance" | "admin" | "ops";
+export type Department = "sales" | "marketing" | "cs" | "finance" | "admin" | "ops";
 
 export type ShellUser = {
   id: string;
@@ -9,4 +9,4 @@ export type ShellUser = {
   roles: string[];
 };
 
-export const DEPARTMENTS: Department[] = ["sales", "ops", "finance", "admin"];
+export const DEPARTMENTS: Department[] = ["sales", "marketing", "cs", "ops", "finance", "admin"];

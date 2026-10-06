@@ -1,4 +1,5 @@
 import type { Department } from "../shell/types.ts";
+import type { ModuleKey, ModuleSet } from "../api/modules.ts";
 
 import type { Icon } from "@phosphor-icons/react";
 import {
@@ -25,6 +26,8 @@ import {
   WarningCircle,
   Invoice,
   FileXls,
+  Headset,
+  PresentationChart,
 } from "@phosphor-icons/react";
 
 export type NavItem = {
@@ -32,7 +35,7 @@ export type NavItem = {
   labelKey: string;
   icon: Icon;
   end?: boolean;
-  /** Hide unless tenant enables yard module (ops/admin only). */
+  /** Yard page (yard module; ops/admin menus only). */
   yardModule?: boolean;
 };
 
@@ -50,6 +53,7 @@ export const v2NavGroups: NavGroup[] = [
     items: [
       { path: "/", labelKey: "navOverview", icon: House, end: true },
       { path: "/exceptions", labelKey: "navActionCenter", icon: WarningCircle },
+      { path: "/cases", labelKey: "nav_cases", icon: Headset },
       { path: "/tasks", labelKey: "navTasks", icon: ListChecks },
       { path: "/inbox", labelKey: "navInbox", icon: EnvelopeSimple },
       { path: "/calendar", labelKey: "navCalendar", icon: CalendarBlank },
@@ -65,6 +69,7 @@ export const v2NavGroups: NavGroup[] = [
       { path: "/contacts", labelKey: "navContacts", icon: IdentificationCard },
       { path: "/rates", labelKey: "navRates", icon: CurrencyCircleDollar },
       { path: "/quotations", labelKey: "navQuotations", icon: Receipt },
+      { path: "/reports/marketing", labelKey: "nav_mkt_reports", icon: PresentationChart },
     ],
   },
   {
@@ -116,6 +121,36 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
     "/shipments",
     "/tasks",
     "/calendar",
+    "/reports/marketing",
+    "/settings",
+  ]),
+  marketing: new Set([
+    "/",
+    "/tasks",
+    "/inbox",
+    "/calendar",
+    "/leads",
+    "/pipeline",
+    "/customers",
+    "/contacts",
+    "/quotations",
+    "/rates",
+    "/reports/marketing",
+    "/notifications",
+    "/settings",
+  ]),
+  cs: new Set([
+    "/",
+    "/cases",
+    "/inbox",
+    "/tasks",
+    "/calendar",
+    "/customers",
+    "/contacts",
+    "/jobs",
+    "/shipments",
+    "/boxes",
+    "/notifications",
     "/settings",
   ]),
   ops: new Set([
@@ -146,6 +181,8 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
   admin: new Set([
     "/",
     "/exceptions",
+    "/cases",
+    "/reports/marketing",
     "/notifications",
     "/pipeline",
     "/leads",
@@ -171,26 +208,69 @@ const allowedByDept: Record<Department, ReadonlySet<string>> = {
   ]),
 };
 
-export function v2NavPathAllowed(department: Department | null, path: string): boolean {
+/**
+ * Which company module a page belongs to (longest prefix wins, so /reports/marketing ≠ /reports).
+ * Customers / contacts belong to sales OR customer service; pages not listed are always on.
+ */
+const PATH_MODULES: [string, ModuleKey[]][] = [
+  ["/leads", ["sales"]],
+  ["/pipeline", ["sales"]],
+  ["/quotations", ["sales"]],
+  ["/rates", ["sales"]],
+  ["/reports/marketing", ["sales"]],
+  ["/customers", ["sales", "cs"]],
+  ["/contacts", ["sales", "cs"]],
+  ["/cases", ["cs"]],
+  ["/inbox", ["cs"]],
+  ["/jobs", ["tracking"]],
+  ["/shipments", ["tracking"]],
+  ["/boxes", ["tracking"]],
+  ["/docs", ["docs"]],
+  ["/yard", ["yard"]],
+  ["/invoices", ["finance"]],
+  ["/vendor-bills", ["finance"]],
+  ["/vendors", ["finance"]],
+  ["/reports", ["finance"]],
+  ["/automation", ["automation"]],
+];
+
+/** Modules a path needs (any one of them on is enough); null = not tied to a module. */
+export function modulesForPath(pathname: string): ModuleKey[] | null {
+  let best: [string, ModuleKey[]] | null = null;
+  for (const entry of PATH_MODULES) {
+    const [p] = entry;
+    if ((pathname === p || pathname.startsWith(p + "/")) && (!best || p.length > best[0].length)) best = entry;
+  }
+  return best ? best[1] : null;
+}
+
+/** The module that switches this path off, or null when the page may show. */
+export function disabledModuleForPath(pathname: string, modules: ModuleSet | null | undefined): ModuleKey | null {
+  if (!modules) return null;
+  const need = modulesForPath(pathname);
+  if (!need || need.some((m) => modules[m] !== false)) return null;
+  return need[0]!;
+}
+
+export function v2NavPathAllowed(department: Department | null, path: string, modules?: ModuleSet | null): boolean {
   if (!department) return false;
-  return allowedByDept[department].has(path);
+  return allowedByDept[department].has(path) && !disabledModuleForPath(path, modules);
 }
 
 export type ResolvedNavGroup = { key: string; label: string; items: (NavItem & { label: string })[] };
 
+/** Sidebar for a department, minus pages of modules the company has turned off. */
 export function v2NavForDepartment(
   department: Department | null,
   tx: (key: string) => string,
-  opts?: { yardEnabled?: boolean },
+  opts?: { modules?: ModuleSet | null },
 ): ResolvedNavGroup[] {
-  const yardEnabled = opts?.yardEnabled ?? (department === "ops" || department === "admin");
   return v2NavGroups
     .map((g) => ({
       key: g.key,
       label: tx(g.labelKey),
       items: g.items
-        .filter((item) => !item.yardModule || yardEnabled)
-        .filter((item) => (department ? v2NavPathAllowed(department, item.path) : false))
+        .filter((item) => v2NavPathAllowed(department, item.path, opts?.modules))
         .map((item) => ({ ...item, label: tx(item.labelKey) })),
     }))
     .filter((g) => g.items.length > 0);
@@ -215,6 +295,8 @@ export function departmentFromRoles(roles: readonly string[] | undefined | null)
   if (r.has("SUPER_ADMIN") || r.has("MANAGEMENT")) return "admin";
   if (r.has("ACCOUNTING")) return "finance";
   if (r.has("SALES") || r.has("PRICING")) return "sales";
-  if (r.has("OPERATIONS") || r.has("CUSTOMER_SERVICE")) return "ops";
+  if (r.has("MARKETING")) return "marketing";
+  if (r.has("OPERATIONS")) return "ops";
+  if (r.has("CUSTOMER_SERVICE")) return "cs";
   return "sales";
 }

@@ -6,6 +6,7 @@ import { mapJobRowToShell } from "../../adapters/api/jobMapper.ts";
 import type { ShellJob } from "../../ports/job.port.ts";
 import { queryKeys } from "../queries/keys.ts";
 import { useCan } from "./useCan.ts";
+import { useModules } from "./useModules.ts";
 
 export function usePatchJobMilestone(jobId: string) {
   const qc = useQueryClient();
@@ -60,22 +61,27 @@ export function useLiveJobDetail(id: string | undefined) {
   });
 }
 
+/** Job money calls belong to the finance module (403 module_disabled when the company has it off). */
+const financeModuleOn = (m: ReturnType<typeof useModules>) => m.ready && m.modules.finance;
+
 export function useJobFinancials(jobId: string | undefined) {
   const can = useCan();
+  const mods = useModules();
   return useQuery({
     queryKey: queryKeys.jobs.financials(jobId ?? ""),
     queryFn: () => fetchJobFinancials(jobId!),
     // Same permission as GET /api/jobs/:id/financials — skip the call (no 403) for ops / CS.
-    enabled: Boolean(jobId) && can("finance.revenue.view"),
+    enabled: Boolean(jobId) && can("finance.revenue.view") && financeModuleOn(mods),
   });
 }
 
 export function useJobCharges(jobId: string | undefined) {
   const can = useCan();
+  const mods = useModules();
   return useQuery({
     queryKey: queryKeys.jobs.charges(jobId ?? ""),
     queryFn: () => fetchJobCharges(jobId!),
-    enabled: Boolean(jobId) && (can("finance.revenue.view") || can("finance.cost.view")),
+    enabled: Boolean(jobId) && (can("finance.revenue.view") || can("finance.cost.view")) && financeModuleOn(mods),
   });
 }
 

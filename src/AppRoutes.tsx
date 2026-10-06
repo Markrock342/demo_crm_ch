@@ -31,6 +31,9 @@ const QuoteWizardPage = lazyPage(() => import("./pages/QuoteWizard"), "QuoteWiza
 const QuotationsPage = lazyPage(() => import("./pages/Quotations"), "QuotationsPage");
 const RatesPage = lazyPage(() => import("./pages/Rates"), "RatesPage");
 const ReportsPage = lazyPage(() => import("./pages/Reports"), "ReportsPage");
+const MarketingPage = lazyPage(() => import("./v2/pages/marketing/MarketingPage.tsx"), "MarketingPage");
+const CasesPage = lazyPage(() => import("./v2/pages/cases/CasesPage.tsx"), "CasesPage");
+const CaseDetailPage = lazyPage(() => import("./v2/pages/cases/CaseDetailPage.tsx"), "CaseDetailPage");
 const SettingsPage = lazyPage(() => import("./pages/Settings"), "SettingsPage");
 const ShipmentsPage = lazyPage(() => import("./pages/Shipments"), "ShipmentsPage");
 const TasksPage = lazyPage(() => import("./pages/Tasks"), "TasksPage");
@@ -71,6 +74,9 @@ export function AppRoutes() {
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/calendar" element={<CalendarPage />} />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/reports/marketing" element={<MarketingPage />} />
+      <Route path="/cases" element={<CasesPage />} />
+      <Route path="/cases/:id" element={<CaseDetailPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/import" element={<ImportPage />} />
       <Route path="*" element={<Navigate to={shellUser ? homePathFor(shellUser.department) : "/"} replace />} />

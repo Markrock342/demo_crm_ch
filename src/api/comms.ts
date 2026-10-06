@@ -33,7 +33,11 @@ export async function apiPatchMail(id: string, patch: Partial<Mail>): Promise<Ma
 
 export async function fetchCrmDocs(customerId?: string): Promise<CrmDoc[]> {
   const q = customerId ? `?customerId=${encodeURIComponent(customerId)}` : "";
-  const data = await apiFetch(`/api/docs${q}`);
+  // Documents module off for this company (403 module_disabled) → no documents, not an error.
+  const data = await apiFetch(`/api/docs${q}`).catch((e: unknown) => {
+    if (e instanceof Error && e.message === "module_disabled") return { items: [] };
+    throw e;
+  });
   return (data.items as CrmDoc[]) ?? [];
 }
 

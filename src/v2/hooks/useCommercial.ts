@@ -2,18 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchCrmDocs } from "../../api/comms.ts";
 import { fetchInvoices, fetchQuotations, searchRates, type InvoiceRow, type QuotationRow } from "../../api/commercial.ts";
 import { fetchContainers } from "../../api/operations.ts";
-import { fetchCrmBundle } from "../../api/crm.ts";
+import { fetchCrmBundleFor } from "../../api/crm.ts";
 import { fetchMails } from "../../api/comms.ts";
 import { queryKeys } from "../queries/keys.ts";
 import { useAppMode } from "./useAppMode.ts";
 import { useCan } from "./useCan.ts";
+import { useModules } from "./useModules.ts";
 
 export function useCrmBundle() {
   const { live } = useAppMode();
+  const mods = useModules();
   return useQuery({
     queryKey: queryKeys.crm.bundle,
-    queryFn: fetchCrmBundle,
-    enabled: live,
+    queryFn: () => fetchCrmBundleFor({ sales: mods.modules.sales }),
+    enabled: live && mods.ready,
   });
 }
 
@@ -29,20 +31,22 @@ export function useLiveRates(params: Record<string, string>, enabled = true) {
 export function useLiveQuotations(customerId?: string) {
   const { live } = useAppMode();
   const can = useCan();
+  const mods = useModules();
   return useQuery({
     queryKey: queryKeys.quotations.list(customerId),
     queryFn: () => fetchQuotations(customerId),
-    enabled: live && can("quotation.view"),
+    enabled: live && can("quotation.view") && mods.ready && mods.modules.sales,
   });
 }
 
 export function useLiveInvoices(customerId?: string) {
   const { live } = useAppMode();
   const can = useCan();
+  const mods = useModules();
   return useQuery({
     queryKey: queryKeys.invoices.list(customerId),
     queryFn: () => fetchInvoices(customerId),
-    enabled: live && can("invoice.view"),
+    enabled: live && can("invoice.view") && mods.ready && mods.modules.finance,
   });
 }
 
@@ -55,10 +59,11 @@ export function useJobContainers(jobId: string | undefined) {
 }
 
 export function useCustomerDocs(customerId: string | undefined) {
+  const mods = useModules();
   return useQuery({
     queryKey: queryKeys.docs.byCustomer(customerId ?? ""),
     queryFn: () => fetchCrmDocs(customerId),
-    enabled: Boolean(customerId),
+    enabled: Boolean(customerId) && mods.ready && mods.modules.docs,
   });
 }
 

@@ -1,6 +1,14 @@
 /** Notifications feed, automation rules and delivery channels (LINE). */
 
-export type RuleKey = "job_delayed" | "eta_changed" | "doc_missing" | "free_time" | "invoice_overdue" | "quote_expiring";
+export type RuleKey =
+  | "job_delayed"
+  | "eta_changed"
+  | "doc_missing"
+  | "free_time"
+  | "invoice_overdue"
+  | "quote_expiring"
+  | "case_assigned"
+  | "case_sla";
 
 export type AppNotification = {
   id: string;

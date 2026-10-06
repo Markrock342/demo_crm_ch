@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./auth.js";
 import { organizations } from "./tenancy.js";
 
@@ -30,6 +30,8 @@ export const organizationProfiles = pgTable("organization_profiles", {
   defaultCurrency: text("default_currency").notNull().default("THB"),
   invoiceFooter: text("invoice_footer"),
   quotationFooter: text("quotation_footer"),
+  /** Module switches ({ finance: false, … }); a missing key = ON (migration 0019). */
+  modules: jsonb("modules").$type<Record<string, boolean>>().notNull().default({}),
   updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

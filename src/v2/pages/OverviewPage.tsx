@@ -35,6 +35,7 @@ import {
 import type { Tone } from "../components/Graphics.tsx";
 import { useAppMode } from "../hooks/useAppMode.ts";
 import { useCustomerLookup } from "../hooks/useCustomerLookup.ts";
+import { useModules } from "../hooks/useModules.ts";
 import { fmtNumber } from "../lib/format.ts";
 import { localizedUserName } from "../lib/demoText.ts";
 import { AttentionCard } from "./home/AttentionList.tsx";
@@ -114,6 +115,9 @@ export function OverviewPageV2() {
   const { items } = useAttentionItems();
   const { tasks, toggle } = useModeTasks();
   const { nameOf } = useCustomerLookup();
+  const mods = useModules();
+  /** Receivables tile + aging donut only when the company uses the finance module. */
+  const financeOn = mods.ready && mods.modules.finance;
 
   const name = localizedUserName(shellUser ?? user, locale);
   const today = new Intl.DateTimeFormat(INTL[loc], {
@@ -276,13 +280,15 @@ export function OverviewPageV2() {
               label={tx("home_tile_arriving")}
               to="/calendar"
             />
-            <Tile
-              icon={Receipt}
-              tone={overdueInv.length ? "warning" : "neutral"}
-              value={fmtNumber(overdueInv.length, loc)}
-              label={tx("home_tile_overdue_ar")}
-              to="/invoices?view=overdue"
-            />
+            {financeOn ? (
+              <Tile
+                icon={Receipt}
+                tone={overdueInv.length ? "warning" : "neutral"}
+                value={fmtNumber(overdueInv.length, loc)}
+                label={tx("home_tile_overdue_ar")}
+                to="/invoices?view=overdue"
+              />
+            ) : null}
             <Tile
               icon={CheckSquare}
               tone={lateTasks ? "danger" : "accent"}
@@ -429,44 +435,46 @@ export function OverviewPageV2() {
             />
           </div>
 
-          <Panel
-            title={
-              <SectionTitle
-                icon={Receipt}
-                tone={overdueInv.length ? "warning" : "success"}
-                label={tx("home_sec_ar")}
-              />
-            }
-            extra={
-              <Link to="/invoices" className="cz-link-btn">
-                {tx("home_all_tasks")}
-              </Link>
-            }
-          >
-            {openAr ? (
-              <div className="hm-aging">
-                <Donut
-                  size={112}
-                  parts={AGING.map((a) => ({
-                    value: aging[a.key],
-                    tone: a.tone,
-                    label: tx(`home_aging_${a.key}`),
-                  }))}
-                  center={fmtNumber(openAr, loc)}
-                  caption={tx("home_aging_caption")}
+          {financeOn ? (
+            <Panel
+              title={
+                <SectionTitle
+                  icon={Receipt}
+                  tone={overdueInv.length ? "warning" : "success"}
+                  label={tx("home_sec_ar")}
                 />
-                <Legend
-                  items={AGING.map((a) => ({
-                    tone: a.tone,
-                    label: tx(`home_aging_${a.key}`),
-                    value: aging[a.key],
-                  }))}
-                />
-              </div>
-            ) : (
-              <Quiet icon={Receipt}>{tx("home_ar_empty")}</Quiet>
-            )}
-          </Panel>
+              }
+              extra={
+                <Link to="/invoices" className="cz-link-btn">
+                  {tx("home_all_tasks")}
+                </Link>
+              }
+            >
+              {openAr ? (
+                <div className="hm-aging">
+                  <Donut
+                    size={112}
+                    parts={AGING.map((a) => ({
+                      value: aging[a.key],
+                      tone: a.tone,
+                      label: tx(`home_aging_${a.key}`),
+                    }))}
+                    center={fmtNumber(openAr, loc)}
+                    caption={tx("home_aging_caption")}
+                  />
+                  <Legend
+                    items={AGING.map((a) => ({
+                      tone: a.tone,
+                      label: tx(`home_aging_${a.key}`),
+                      value: aging[a.key],
+                    }))}
+                  />
+                </div>
+              ) : (
+                <Quiet icon={Receipt}>{tx("home_ar_empty")}</Quiet>
+              )}
+            </Panel>
+          ) : null}
 
           <Panel
             title={

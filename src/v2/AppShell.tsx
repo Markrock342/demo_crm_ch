@@ -28,7 +28,10 @@ import { initialOf } from "./components/Visuals.tsx";
 import { startOnboardingTour } from "./components/HelpButton.tsx";
 import { OnboardingTour } from "./components/OnboardingTour.tsx";
 import { localizedUserName } from "./lib/demoText.ts";
-import { activeNavItem, departmentFromRoles, v2NavForDepartment, v2NavPathAllowed } from "./navConfig.ts";
+import { activeNavItem, departmentFromRoles, disabledModuleForPath, v2NavForDepartment, v2NavPathAllowed } from "./navConfig.ts";
+import { useModules } from "./hooks/useModules.ts";
+import { ModuleOffPage } from "./pages/ModuleOffPage.tsx";
+import type { ModuleSet } from "../api/modules.ts";
 import "./shell.css";
 
 const COLLAPSE_KEY = "cz.sidebar.collapsed";
@@ -63,7 +66,15 @@ export function V2AppShell() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawer, setDrawer] = useState(false);
 
-  const groups = useMemo(() => v2NavForDepartment(dept, tx), [dept, tx, locale]);
+  // Company modules: menus of modules that are off disappear; until they are known, module pages stay hidden.
+  const { modules, ready: modulesReady } = useModules();
+  const navModules = useMemo<ModuleSet>(
+    () => (modulesReady ? modules : { sales: false, cs: false, tracking: false, docs: false, yard: false, finance: false, automation: false }),
+    [modules, modulesReady],
+  );
+  const offModule = modulesReady ? disabledModuleForPath(location.pathname, modules) : null;
+
+  const groups = useMemo(() => v2NavForDepartment(dept, tx, { modules: navModules }), [dept, tx, locale, navModules]);
   const current = activeNavItem(groups, location.pathname);
   const narrow = collapsed && !mobile;
 
@@ -109,7 +120,7 @@ export function V2AppShell() {
     navigate("/login", { replace: true });
   }
 
-  const can = (path: string) => v2NavPathAllowed(dept, path);
+  const can = (path: string) => v2NavPathAllowed(dept, path, navModules);
   const createItems = [
     can("/quotations") && { key: "/quotations/new", label: tx("quickNewQuote") },
     can("/customers") && { key: "/customers?new=1", label: tx("quickNewCustomer") },
@@ -268,11 +279,11 @@ export function V2AppShell() {
         </header>
 
         <main id="main" className="cz-content" key={location.pathname}>
-          <AppRoutes />
+          {offModule ? <ModuleOffPage module={offModule} /> : <AppRoutes />}
         </main>
       </div>
 
-      <CommandPalette open={cmd} onClose={() => setCmd(false)} />
+      <CommandPalette open={cmd} onClose={() => setCmd(false)} allowed={can} />
       <OnboardingTour />
       {toast ? (
         <div className="toast" role="status">

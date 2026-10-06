@@ -4,6 +4,8 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { compress } from "hono/compress";
 import { app } from "./app.js";
+import { getDb } from "./db/index.js";
+import { runAutomationAllOrgs } from "./services/automation.service.js";
 
 function loadDotEnv(path: string) {
   if (!existsSync(path)) return;
@@ -65,10 +67,8 @@ if (!process.env.VERCEL && process.env.AUTOMATION_SCHEDULER !== "off") {
     if (running) return;
     running = true;
     try {
-      const { getDb } = await import("./db/index.js");
       const db = getDb();
       if (!db) return;
-      const { runAutomationAllOrgs } = await import("./services/automation.service.js");
       const results = await runAutomationAllOrgs(db);
       const created = results.reduce((s, r) => s + r.created, 0);
       if (created) console.log(`[automation] ${created} new notification(s) across ${results.length} org(s)`);
