@@ -80,6 +80,54 @@
   color: var(--side-text);
 }
 
+/* Port photo behind the dark brand panel; flat token overlay keeps the text readable. */
+.pub-login-brand {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.pub-login-hero {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 70%;
+}
+.pub-login-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in oklch, var(--side) 58%, transparent);
+}
+.pub-login-credit {
+  align-self: flex-start;
+  margin-top: calc(var(--space-sm) * -1);
+  font-size: 11px;
+  color: var(--side-text);
+  opacity: 0.75;
+  text-decoration: none;
+}
+/* The photo already gives depth: drop the tilted backing card. */
+.pub-login-brand .pub-login-ghost {
+  display: none;
+}
+@media (max-width: 860px) {
+  .pub-login-brand::before {
+    background: color-mix(in oklch, var(--side) 74%, transparent);
+  }
+  .pub-login-credit {
+    margin-top: 0;
+  }
+}
+.pub-login-credit:hover,
+.pub-login-credit:focus-visible {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .pub-login-brand-top {
   display: flex;
   align-items: center;

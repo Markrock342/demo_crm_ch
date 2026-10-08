@@ -9,12 +9,13 @@ import { writeAudit } from "./audit.service.js";
 export const UNIT_COLORS = ["teal", "blue", "amber", "violet", "rose", "slate"] as const;
 export type UnitColor = (typeof UNIT_COLORS)[number];
 
-export type BusinessUnitDto = { id: string; name: string; color: UnitColor | null; sortOrder: number; archived: boolean };
+export type BusinessUnitDto = { id: string; name: string; color: UnitColor | null; imageUrl: string | null; sortOrder: number; archived: boolean };
 
 const toDto = (r: typeof businessUnits.$inferSelect): BusinessUnitDto => ({
   id: r.id,
   name: r.name,
   color: (r.color as UnitColor | null) ?? null,
+  imageUrl: r.imageUrl,
   sortOrder: r.sortOrder,
   archived: Boolean(r.archivedAt),
 });
@@ -28,9 +29,9 @@ export async function listBusinessUnits(db: Db, organizationId: string, includeA
   return rows.map(toDto);
 }
 
-export type BusinessUnitInput = { name?: string; color?: UnitColor | null; sortOrder?: number; archived?: boolean };
+export type BusinessUnitInput = { name?: string; color?: UnitColor | null; imageUrl?: string | null; sortOrder?: number; archived?: boolean };
 
-export async function createBusinessUnit(db: Db, organizationId: string, userId: string, input: { name: string; color?: UnitColor | null; sortOrder?: number }) {
+export async function createBusinessUnit(db: Db, organizationId: string, userId: string, input: { name: string; color?: UnitColor | null; imageUrl?: string | null; sortOrder?: number }) {
   const existing = await listBusinessUnits(db, organizationId, true);
   const [row] = await db
     .insert(businessUnits)
@@ -39,6 +40,7 @@ export async function createBusinessUnit(db: Db, organizationId: string, userId:
       organizationId,
       name: input.name.trim(),
       color: input.color ?? UNIT_COLORS[existing.length % UNIT_COLORS.length],
+      imageUrl: input.imageUrl ?? null,
       sortOrder: input.sortOrder ?? (existing.at(-1)?.sortOrder ?? 0) + 10,
     })
     .returning();
@@ -57,6 +59,7 @@ export async function updateBusinessUnit(db: Db, organizationId: string, userId:
   const set: Partial<typeof businessUnits.$inferInsert> = { updatedAt: new Date() };
   if (patch.name !== undefined) set.name = patch.name.trim();
   if (patch.color !== undefined) set.color = patch.color;
+  if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl;
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder;
   // Archived units keep their tags on old cases / customers but leave pickers and filters.
   if (patch.archived !== undefined) set.archivedAt = patch.archived ? (before.archivedAt ?? new Date()) : null;

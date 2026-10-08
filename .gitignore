@@ -34,3 +34,7 @@ playwright-report/
 .agents/
 .claude/
 skills-lock.json
+
+# Local uploads (client logos, LINE media) and scratch tooling — never commit
+uploads/
+.tmp-*/

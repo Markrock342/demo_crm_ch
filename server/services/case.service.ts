@@ -75,7 +75,7 @@ export type CaseDto = {
   bookingNumber: string | null;
   sourceMailId: string | null;
   businessUnitId: string | null;
-  businessUnit: { id: string; name: string; color: string | null } | null;
+  businessUnit: { id: string; name: string; color: string | null; imageUrl: string | null } | null;
   lineContactId: string | null;
   /** The customer's LINE chat this case is answered in. */
   /** connected = that OA has LINE credentials; false → replies are only logged, not sent. */
@@ -113,6 +113,7 @@ const caseSelect = {
   bookingNumber: bookings.bookingNumber,
   unitName: businessUnits.name,
   unitColor: businessUnits.color,
+  unitImage: businessUnits.imageUrl,
   lineName: lineContacts.displayName,
   linePicture: lineContacts.pictureUrl,
   lineChannelId: lineContacts.channelId,
@@ -132,6 +133,7 @@ type CaseRow = {
   bookingNumber: string | null;
   unitName: string | null;
   unitColor: string | null;
+  unitImage: string | null;
   lineName: string | null;
   linePicture: string | null;
   lineChannelId: string | null;
@@ -162,7 +164,7 @@ function toDto(r: CaseRow, now: Date): CaseDto {
     bookingNumber: r.bookingNumber,
     sourceMailId: c.sourceMailId,
     businessUnitId: c.businessUnitId,
-    businessUnit: c.businessUnitId && r.unitName !== null ? { id: c.businessUnitId, name: r.unitName, color: r.unitColor } : null,
+    businessUnit: c.businessUnitId && r.unitName !== null ? { id: c.businessUnitId, name: r.unitName, color: r.unitColor, imageUrl: r.unitImage } : null,
     lineContactId: c.lineContactId,
     line:
       c.lineContactId && r.lineChannelId

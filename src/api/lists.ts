@@ -183,7 +183,7 @@ export function invoicesCsvUrl(p: InvoiceListParams & { ids?: string[]; lang?: s
 
 export type CustomerTab = "all" | "active" | "ar";
 export type CustomerMoney = { activeJobs: number; balance: number; currency: string; aging: { current: number; late: number; veryLate: number } };
-export type CustomerPageRow = Customer & { boxes?: number; arDays?: number; ownerUserId?: string | null; businessUnits?: string[]; money: CustomerMoney };
+export type CustomerPageRow = Customer & { boxes?: number; arDays?: number; ownerUserId?: string | null; businessUnits?: string[]; commodities?: string[]; money: CustomerMoney };
 export type CustomerPage = {
   items: CustomerPageRow[];
   total: number;

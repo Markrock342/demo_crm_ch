@@ -2,7 +2,7 @@
 
 const zh: Record<string, string> = {
   // Login
-  pub_login_tagline: "中泰货代的客户、报价与订舱，一处跟进。",
+  pub_login_tagline: "市场营销与客户服务，一站完成。",
   pub_login_lane: "中国 ⇄ 泰国 · 海运整箱",
   pub_login_title: "登录",
   pub_login_sub: "使用公司邮箱登录。",
@@ -149,7 +149,7 @@ const zh: Record<string, string> = {
 
 const th: Record<string, string> = {
   // Login
-  pub_login_tagline: "ติดตามลูกค้า ใบเสนอราคา และงานขนส่งจีน–ไทย ได้ในที่เดียว",
+  pub_login_tagline: "งานการตลาดและบริการลูกค้า ครบในที่เดียว",
   pub_login_lane: "จีน ⇄ ไทย · ขนส่งทางเรือแบบเต็มตู้",
   pub_login_title: "เข้าสู่ระบบ",
   pub_login_sub: "ใช้อีเมลบริษัทของคุณ",
@@ -296,7 +296,7 @@ const th: Record<string, string> = {
 
 const en: Record<string, string> = {
   // Login
-  pub_login_tagline: "Customers, quotations and China–Thailand shipments, tracked in one place.",
+  pub_login_tagline: "Marketing and customer service, all in one place.",
   pub_login_lane: "China ⇄ Thailand · Ocean FCL",
   pub_login_title: "Sign in",
   pub_login_sub: "Use your company email.",

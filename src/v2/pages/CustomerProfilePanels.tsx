@@ -26,6 +26,7 @@ import { Alert, Button, Modal, Popconfirm, Tooltip, message } from "antd";
 import { useState, type ReactNode } from "react";
 import { issuePortalAccessCode, revokePortalAccess, type CustomerDetail } from "../../api/crm.ts";
 import { EmailPortalCodeButton } from "./EmailPortalCodeButton.tsx";
+import { GoodsChips } from "../components/Goods.tsx";
 import type { Contact } from "../../crm";
 import { useStore } from "../../store";
 import { Flag, IconBadge, Panel, PersonAvatar, RouteTrack, StatusTag } from "../components";
@@ -217,11 +218,7 @@ export function ShippingPanel({ c, onEdit }: { c: CustomerDetail; onEdit?: () =>
       label: tx("cust_commodities"),
       value: (
         <div className="cp-badges">
-          {c.commodities.map((t) => (
-            <span key={t} className="cp-chip">
-              {t}
-            </span>
-          ))}
+          <GoodsChips items={c.commodities} />
         </div>
       ),
     });

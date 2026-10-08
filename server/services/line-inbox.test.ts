@@ -136,6 +136,10 @@ describe("LINE inbox (HTTP, local DB)", () => {
       const unit = (await json<{ item: { id: string; color: string | null } }>(unitRes)).item;
       unitIds.push(unit.id);
       assert.ok(unit.color, "a colour is picked automatically");
+      // Unit photos only from the built-in gallery.
+      assert.equal((await call(adminTok, "PATCH", `/api/business-units/${unit.id}`, { imageUrl: "https://example.com/x.png" })).status, 400);
+      const withPhoto = await json<{ item: { imageUrl: string | null } }>(call(adminTok, "PATCH", `/api/business-units/${unit.id}`, { imageUrl: "/demo/unit-port.webp" }));
+      assert.equal(withPhoto.item.imageUrl, "/demo/unit-port.webp");
 
       // Channels: CS can see but not manage; credentials never come back.
       assert.equal((await call(csTok, "POST", "/api/cases/line/channels", { name: `${marker} OA` })).status, 403);
@@ -243,6 +247,14 @@ describe("LINE inbox (HTTP, local DB)", () => {
       const simCase = await json<{ case: CaseBody }>(call(csTok, "GET", `/api/cases/${simBody.caseId}`));
       assert.equal(simCase.case.line?.displayName, `ลูกค้าทดสอบ ${marker}`);
       assert.equal(simCase.case.category, "pricing");
+      // Test sender can attach a sample photo: it lands as an image message with a /demo/ URL.
+      const simPhoto = await json<{ caseId: string }>(
+        call(adminTok, "POST", `/api/cases/line/channels/${ch.id}/test-message`, { name: `ลูกค้าทดสอบ ${marker}`, text: "ตู้บุบ", image: "container-damage" }),
+      );
+      const simEvents = (await json<{ events: EventBody[] }>(call(csTok, "GET", `/api/cases/${simPhoto.caseId}`))).events;
+      const photo = simEvents.find((e) => e.type === "inbound" && e.data.kind === "image");
+      assert.deepEqual(photo?.data.media, { url: "/demo/chat-container-damage.webp", mime: "image/webp" });
+      assert.equal((await call(adminTok, "POST", `/api/cases/line/channels/${ch.id}/test-message`, { name: "x", text: "y", image: "../etc" })).status, 400);
 
       // Media: nothing stored → 404 (and never another org's file).
       assert.equal((await call(csTok, "GET", `/api/cases/${k.id}/media/${inbound[0]!.id}`)).status, 404);

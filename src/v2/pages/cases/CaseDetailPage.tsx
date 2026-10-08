@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Info,
   LinkSimple,
+  MagnifyingGlassPlus,
   MapPin,
   Microphone,
   NotePencil,
@@ -29,7 +30,7 @@ import {
   X,
   type Icon,
 } from "@phosphor-icons/react";
-import { App, Button, Checkbox, Input, Segmented, Select, Tooltip } from "antd";
+import { App, Button, Checkbox, Image, Input, Segmented, Select, Tooltip } from "antd";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -56,6 +57,7 @@ import { useCanned, useCase, useCaseActions } from "../../hooks/useCases.ts";
 import { useCustomerLookup } from "../../hooks/useCustomerLookup.ts";
 import { useUserLookup } from "../../hooks/useUserLookup.ts";
 import { fmtDateTime } from "../../lib/format.ts";
+import { isDemoPhoto } from "../../lib/photos.ts";
 import { useAssigneeOptions } from "./CaseCreateDrawer.tsx";
 import {
   CATEGORY_LOOK,
@@ -452,14 +454,19 @@ const KIND_ICON: Record<string, Icon> = {
 /** What the customer sent on LINE: text, a photo thumbnail, a player, or an icon + label for the rest. */
 function InboundContent({ caseId, e, tx }: { caseId: string; e: CaseEventDto; tx: Tx }) {
   const kind = typeof e.data.kind === "string" && e.data.kind in KIND_ICON ? e.data.kind : e.body ? "text" : "other";
-  const media = e.data.media && typeof e.data.media === "object" ? (e.data.media as { mime?: string; size?: number }) : null;
-  const url = media ? caseMediaUrl(caseId, e.id) : null;
+  const media = e.data.media && typeof e.data.media === "object" ? (e.data.media as { mime?: string; size?: number; url?: string }) : null;
+  // Built-in sample photos (seed / test sender) carry their own /demo/ URL; real LINE media goes through the API.
+  const url = media ? (isDemoPhoto(media.url) ? media.url : caseMediaUrl(caseId, e.id)) : null;
   if (kind === "text") return <p className="cs-bubble-body">{e.body}</p>;
   if (kind === "image" && url) {
     return (
-      <a className="cs-media-thumb" href={url} target="_blank" rel="noreferrer" title={tx("cs_media_open")}>
-        <img src={url} alt={tx("cs_kind_image")} loading="lazy" />
-      </a>
+      <Image
+        rootClassName="cs-media-thumb"
+        src={url}
+        alt={tx("cs_kind_image")}
+        loading="lazy"
+        preview={{ mask: <MagnifyingGlassPlus size={22} weight="bold" aria-label={tx("cs_media_open")} /> }}
+      />
     );
   }
   if (kind === "video" && url) return <video className="cs-media-video" src={url} controls preload="metadata" aria-label={tx("cs_kind_video")} />;

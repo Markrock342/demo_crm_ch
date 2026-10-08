@@ -9,6 +9,7 @@ import { LangPicker } from "../ui/LangPicker";
 import { IconBadge, RouteTrack, StageFlow, type StageKey } from "../v2/components/Graphics.tsx";
 import { BrandMark } from "../v2/components/BrandMark.tsx";
 import { useBrandHead, usePublicBranding } from "../v2/hooks/useBranding.ts";
+import { HERO_PHOTO } from "../v2/lib/photos.ts";
 import "../v2/pages/public.css";
 
 const LOGIN_ERROR_KEY: Record<string, string> = {
@@ -74,6 +75,7 @@ export function LoginPage() {
   return (
     <div className="pub-login">
       <aside className="pub-login-brand">
+        <img className="pub-login-hero" src={HERO_PHOTO.src} alt={tx("ph_hero_alt")} width={1600} height={980} fetchPriority="high" decoding="async" />
         <div className="pub-login-brand-top">
           {brand.ready ? <BrandMark name={brand.name} logoUrl={brand.logoUrl} size={48} fit="auto" decorative /> : null}
           {brand.name ? (
@@ -104,6 +106,9 @@ export function LoginPage() {
           </div>
         </div>
         <p className="pub-login-tagline">{tx("pub_login_tagline")}</p>
+        <a className="pub-login-credit" href={HERO_PHOTO.source} target="_blank" rel="noreferrer">
+          {`${tx("ph_photo")}: ${HERO_PHOTO.author} · ${HERO_PHOTO.license}`}
+        </a>
       </aside>
 
       <main className="pub-login-main">

@@ -49,6 +49,7 @@ import { cityName } from "../../data";
 import { useStore } from "../../store";
 import { useMedia } from "../../ui/useMedia";
 import { Flag, IconBadge, PersonAvatar } from "../components";
+import { GoodsPicker } from "../components/Goods.tsx";
 import { UnitPicker } from "../components/UnitPicker.tsx";
 import { useBusinessUnits } from "../hooks/useBusinessUnits.ts";
 import { userDisplayName, useUserLookup } from "../hooks/useUserLookup.ts";
@@ -814,10 +815,10 @@ export function CustomerFormDrawer({
               <ChipMulti options={CONTAINER_TYPES} label={tx("cust_containerTypes")} />
             </Form.Item>
 
+            <Form.Item name="commodities" label={tx("cust_commodities")}>
+              <GoodsPicker placeholder={tx("cust_commoditiesPh")} />
+            </Form.Item>
             <div className="cf-grid">
-              <Form.Item name="commodities" label={tx("cust_commodities")}>
-                <Select mode="tags" tokenSeparators={[",", "，", "、"]} placeholder={tx("cust_commoditiesPh")} open={false} suffixIcon={null} />
-              </Form.Item>
               <Form.Item name="incoterms" label={tx("cust_incoterms")}>
                 <Select allowClear options={INCOTERMS.map((i) => ({ value: i, label: i }))} />
               </Form.Item>

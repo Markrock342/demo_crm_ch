@@ -8,6 +8,7 @@ import { authMiddleware, requireAuth, requirePermission, requireTenant, type Aut
 import { UNIT_COLORS, createBusinessUnit, listBusinessUnits, updateBusinessUnit } from "../services/business-unit.service.js";
 import { CaseInputError } from "../services/case.service.js";
 import {
+  DEMO_CHAT_IMAGES,
   LineInputError,
   createLineChannel,
   deleteLineChannel,
@@ -19,10 +20,18 @@ import {
 
 /** Business units (ธุรกิจในเครือ) and the LINE inbox (company OAs → cases). */
 
+/** Unit photos come from the built-in gallery (public/demo/unit-*.webp) — uploads don't persist on every host. */
+const unitImage = z
+  .string()
+  .regex(/^\/demo\/[a-z0-9-]+\.webp$/, "invalid_image")
+  .nullable()
+  .optional();
+
 const unitSchema = z
   .object({
     name: z.string().trim().min(1, "name_required").max(80),
     color: z.enum(UNIT_COLORS).nullable().optional(),
+    imageUrl: unitImage,
     sortOrder: z.number().int().min(0).max(100_000).optional(),
   })
   .strict();
@@ -45,6 +54,8 @@ const testMessageSchema = z
   .object({
     name: z.string().trim().min(1, "name_required").max(80),
     text: z.string().trim().min(1, "text_required").max(2000),
+    /** Also "send" one of the sample photos (public/demo/chat-<key>.webp). */
+    image: z.enum(DEMO_CHAT_IMAGES).optional(),
   })
   .strict();
 
@@ -164,7 +175,7 @@ export function inboxRoutes() {
     return c.json({ ok: true });
   });
 
-  /** POST /cases/line/channels/:id/test-message { name, text } → { caseId, caseNo, created } — as if a customer chatted. */
+  /** POST /cases/line/channels/:id/test-message { name, text, image? } → { caseId, caseNo, created } — as if a customer chatted. */
   r.post("/cases/line/channels/:id/test-message", ...gate, requirePermission("case.manage"), async (c) => {
     const db = dbOr503(c);
     if (db instanceof Response) return db;

@@ -47,6 +47,7 @@ import {
   useNow,
 } from "./caseLook.tsx";
 import { LineAvatar, LineBadge, UnitChip } from "./UnitChip.tsx";
+import { UnitPhotoRow } from "./UnitPhotoRow.tsx";
 import "./cases.css";
 
 type Scope = "mine" | "all" | "unassigned";
@@ -303,6 +304,8 @@ export function CasesPage() {
         />
       </TileRow>
 
+      {units.length ? <UnitPhotoRow units={units} counts={s?.byUnit} value={unit} onChange={(v) => setParam({ unit: v })} tx={tx} /> : null}
+
       <FilterBar
         tabs={{ value: scope, options: tabs, onChange: (v) => setParam({ scope: v }) }}
         search={{ value: q, onChange: (v) => setParam({ q: v || undefined }), placeholder: tx("cs_search") }}
@@ -338,21 +341,6 @@ export function CasesPage() {
             onChange: (v) => setParam({ category: v }),
             width: 180,
           },
-          ...(units.length
-            ? [
-                {
-                  key: "unit",
-                  placeholder: tx("cs_unit"),
-                  value: unit,
-                  options: [
-                    ...units.map((u) => ({ value: u.id, label: u.name, count: s?.byUnit[u.id] })),
-                    { value: "none", label: tx("cs_unit_none"), count: s?.byUnit.none },
-                  ],
-                  onChange: (v: string | undefined) => setParam({ unit: v }),
-                  width: 160,
-                },
-              ]
-            : []),
         ]}
         onClear={() => setParams(new URLSearchParams({ scope: "mine" }), { replace: true })}
         extra={

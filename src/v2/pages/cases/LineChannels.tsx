@@ -1,9 +1,11 @@
 import {
   ArrowRight,
   ChatCircleText,
+  Check,
   CheckCircle,
   ClipboardText,
   Copy,
+  ImageSquare,
   Info,
   Key,
   LinkSimple,
@@ -23,7 +25,7 @@ import type { TextAreaRef } from "antd/es/input/TextArea";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { BusinessUnit } from "../../../api/businessUnits.ts";
-import type { LineChannel, LineChannelInput } from "../../../api/cases.ts";
+import { DEMO_CHAT_IMAGES, type DemoChatImage, type LineChannel, type LineChannelInput } from "../../../api/cases.ts";
 import { ApiError } from "../../../api/crm.ts";
 import { useStore } from "../../../store";
 import { EmptyState, LoadingState } from "../../components";
@@ -31,6 +33,7 @@ import { UnitChip } from "./UnitChip.tsx";
 import { useBusinessUnits } from "../../hooks/useBusinessUnits.ts";
 import { useLineChannelActions, useLineChannels } from "../../hooks/useLineChannels.ts";
 import { fmtDateTime, fmtNumber } from "../../lib/format.ts";
+import { chatImageUrl, unitThumb } from "../../lib/photos.ts";
 import "./line.css";
 
 type Tx = (k: string, v?: Record<string, string | number>) => string;
@@ -112,18 +115,23 @@ function TestSender({ c, tx }: { c: LineChannel; tx: Tx }) {
   const actions = useLineChannelActions();
   const [name, setName] = useState(() => tx("inb_test_name_default"));
   const [text, setText] = useState("");
+  const [image, setImage] = useState<DemoChatImage | null>(null);
   const [result, setResult] = useState<{ caseId: string; caseNo: string; created: boolean } | null>(null);
   const textRef = useRef<InputRef>(null);
+  const photoLabel = (k: DemoChatImage) => tx(`ph_chat_${k.replace(/-/g, "_")}`);
 
   async function send() {
-    if (!name.trim() || !text.trim()) {
+    // A photo alone is fine: the API needs text, so the photo's name goes with it.
+    const body = text.trim() || (image ? photoLabel(image) : "");
+    if (!name.trim() || !body) {
       textRef.current?.focus();
       return;
     }
     try {
-      const out = await actions.test.mutateAsync({ id: c.id, name: name.trim(), text: text.trim() });
+      const out = await actions.test.mutateAsync({ id: c.id, name: name.trim(), text: body, image: image ?? undefined });
       setResult(out);
       setText("");
+      setImage(null);
       requestAnimationFrame(() => textRef.current?.focus());
     } catch {
       message.error(tx("inb_test_failed"));
@@ -159,9 +167,38 @@ function TestSender({ c, tx }: { c: LineChannel; tx: Tx }) {
           aria-label={tx("inb_test_text")}
           placeholder={tx("inb_test_text_ph")}
         />
-        <Button type="primary" htmlType="submit" icon={<PaperPlaneRight size={16} weight="fill" />} loading={actions.test.isPending} disabled={!text.trim() || !name.trim()}>
+        <Button type="primary" htmlType="submit" icon={<PaperPlaneRight size={16} weight="fill" />} loading={actions.test.isPending} disabled={!(text.trim() || image) || !name.trim()}>
           {tx("inb_test_send")}
         </Button>
+      </div>
+      <div className="ln-test-photos" role="radiogroup" aria-label={tx("ph_attach")}>
+        <span className="ln-test-photos-label">
+          <ImageSquare size={16} aria-hidden />
+          {tx("ph_attach")}
+        </span>
+        {DEMO_CHAT_IMAGES.map((k) => {
+          const on = image === k;
+          const label = photoLabel(k);
+          return (
+            <Tooltip key={k} title={label}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={label}
+                className={`ln-test-photo${on ? " is-on" : ""}`}
+                onClick={() => setImage(on ? null : k)}
+              >
+                <img src={chatImageUrl(k)} alt="" width={56} height={42} loading="lazy" decoding="async" />
+                {on ? (
+                  <span className="ln-test-photo-check" aria-hidden>
+                    <Check size={12} weight="bold" />
+                  </span>
+                ) : null}
+              </button>
+            </Tooltip>
+          );
+        })}
       </div>
       {result ? (
         <Link to={`/cases/${encodeURIComponent(result.caseId)}`} className="ln-test-result">
@@ -186,7 +223,14 @@ function ChannelCard({ c, unit, onEdit, tx, locale }: { c: LineChannel; unit: Bu
   return (
     <li className={`ln-card${c.active ? "" : " is-off"}`}>
       <div className="ln-head">
-        <LineMark size={40} off={!c.active} />
+        {unit?.imageUrl ? (
+          <span className="ln-unit-photo">
+            <img src={unitThumb(unit.imageUrl)} alt={tx("ph_unit_alt", { name: unit.name })} width={72} height={48} loading="lazy" decoding="async" />
+            <LineMark size={22} off={!c.active} />
+          </span>
+        ) : (
+          <LineMark size={40} off={!c.active} />
+        )}
         <div className="ln-title">
           <strong title={c.name}>{c.name}</strong>
           <span className="ln-sub">

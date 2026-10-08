@@ -39,7 +39,7 @@ export type CaseDto = {
   bookingNumber: string | null;
   sourceMailId: string | null;
   businessUnitId: string | null;
-  businessUnit: { id: string; name: string; color: UnitColor | null } | null;
+  businessUnit: { id: string; name: string; color: UnitColor | null; imageUrl: string | null } | null;
   lineContactId: string | null;
   /** The customer's LINE chat this case is answered in (replies via "line" are pushed there; connected=false → only logged). */
   line: { displayName: string | null; pictureUrl: string | null; channelId: string; channelName: string; connected: boolean } | null;
@@ -56,7 +56,8 @@ export type CaseDto = {
 
 export type CaseEventDto = {
   id: string;
-  /** inbound = a message from the customer (LINE): data { via: "line", kind, channel, media?: { mime, size } }.
+  /** inbound = a message from the customer (LINE): data { via: "line", kind, channel, media?: { mime, size } | { url, mime } }
+   *  (media.url = a built-in sample photo under /demo/ — show it directly; otherwise use caseMediaUrl).
    *  reply via line: data { via: "line", channel, delivery: "sent" | "failed" | "not_connected", error }. */
   type: "created" | "comment" | "reply" | "inbound" | "status" | "assignment" | "priority" | "category" | "link";
   body: string | null;
@@ -256,5 +257,9 @@ export const patchLineChannel = async (id: string, patch: LineChannelInput) =>
   (await apiFetch<{ item: LineChannel }>(`/api/cases/line/channels/${enc(id)}`, body("PATCH", patch))).item;
 export const deleteLineChannel = (id: string) => apiFetch(`/api/cases/line/channels/${enc(id)}`, { method: "DELETE" });
 /** Acts like a customer chatting on that OA (nothing goes to LINE) → the case it opened / joined. */
-export const sendLineTestMessage = (id: string, input: { name: string; text: string }) =>
+/** Sample photos the test sender can attach (public/demo/chat-<key>.webp). */
+export const DEMO_CHAT_IMAGES = ["truck-queue", "container-damage", "receipt", "container-seal"] as const;
+export type DemoChatImage = (typeof DEMO_CHAT_IMAGES)[number];
+
+export const sendLineTestMessage = (id: string, input: { name: string; text: string; image?: DemoChatImage }) =>
   apiFetch<{ caseId: string; caseNo: string; created: boolean }>(`/api/cases/line/channels/${enc(id)}/test-message`, body("POST", input));

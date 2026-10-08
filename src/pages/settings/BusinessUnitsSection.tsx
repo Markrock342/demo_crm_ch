@@ -1,12 +1,14 @@
-import { Archive, ArrowCounterClockwise, Plus, TreeStructure } from "@phosphor-icons/react";
+import { Archive, ArrowCounterClockwise, Check, ImageSquare, Plus, Prohibit, TreeStructure } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { App, Button, Input, Popover, Tooltip } from "antd";
 import { useState } from "react";
-import { createBusinessUnit, patchBusinessUnit, type BusinessUnit, type BusinessUnitInput, type UnitColor } from "../../api/businessUnits.ts";
+import { UNIT_IMAGES, createBusinessUnit, patchBusinessUnit, type BusinessUnit, type BusinessUnitInput, type UnitColor } from "../../api/businessUnits.ts";
 import { useStore } from "../../store";
 import { EmptyState, IconBadge, LoadingState, Panel } from "../../v2/components";
+import { PhotoCreditsLink } from "../../v2/components/PhotoCredits.tsx";
 import { UnitSwatches } from "../../v2/components/UnitPicker.tsx";
 import { UNIT_TONE } from "../../v2/lib/unitLook.ts";
+import { unitThumb } from "../../v2/lib/photos.ts";
 import { businessUnitsKey, useBusinessUnits } from "../../v2/hooks/useBusinessUnits.ts";
 import "./business-units.css";
 
@@ -19,6 +21,7 @@ export function BusinessUnitsSection() {
   const [busy, setBusy] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState<UnitColor>("teal");
+  const [newImage, setNewImage] = useState<string | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: businessUnitsKey });
 
@@ -39,9 +42,10 @@ export function BusinessUnitsSection() {
     setBusy(true);
     try {
       const max = Math.max(0, ...q.units.map((u) => u.sortOrder));
-      await createBusinessUnit({ name, color: newColor, sortOrder: max + 10 });
+      await createBusinessUnit({ name, color: newColor, imageUrl: newImage, sortOrder: max + 10 });
       await refresh();
       setNewName("");
+      setNewImage(null);
       message.success(tx("inb_saved_ok"));
     } catch {
       message.error(tx("inb_error"));
@@ -87,6 +91,7 @@ export function BusinessUnitsSection() {
                 void add();
               }}
             >
+              <UnitPhotoButton value={newImage} name={newName.trim() || tx("inb_unit_name_ph")} onChange={setNewImage} />
               <UnitSwatches value={newColor} onChange={setNewColor} label={tx("inb_unit_color")} colorLabel={colorLabel} />
               <Input
                 className="bu-add-name"
@@ -115,6 +120,7 @@ export function BusinessUnitsSection() {
                 </ul>
               </>
             ) : null}
+            <PhotoCreditsLink className="bu-credits" />
           </div>
         )}
       </Panel>
@@ -153,6 +159,14 @@ function UnitRow({
 
   return (
     <li className={`bu-row${unit.archived ? " is-archived" : ""}`}>
+      <UnitPhotoButton
+        value={unit.imageUrl}
+        name={unit.name}
+        disabled={unit.archived}
+        onChange={(img) => {
+          if (img !== unit.imageUrl) void onPatch(unit.id, { imageUrl: img });
+        }}
+      />
       <Popover
         open={colorOpen}
         onOpenChange={setColorOpen}
@@ -199,5 +213,45 @@ function UnitRow({
         </Tooltip>
       )}
     </li>
+  );
+}
+
+/** The unit's photo (or an empty frame); click → the built-in gallery + "no photo". */
+function UnitPhotoButton({ value, name, disabled, onChange }: { value: string | null; name: string; disabled?: boolean; onChange: (img: string | null) => void }) {
+  const { tx } = useStore();
+  const [open, setOpen] = useState(false);
+  const pick = (img: string | null) => {
+    setOpen(false);
+    onChange(img);
+  };
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      placement="bottomLeft"
+      content={
+        <div className="bu-gallery" role="radiogroup" aria-label={`${tx("ph_pick")}: ${name}`}>
+          {UNIT_IMAGES.map((img) => (
+            <button key={img} type="button" role="radio" aria-checked={value === img} className={`bu-gallery-item${value === img ? " is-on" : ""}`} onClick={() => pick(img)}>
+              <img src={unitThumb(img)} alt={tx("ph_photo")} width={112} height={72} loading="lazy" decoding="async" />
+              {value === img ? (
+                <span className="bu-gallery-check" aria-hidden>
+                  <Check size={12} weight="bold" />
+                </span>
+              ) : null}
+            </button>
+          ))}
+          <button type="button" role="radio" aria-checked={!value} className={`bu-gallery-item is-none${!value ? " is-on" : ""}`} onClick={() => pick(null)}>
+            <Prohibit size={20} aria-hidden />
+            <span>{tx("ph_no_photo")}</span>
+          </button>
+        </div>
+      }
+    >
+      <button type="button" className={`bu-photo${value ? "" : " is-empty"}`} aria-label={`${tx("ph_change")}: ${name}`} disabled={disabled}>
+        {value ? <img src={unitThumb(value)} alt="" width={56} height={40} loading="lazy" decoding="async" /> : <ImageSquare size={18} aria-hidden />}
+      </button>
+    </Popover>
   );
 }

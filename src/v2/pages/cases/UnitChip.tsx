@@ -4,13 +4,18 @@ import { useState } from "react";
 import type { UnitColor } from "../../../api/businessUnits.ts";
 import { PersonAvatar } from "../../components";
 import { unitTone } from "../../lib/unitLook.ts";
+import { unitThumb } from "../../lib/photos.ts";
 import "./cases.css";
 
-/** Business unit (ธุรกิจในเครือ) as a colored dot + name pill. */
-export function UnitChip({ unit, size }: { unit: { name: string; color: UnitColor | null }; size?: "sm" }) {
+/** Business unit (ธุรกิจในเครือ) as a name pill with its tiny round photo (or a colored dot without one). */
+export function UnitChip({ unit, size }: { unit: { name: string; color: UnitColor | null; imageUrl?: string | null }; size?: "sm" }) {
   return (
-    <span className={`cs-unit is-${unitTone(unit.color)}${size === "sm" ? " is-sm" : ""}`}>
-      <span className="cs-unit-dot" aria-hidden />
+    <span className={`cs-unit is-${unitTone(unit.color)}${size === "sm" ? " is-sm" : ""}${unit.imageUrl ? " has-photo" : ""}`}>
+      {unit.imageUrl ? (
+        <img className="cs-unit-photo" src={unitThumb(unit.imageUrl)} alt="" width={16} height={16} loading="lazy" decoding="async" />
+      ) : (
+        <span className="cs-unit-dot" aria-hidden />
+      )}
       <span className="cs-unit-name">{unit.name}</span>
     </span>
   );

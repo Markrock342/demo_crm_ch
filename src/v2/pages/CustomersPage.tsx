@@ -26,6 +26,7 @@ import {
 } from "../components";
 import { useUserLookup } from "../hooks/useUserLookup.ts";
 import { useBusinessUnits } from "../hooks/useBusinessUnits.ts";
+import { GoodsThumbs } from "../components/Goods.tsx";
 import { UnitChips } from "../components/UnitPicker.tsx";
 import { fmtDate } from "../lib/format.ts";
 import { CompanyMark, LaneRoute, SalesLane, SalesMobileList } from "./SalesMobileList.tsx";
@@ -169,9 +170,10 @@ export function CustomersPageV2() {
           </div>
         }
       >
-        {c.businessUnits?.length ? (
-          <div className="cz-unit-row">
+        {c.businessUnits?.length || c.commodities?.length ? (
+          <div className="cz-unit-row ph-card-row">
             <UnitChips ids={c.businessUnits} byId={bu.byId} size="sm" />
+            <GoodsThumbs items={c.commodities} />
           </div>
         ) : null}
         <LaneRoute lane={laneName(c, locale)} />

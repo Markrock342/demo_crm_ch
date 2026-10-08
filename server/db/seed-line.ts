@@ -5,7 +5,7 @@ import { caseEvents, caseSlaPolicies, cases } from "./schema/cases.js";
 import { customers } from "./schema/crm.js";
 import { businessUnits, lineChannels, lineContacts } from "./schema/inbox.js";
 import { DEMO_ORG_ID } from "../domain/tenancy.js";
-import { processLineEvent } from "../services/line-inbox.service.js";
+import { processLineEvent, type DemoChatImage } from "../services/line-inbox.service.js";
 
 /**
  * Demo business units, a 30-minute first-response SLA, and a LINE inbox with three OAs (not
@@ -17,11 +17,11 @@ import { processLineEvent } from "../services/line-inbox.service.js";
 const M = 60_000;
 
 const UNITS = [
-  { id: "bu-seed-port", name: "ท่าเรือ", color: "teal" },
-  { id: "bu-seed-depot", name: "ลานตู้เปล่า", color: "blue" },
-  { id: "bu-seed-barge", name: "เรือลำเลียง", color: "violet" },
-  { id: "bu-seed-cfs", name: "บรรจุตู้ CFS", color: "amber" },
-  { id: "bu-seed-truck", name: "รถขนส่ง", color: "rose" },
+  { id: "bu-seed-port", name: "ท่าเรือ", color: "teal", image: "/demo/unit-port.webp" },
+  { id: "bu-seed-depot", name: "ลานตู้เปล่า", color: "blue", image: "/demo/unit-depot.webp" },
+  { id: "bu-seed-barge", name: "เรือลำเลียง", color: "violet", image: "/demo/unit-barge.webp" },
+  { id: "bu-seed-cfs", name: "บรรจุตู้ CFS", color: "amber", image: "/demo/unit-cfs.webp" },
+  { id: "bu-seed-truck", name: "รถขนส่ง", color: "rose", image: "/demo/unit-truck.webp" },
 ] as const;
 
 /** Port customer service answers within 30 minutes, around the clock. */
@@ -46,7 +46,7 @@ type Chat = {
   who: string;
   customerId?: string;
   agoMin: number;
-  messages: { atMin: number; text?: string; kind?: "image" | "sticker" }[];
+  messages: { atMin: number; text?: string; kind?: "image" | "sticker"; photo?: DemoChatImage }[];
   reply?: { atMin: number; body: string; status?: "in_progress" | "waiting_customer" | "resolved" };
   priority?: "high" | "urgent";
   assignCs?: boolean;
@@ -77,7 +77,7 @@ const CHATS: Chat[] = [
     assignCs: true,
     messages: [
       { atMin: 0, text: "รถเข้าคิวรอหน้าท่า 2 ชั่วโมงแล้วครับ ยังไม่ได้เข้าเลย ช่วยเช็คให้หน่อย" },
-      { atMin: 1, kind: "image" },
+      { atMin: 1, kind: "image", photo: "truck-queue" },
     ],
     reply: { atMin: 9, body: "ขออภัยครับคุณวิชัย ตอนนี้ประสานหน้าท่าให้แล้ว รถทะเบียนในรูปจะได้เข้าคิวถัดไปภายใน 20 นาทีครับ", status: "in_progress" },
   },
@@ -88,8 +88,23 @@ const CHATS: Chat[] = [
     customerId: "mk-c06",
     agoMin: 180,
     assignCs: true,
-    messages: [{ atMin: 0, text: "ใบเสร็จค่าภาระตู้ SEGU4471230 ไม่ขึ้นในระบบ e-receipt ครับ ต้องใช้เบิกบริษัท" }],
+    messages: [
+      { atMin: 0, text: "ใบเสร็จค่าภาระตู้ SEGU4471230 ไม่ขึ้นในระบบ e-receipt ครับ ต้องใช้เบิกบริษัท" },
+      { atMin: 1, kind: "image", photo: "receipt" },
+    ],
     reply: { atMin: 14, body: "รับทราบครับ ตรวจแล้วใบเสร็จออกแล้ว รบกวนแจ้งเลขผู้เสียภาษีของบริษัทเพื่อออกใหม่ในชื่อบริษัทครับ", status: "waiting_customer" },
+  },
+  {
+    n: 6,
+    channel: "lc-seed-depot",
+    who: "สุชาติ ไทยรับเบอร์",
+    customerId: "mk-c05",
+    agoMin: 70,
+    priority: "high",
+    messages: [
+      { atMin: 0, text: "ตู้เปล่าที่รับไปเมื่อเช้า MRKU2207718 ผนังบุบ ใช้บรรจุสินค้าไม่ได้ครับ ขอเปลี่ยนตู้" },
+      { atMin: 1, kind: "image", photo: "container-damage" },
+    ],
   },
   {
     n: 5,
@@ -106,8 +121,10 @@ export async function seedLineInbox(db: Db, now = new Date()) {
   for (const [i, u] of UNITS.entries()) {
     await db
       .insert(businessUnits)
-      .values({ id: u.id, organizationId: DEMO_ORG_ID, name: u.name, color: u.color, sortOrder: (i + 1) * 10 })
+      .values({ id: u.id, organizationId: DEMO_ORG_ID, name: u.name, color: u.color, imageUrl: u.image, sortOrder: (i + 1) * 10 })
       .onConflictDoNothing({ target: businessUnits.id });
+    // Units seeded before photos existed get theirs; a photo someone picked is kept.
+    await db.update(businessUnits).set({ imageUrl: u.image }).where(and(eq(businessUnits.id, u.id), isNull(businessUnits.imageUrl)));
   }
 
   // Only when the demo company never set its own targets.
@@ -151,7 +168,7 @@ export async function seedLineInbox(db: Db, now = new Date()) {
           message: m.kind ? { id: `seed-line-${chat.n}-${i}`, type: m.kind } : { id: `seed-line-${chat.n}-${i}`, type: "text", text: m.text },
         },
         new Date(opened.getTime() + m.atMin * M),
-        { displayName: chat.who },
+        { displayName: chat.who, demoImage: m.photo },
       );
       first ??= res;
     }
@@ -226,6 +243,29 @@ export async function seedLineInbox(db: Db, now = new Date()) {
       .update(customers)
       .set({ businessUnits: units })
       .where(and(eq(customers.id, id), sql`${customers.businessUnits} = '[]'::jsonb`));
+  }
+
+  // What each demo customer ships, so customer cards show goods photos (only when still empty).
+  const goods: Record<string, string[]> = {
+    c10: ["ยางพารา"],
+    "mk-c05": ["ยางพารา"],
+    "mk-c06": ["อาหารแช่แข็ง"],
+    c9: ["อาหารแช่แข็ง", "ผลไม้"],
+    "mk-c02": ["ข้าว", "น้ำตาล"],
+    "mk-c03": ["เฟอร์นิเจอร์"],
+    "mk-c04": ["เคมีภัณฑ์"],
+    "mk-c07": ["ผลไม้"],
+    "mk-c08": ["ผลไม้"],
+    "mk-c01": ["สิ่งทอ เสื้อผ้า"],
+    c1: ["อิเล็กทรอนิกส์"],
+    c7: ["ชิ้นส่วนรถยนต์"],
+  };
+  for (const [id, list] of Object.entries(goods)) {
+    if (!custIds.has(id)) continue;
+    await db
+      .update(customers)
+      .set({ commodities: list })
+      .where(and(eq(customers.id, id), sql`${customers.commodities} = '[]'::jsonb`));
   }
 
   return { units: UNITS.length, channels: CHANNELS.length, chats };

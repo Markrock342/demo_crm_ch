@@ -16,6 +16,10 @@ import { getLineBotInfo, getLineContent, getLineProfile, replyLineWith, verifyLi
  * staff replies on that case are pushed back into the same chat (see replyToCase).
  */
 
+/** Sample customer photos shipped in public/demo/ (chat-<key>.webp). */
+export const DEMO_CHAT_IMAGES = ["truck-queue", "container-damage", "receipt", "container-seal"] as const;
+export type DemoChatImage = (typeof DEMO_CHAT_IMAGES)[number];
+
 export class LineInputError extends Error {
   code: string;
   field?: string;
@@ -308,7 +312,8 @@ export async function processLineEvent(
   token: string | null,
   ev: LineInboxEvent,
   now = new Date(),
-  opts: { displayName?: string | null } = {},
+  /** demoImage: a built-in photo (public/demo/chat-*.webp) for seed data and the test sender — no LINE download. */
+  opts: { displayName?: string | null; demoImage?: DemoChatImage } = {},
 ): Promise<InboundResult> {
   const lineUserId = ev.source?.userId;
   // 1:1 chats only; group / room chats are not customer cases.
@@ -341,8 +346,9 @@ export async function processLineEvent(
   const { kind, text } = messageContent(ev.message);
 
   // Pictures / files are copied now — LINE only keeps them for a while.
-  let media: { key: string; mime: string; size: number } | null = null;
-  if (token && (kind === "image" || kind === "file" || kind === "video" || kind === "audio") && ev.message.id) {
+  let media: { key: string; mime: string; size: number } | { url: string; mime: string } | null = null;
+  if (opts.demoImage && kind === "image") media = { url: `/demo/chat-${opts.demoImage}.webp`, mime: "image/webp" };
+  else if (token && (kind === "image" || kind === "file" || kind === "video" || kind === "audio") && ev.message.id) {
     const got = await getLineContent(token, ev.message.id);
     if (got) {
       const ext = got.mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "").slice(0, 5) || "bin";
@@ -456,7 +462,7 @@ export async function simulateLineMessage(
   organizationId: string,
   userId: string,
   channelId: string,
-  input: { name: string; text: string },
+  input: { name: string; text: string; image?: DemoChatImage },
   now = new Date(),
 ) {
   const [channel] = await db
@@ -475,6 +481,17 @@ export async function simulateLineMessage(
     now,
     { displayName: name },
   );
+  // Optional sample photo right after the text, like a customer sending a picture.
+  if (res && input.image) {
+    await processLineEvent(
+      db,
+      channel,
+      null,
+      { type: "message", source: { type: "user", userId: lineUserId }, message: { id: `sim-${randomUUID()}`, type: "image" } },
+      new Date(now.getTime() + 1000),
+      { displayName: name, demoImage: input.image },
+    );
+  }
   await writeAudit(db, { userId, organizationId, action: "LINE_TEST_MESSAGE", entityType: "line_channel", entityId: channelId, newValue: { name, caseNo: res?.caseNo } });
   return res;
 }

@@ -12,6 +12,8 @@ export const businessUnits = pgTable("business_units", {
   name: text("name").notNull(),
   /** Chip colour key (teal | blue | amber | violet | rose | slate); null = automatic. */
   color: text("color"),
+  /** Cover photo from the built-in gallery (/demo/unit-*.webp); null = colour only. */
+  imageUrl: text("image_url"),
   sortOrder: integer("sort_order").notNull().default(0),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
